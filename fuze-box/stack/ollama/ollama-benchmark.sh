@@ -360,7 +360,7 @@ bench_base_as_is(){ # ep baseTag
 bake_variant(){ # newname base num_gpu
   local newname="$1" base="$2" ng="$3"
   { echo "FROM ${base}"; echo "PARAMETER num_gpu ${ng}"; } \
-    | OLLAMA_HOST="http://${PERSISTENT_PORT}" "$OLLAMA_BIN" create -f - "$newname" \
+    | OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" create -f - "$newname" \
         >>"$CREATE_LOG" 2>&1
 }
 
