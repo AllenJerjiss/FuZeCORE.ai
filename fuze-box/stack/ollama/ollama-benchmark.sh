@@ -67,7 +67,7 @@ info(){ [ "$VERBOSE" -ne 0 ] && echo -e "${c_bold}==${c_reset} $*"; }
 ok(){ echo -e "${c_green}✔${c_reset} $*"; }
 warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
 err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
-need(){ command -v "$1" >/dev/null 2>&1 || { err "Missing dependency: $1"; exit 1; }; }
+need(){ command -v "$1" >/dev/null 2>/dev/null || { err "Missing dependency: $1"; exit 1; }; }
 
 mkdir -p "$OLLAMA_MODELS_DIR"
 need curl; need jq; need awk; need sed; need systemctl; need nvidia-smi
@@ -80,9 +80,7 @@ echo "ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx
 
 json_last_line(){ grep -E '"done":\s*true' | tail -n1; }
 gpu_table(){ nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader | sed 's/, /,/g'; }
-
 calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {printf("%.2f", ec/(ed/1e9))} }'; }
-
 curl_tags(){ local ep="$1"; curl -fsS --max-time "$TIMEOUT_TAGS" "http://${ep}/api/tags" || return 1; }
 
 # Build payload with jq (safe quoting), then POST
@@ -148,11 +146,8 @@ normalize_gpu_label(){
   local raw="$1"
   local s
   s="$(echo "$raw" | tr '[:upper:]' '[:lower:]')"
-  # strip vendor and common series words
   s="$(echo "$s" | sed -E 's/(nvidia|geforce|rtx)//g')"
-  # collapse whitespace, remove non-alnum
   s="$(echo "$s" | tr -cd '[:alnum:] \n' | tr -s ' ')"
-  # join words, force " ti" -> "ti", same for " super"
   s="$(echo "$s" | sed -E 's/ ti$/ti/; s/ super$/super/; s/ //g')"
   echo "nvidia-$s"
 }
@@ -233,11 +228,9 @@ prepare_services(){
   log "$(echo "$all" | sed 's/^/GPU: /')"
 
   # Is a daemon already on :11434?
-  if curl -fsS "http://${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
+  if curl -fsS --max-time 1 "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
     info "Using existing Ollama on :${PERSISTENT_PORT}"
-    HAVE_PERSIST=1
   else
-    HAVE_PERSIST=0
     # managed persistent downloader on :11434 (shared store)
     write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
     systemctl enable --now ollama-persist.service || true
@@ -248,7 +241,7 @@ prepare_services(){
   uuid_a="$(pick_uuid_by_name_substr "$MATCH_GPU_A" || true)"
   uuid_b="$(pick_uuid_by_name_substr "$MATCH_GPU_B" || true)"
   if [ -z "${uuid_a:-}" ] || [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then
-    warn "GPU match failed/identical — falling back to index order."
+    warn "GPU name match failed/identical — falling back to index order."
     uuid_a="$(echo "$all" | awk -F',' 'NR==1{print $2}')"
     uuid_b="$(echo "$all" | awk -F',' 'NR==2{print $2}')"
   fi
@@ -328,8 +321,11 @@ bake_variant(){ # newname base num_gpu
 
 tune_and_bench_one(){ # ep baseTag aliasBase
   local ep="$1" base="$2" alias_base="$3"
+
+  # >>> minimal change: derive GPU label BEFORE logging banner <<<
   local gpu_lbl; gpu_lbl="$(gpu_label_for_ep "$ep")"
   info "----> [${ep}] Tuning ${base} -> variants ${alias_base}-${gpu_lbl}-ng<NUM>"
+
   pull_if_missing "$base"
 
   # for visibility: ensure base is accessible on the bench endpoint (not required to create)
@@ -354,11 +350,10 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     fi
 
     # bench on the test endpoint
-    local tokps; tokps="$(bench_once "$ep" "$newname:latest" "optimized" "$ng" "$gpu_lbl" || echo "0.00")"
+    local tokps; tokps="$(bench_once "$ep" "${newname}:latest" "optimized" "$ng" "$gpu_lbl" || echo "0.00")"
     awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
 
     if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
-      first_ok=1
       ok "     First working: ${newname} at ${tokps} tok/s"
       break
     fi
