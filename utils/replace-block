@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 4 ]; then
+  echo "Usage: $(basename "$0") <FILE> <START_REGEX> <END_REGEX> <REPLACEMENT_FILE> [BACKUP_SUFFIX]" >&2
+  echo "Example: $(basename "$0") ust.sh 'echo \"== Top-10 overall by tokens/sec ==\"' '(?:DONE\\.|$)' new_block.sh .bak" >&2
+  exit 1
+fi
+
+FILE="$1"; START="$2"; END="$3"; REPL="$4"; BAK="${5:-.bak}"
+cp -a -- "$FILE" "$FILE$BAK"
+
+perl -0777 -e '
+  use strict; use warnings;
+  my ($file,$start,$end,$repl) = @ARGV;
+  local $/;
+  open my $fh, "<", $file or die "open $file: $!";
+  my $s = <$fh>;
+  open my $rf, "<", $repl or die "open $repl: $!";
+  my $R = <$rf>;
+  my $n = ($s =~ s/$start.*?(?=$end)/$R/gs)    # prefer lookahead style
+        || ($s =~ s/($start).*?($end)/$1$R$2/gs); # fallback if lookahead not used
+  $n or die "No match for start/end in $file\n";
+  open my $out, ">", $file or die "write $file: $!";
+  print {$out} $s;
+' -- "$FILE" "$START" "$END" "$REPL"
+
