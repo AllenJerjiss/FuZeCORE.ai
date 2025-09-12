@@ -1,11 +1,10 @@
-uze@fuze-bakery:~/GitHub/FuZeCORE.ai/utils$ cat replace-block 
 #!/usr/bin/env bash
 # replace-block — robust, inclusive line-anchored replacement
 # Usage:
 #   replace-block <target> <start_re> <end_re> <replacement_file> <backup_suffix>
 # Env (optional):
-#   RB_PRINT=1            # show before/after snippets
-#   VALIDATE_CMD="bash -n"  # run after replace; rollback on failure
+#   RB_PRINT=1               # show before/after snippets
+#   VALIDATE_CMD="bash -n"   # validation shell command
 
 set -euo pipefail
 
@@ -16,10 +15,10 @@ fi
 
 TARGET="$1"; START_RE="$2"; END_RE="$3"; REPL_FILE="$4"; BAK="$5"
 
-[[ -f "$TARGET"     ]] || { echo "No target: $TARGET" >&2; exit 2; }
-[[ -f "$REPL_FILE"  ]] || { echo "No replacement file: $REPL_FILE" >&2; exit 2; }
+[[ -f "$TARGET"    ]] || { echo "No target: $TARGET" >&2; exit 2; }
+[[ -f "$REPL_FILE" ]] || { echo "No replacement file: $REPL_FILE" >&2; exit 2; }
 
-# Find start line (unique)
+# Find unique start line
 mapfile -t START_MATCHES < <(grep -nE -- "$START_RE" "$TARGET" || true)
 if (( ${#START_MATCHES[@]} == 0 )); then
   echo "No match for start in $TARGET" >&2; exit 3
@@ -31,14 +30,15 @@ if (( ${#START_MATCHES[@]} > 1 )); then
 fi
 START_LN="${START_MATCHES[0]%%:*}"
 
-# Find end line (first after start)
-END_LN="$(awk -v s="$START_LN" -v re="$END_RE" 'NR>s && $0 ~ re {print NR; exit}' "$TARGET")"
-if [[ -z "$END_LN" ]]; then
+# Find first end match AFTER start, using sed+grep for robust ERE handling
+REL_END="$(sed -n "${START_LN},\$p" "$TARGET" | grep -nE -- "$END_RE" | head -n1 | cut -d: -f1 || true)"
+if [[ -z "$REL_END" ]]; then
   echo "No match for end after start (start at line $START_LN)" >&2
   exit 3
 fi
+END_LN="$(( START_LN + REL_END - 1 ))"
 
-# Preview "before"
+# Preview BEFORE
 if [[ "${RB_PRINT:-0}" == "1" ]]; then
   echo "[replace-block] BEFORE (lines ${START_LN}..${END_LN}):"
   nl -ba "$TARGET" | sed -n "${START_LN},${END_LN}p"
@@ -47,34 +47,35 @@ fi
 TMP_OUT="$(mktemp)"
 trap 'rm -f "$TMP_OUT"' EXIT
 
-# Do the inclusive replacement
-# [1 .. START_LN-1] + replacement + [END_LN+1 .. EOF]
+# Compose: [1..START-1] + replacement + [END+1..EOF]
 {
   if (( START_LN > 1 )); then sed -n "1,$((START_LN-1))p" "$TARGET"; fi
   cat "$REPL_FILE"
   sed -n "$((END_LN+1)),\$p" "$TARGET"
 } > "$TMP_OUT"
 
-# Backup & move
-cp -f -- "$TARGET" "${TARGET}${BAK}"
-mv -f -- "$TMP_OUT" "$TARGET"
+# Backup (preserve metadata)
+cp -p -- "$TARGET" "${TARGET}${BAK}"
 
-# Post-validate (optional)
+# Write back in-place to preserve mode/owner
+cat "$TMP_OUT" > "$TARGET"
+
+# Optional validation
 if [[ -n "${VALIDATE_CMD:-}" ]]; then
   if ! bash -lc "$VALIDATE_CMD \"$TARGET\""; then
     echo "[replace-block] validation failed — restoring ${TARGET}${BAK}" >&2
-    cp -f -- "${TARGET}${BAK}" "$TARGET"
+    cat "${TARGET}${BAK}" > "$TARGET"
     exit 4
   fi
 fi
 
-# Preview "after"
+# Preview AFTER
 if [[ "${RB_PRINT:-0}" == "1" ]]; then
-  # recompute anchors (they might shift)
   NEW_START="$(grep -nE -- "$START_RE" "$TARGET" | cut -d: -f1 | head -n1 || true)"
   if [[ -n "$NEW_START" ]]; then
-    NEW_END="$(awk -v s="$NEW_START" -v re="$END_RE" 'NR>s && $0 ~ re {print NR; exit}' "$TARGET")"
-    if [[ -n "$NEW_END" ]]; then
+    REL_END2="$(sed -n "${NEW_START},\$p" "$TARGET" | grep -nE -- "$END_RE" | head -n1 | cut -d: -f1 || true)"
+    if [[ -n "$REL_END2" ]]; then
+      NEW_END="$(( NEW_START + REL_END2 - 1 ))"
       echo "[replace-block] AFTER (lines ${NEW_START}..${NEW_END}):"
       nl -ba "$TARGET" | sed -n "${NEW_START},${NEW_END}p"
     fi
