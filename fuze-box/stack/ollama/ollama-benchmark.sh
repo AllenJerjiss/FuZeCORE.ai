@@ -50,6 +50,10 @@ SERVICE_HOME="${SERVICE_HOME:-/root}"
 MATCH_GPU_A="${MATCH_GPU_A:-5090}"
 MATCH_GPU_B="${MATCH_GPU_B:-3090 Ti}"
 
+# Cleanup controls
+KEEP_FAILED_VARIANTS="${KEEP_FAILED_VARIANTS:-0}"  # 0=rm failed/invisible variants
+GC_AFTER_RUN="${GC_AFTER_RUN:-1}"                  # 1=final pass GC
+
 ################################################################################
 
 readonly OLLAMA_BIN="/usr/local/bin/ollama"
@@ -58,6 +62,7 @@ readonly TS="$(date +%Y%m%d_%H%M%S)"
 readonly CSV_FILE="${LOG_DIR}/ollama_bench_${TS}.csv"
 readonly SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
 readonly CREATE_LOG="${LOG_DIR}/ollama_create_${TS}.log"
+readonly CREATED_LIST="${LOG_DIR}/ollama_created_${TS}.txt"
 readonly PULL_FROM="127.0.0.1:${PERSISTENT_PORT}"
 ENDPOINTS=("127.0.0.1:${TEST_PORT_A}" "127.0.0.1:${TEST_PORT_B}")
 
@@ -369,7 +374,16 @@ bake_variant(){ # newname base num_gpu
     "$OLLAMA_BIN" create "$newname" -f "$tf" >>"$CREATE_LOG" 2>&1
   local rc=$?
   rm -f "$tf"
+  if [ $rc -eq 0 ]; then
+    echo "$newname" >> "$CREATED_LIST"
+  fi
   return $rc
+}
+
+rm_variant_tag(){ # name[:tag]
+  local ref="$1"
+  [ "${KEEP_FAILED_VARIANTS}" -eq 1 ] && return 0
+  OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" rm "$ref" >/dev/null 2>&1 || true
 }
 
 tune_and_bench_one(){ # ep baseTag aliasBase
@@ -396,7 +410,6 @@ tune_and_bench_one(){ # ep baseTag aliasBase
 
     if ! bake_variant "$newname" "$base" "$ng"; then
       warn "     x bake failed (see ${CREATE_LOG})"
-      # surface last few lines inline for faster triage
       { echo "        └─ last create log lines:"; tail -n 8 "$CREATE_LOG" | sed 's/^/           /'; } || true
       continue
     fi
@@ -407,13 +420,25 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       systemctl restart "$(unit_for_ep "$ep")" || true
       wait_api "$ep" || true
       if ! wait_variant_visible "$ep" "${newname}:latest" 6; then
-        warn "     still not visible; skipping bench of ${newname}"
+        warn "     still not visible; removing ${newname}"
+        rm_variant_tag "${newname}:latest"
         continue
       fi
     fi
 
     # bench on the test endpoint
-    local tokps; tokps="$(bench_once "$ep" "${newname}:latest" "optimized" "$ng" "$gpu_lbl" || echo "0.00")"
+    local tokps rc
+    if tokps="$(bench_once "$ep" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then
+      :
+    else
+      tokps="0.00"; rc=1
+    fi
+
+    # If bench failed, remove tag unless keeping failures
+    if [ "${tokps}" = "0.00" ]; then
+      rm_variant_tag "${newname}:latest"
+    fi
+
     awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
 
     if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
@@ -429,6 +454,22 @@ tune_and_bench_one(){ # ep baseTag aliasBase
   else
     warn "No working num_gpu for ${base} on ${ep}"
   fi
+}
+
+gc_created_tags(){
+  [ "${GC_AFTER_RUN}" -eq 1 ] || return 0
+  [ -s "$CREATED_LIST" ] || return 0
+  local removed=0 kept=0
+  while IFS= read -r tag; do
+    # if tag never produced a CSV row with tokens_per_sec>0, purge it
+    if ! awk -F',' -v t="${tag}:latest" 'NR>1 && $7==t && $12+0>0 {found=1} END{exit !found}' "$CSV_FILE"; then
+      rm_variant_tag "${tag}:latest"
+      removed=$((removed+1))
+    else
+      kept=$((kept+1))
+    fi
+  done < "$CREATED_LIST"
+  info "GC summary: removed ${removed} stale variant(s), kept ${kept} used variant(s)."
 }
 
 ##################################### MAIN #####################################
@@ -461,6 +502,8 @@ for m in "${MODELS[@]}"; do
   done
 done
 
+gc_created_tags || true
+
 {
   echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
   echo "CSV: ${CSV_FILE}"
@@ -471,6 +514,31 @@ done
   else
     echo "No optimized variants succeeded."
   fi
+  echo
+  echo "=== Base vs Optimized (per endpoint & model) ==="
+  awk -F',' '
+    NR==1 { next }
+    {
+      key=$2 "|" $5
+      keys[key]=1
+      if ($6=="base-as-is") {
+        if ($12+0 > baseTok[key]+0) baseTok[key]=$12+0
+      } else if ($6=="optimized") {
+        if ($12+0 > optTok[key]+0) { optTok[key]=$12+0; optTag[key]=$7; optNg[key]=$8 }
+      }
+    }
+    END {
+      printf "%-18s %-20s %12s %16s  %-30s %s\n", "Endpoint", "Model", "Base tok/s", "Best opt tok/s", "Best tag", "ng"
+      for (k in keys) {
+        split(k, a, "|"); ep=a[1]; model=a[2]
+        bt = (k in baseTok) ? baseTok[k] : 0
+        ot = (k in optTok) ? optTok[k] : 0
+        mt = (k in optTag) ? optTag[k] : "-"
+        ng = (k in optNg)  ? optNg[k]  : "-"
+        printf "%-18s %-20s %12.2f %16.2f  %-30s %s\n", ep, model, bt, ot, mt, ng
+      }
+    }
+  ' "$CSV_FILE"
   echo
   echo "Top-5 runs overall (by tokens/sec) from CSV:"
   tail -n +2 "$CSV_FILE" | sort -t',' -k12,12gr | head -n5 \
