@@ -67,7 +67,7 @@ info(){ [ "$VERBOSE" -ne 0 ] && echo -e "${c_bold}==${c_reset} $*"; }
 ok(){ echo -e "${c_green}✔${c_reset} $*"; }
 warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
 err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
-need(){ command -v "$1" >/dev/null 2>/dev/null || { err "Missing dependency: $1"; exit 1; }; }
+need(){ command -v "$1" >/dev/null 2>&1 || { err "Missing dependency: $1"; exit 1; }; }
 
 mkdir -p "$OLLAMA_MODELS_DIR"
 need curl; need jq; need awk; need sed; need systemctl; need nvidia-smi
@@ -80,7 +80,9 @@ echo "ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx
 
 json_last_line(){ grep -E '"done":\s*true' | tail -n1; }
 gpu_table(){ nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader | sed 's/, /,/g'; }
+
 calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {printf("%.2f", ec/(ed/1e9))} }'; }
+
 curl_tags(){ local ep="$1"; curl -fsS --max-time "$TIMEOUT_TAGS" "http://${ep}/api/tags" || return 1; }
 
 # Build payload with jq (safe quoting), then POST
@@ -89,6 +91,12 @@ curl_gen(){
   local payload
   payload="$(jq -n --arg m "$model" --arg p "$prompt" --argjson o "$opts_json" '{model:$m, options:$o, prompt:$p}')"
   curl -sS --max-time "$to" -H 'Content-Type: application/json' -d "$payload" "http://${ep}/api/generate" || return 1
+}
+
+# Small helper: print a key from systemd unit Environment= line
+service_env(){
+  local unit="$1" key="$2"
+  systemctl show "$unit" -p Environment 2>/dev/null | tr '\n' ' ' | sed -nE "s/.*${key}=([^ ]+).*/\1/p"
 }
 
 unit_for_ep(){
@@ -146,8 +154,11 @@ normalize_gpu_label(){
   local raw="$1"
   local s
   s="$(echo "$raw" | tr '[:upper:]' '[:lower:]')"
+  # strip vendor and common series words
   s="$(echo "$s" | sed -E 's/(nvidia|geforce|rtx)//g')"
+  # collapse whitespace, remove non-alnum
   s="$(echo "$s" | tr -cd '[:alnum:] \n' | tr -s ' ')"
+  # join words, force " ti" -> "ti", same for " super"
   s="$(echo "$s" | sed -E 's/ ti$/ti/; s/ super$/super/; s/ //g')"
   echo "nvidia-$s"
 }
@@ -192,6 +203,8 @@ Environment=OLLAMA_HOST=127.0.0.1:${listen}
 Environment=OLLAMA_MODELS=${OLLAMA_MODELS_DIR}
 ${uuid_env:+Environment=CUDA_VISIBLE_DEVICES=${uuid_env}}
 ExecStart=${OLLAMA_BIN} serve
+ExecStartPre=/usr/bin/mkdir -p ${OLLAMA_MODELS_DIR}
+WorkingDirectory=${OLLAMA_MODELS_DIR}
 Restart=always
 RestartSec=2s
 LimitNOFILE=1048576
@@ -220,6 +233,25 @@ pick_uuid_by_name_substr(){
   done
 }
 
+# Wait until a created variant becomes visible on a test endpoint.
+# Restarts the test unit once if not seen halfway through the wait.
+wait_variant_visible(){
+  local ep="$1" variant="$2" secs="${3:-12}" i=0
+  local unit; unit="$(unit_for_ep "$ep")"
+  while [ "$i" -lt "$secs" ]; do
+    if curl -fsS "http://${ep}/api/tags" | jq -r '.models[].name' | grep -Fxq "$variant"; then
+      return 0
+    fi
+    if [ "$i" -eq $((secs/2)) ]; then
+      systemctl restart "$unit" || true
+      wait_api "$ep" || true
+    fi
+    sleep 1
+    i=$((i+1))
+  done
+  return 1
+}
+
 prepare_services(){
   info "Preparing directories and services"
   mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"
@@ -228,9 +260,11 @@ prepare_services(){
   log "$(echo "$all" | sed 's/^/GPU: /')"
 
   # Is a daemon already on :11434?
-  if curl -fsS --max-time 1 "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
     info "Using existing Ollama on :${PERSISTENT_PORT}"
+    HAVE_PERSIST=1
   else
+    HAVE_PERSIST=0
     # managed persistent downloader on :11434 (shared store)
     write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
     systemctl enable --now ollama-persist.service || true
@@ -251,6 +285,10 @@ prepare_services(){
 
   systemctl enable --now ollama-test-a.service || true
   systemctl enable --now ollama-test-b.service || true
+
+  # Log which model dir each test daemon is actually using
+  info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS)"
+  info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS)"
 
   info "Waiting for APIs"
   wait_api "127.0.0.1:${PERSISTENT_PORT}" || warn "API :${PERSISTENT_PORT} not reachable yet"
@@ -308,6 +346,13 @@ bench_base_as_is(){ # ep baseTag
   local gpu_lbl; gpu_lbl="$(gpu_label_for_ep "$ep")"
   systemctl restart "$unit" || true
   wait_api "$ep" || { warn "API $ep not up for base-as-is"; return 1; }
+  # If base not visible on test endpoint, try one fast restart+wait
+  if ! curl_tags "$ep" | jq -r '.models[].name' 2>/dev/null | grep -Fxq "$base"; then
+    warn "Base ${base} NOT visible on ${ep}; restarting test service once..."
+    systemctl restart "$unit" || true
+    wait_api "$ep" || true
+    sleep 2
+  fi
   bench_once "$ep" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
 }
 
@@ -321,11 +366,8 @@ bake_variant(){ # newname base num_gpu
 
 tune_and_bench_one(){ # ep baseTag aliasBase
   local ep="$1" base="$2" alias_base="$3"
-
-  # >>> minimal change: derive GPU label BEFORE logging banner <<<
   local gpu_lbl; gpu_lbl="$(gpu_label_for_ep "$ep")"
   info "----> [${ep}] Tuning ${base} -> variants ${alias_base}-${gpu_lbl}-ng<NUM>"
-
   pull_if_missing "$base"
 
   # for visibility: ensure base is accessible on the bench endpoint (not required to create)
@@ -346,7 +388,20 @@ tune_and_bench_one(){ # ep baseTag aliasBase
 
     if ! bake_variant "$newname" "$base" "$ng"; then
       warn "     x bake failed (see ${CREATE_LOG})"
+      # surface last few lines inline for faster triage
+      { echo "        └─ last create log lines:"; tail -n 8 "$CREATE_LOG" | sed 's/^/           /'; } || true
       continue
+    fi
+
+    # Ensure the newly created variant is visible on the target test endpoint
+    if ! wait_variant_visible "$ep" "${newname}:latest"; then
+      warn "     variant ${newname}:latest not visible on ${ep} after wait; restarting test service"
+      systemctl restart "$(unit_for_ep "$ep")" || true
+      wait_api "$ep" || true
+      if ! wait_variant_visible "$ep" "${newname}:latest" 6; then
+        warn "     still not visible; skipping bench of ${newname}"
+        continue
+      fi
     fi
 
     # bench on the test endpoint
@@ -354,6 +409,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
 
     if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
+      first_ok=1
       ok "     First working: ${newname} at ${tokps} tok/s"
       break
     fi
@@ -382,7 +438,7 @@ wait_api "$PULL_FROM" || { err "Persistent API ${PULL_FROM} not reachable"; exit
 for ep in "${ENDPOINTS[@]}"; do
   restart_ep "$ep" || true
   wait_api "$ep" || warn "API $ep is not up yet (continuing)"
-done
+enddone || true  # guard in case ENDPOINTS empty
 
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"
