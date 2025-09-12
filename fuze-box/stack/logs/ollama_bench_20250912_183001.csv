@@ -1,3 +1,0 @@
-ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib
-2025-09-12T18:30:51+00:00,127.0.0.1:11435,ollama-test-a.service,A,llama4:16x17b,optimized,llama4-16x17b-nvidia-5090-ng24:latest,24,1024,32,256,18.72,nvidia-5090,NVIDIA GeForce RTX 5090,GPU-f869acd6-5d4a-7fb5-6be9-f88e5bd9459d,32607
-2025-09-12T18:31:05+00:00,127.0.0.1:11435,ollama-test-a.service,A,llama4:16x17b,optimized,llama4-16x17b-nvidia-5090-ng16:latest,16,1024,32,256,15.41,nvidia-5090,NVIDIA GeForce RTX 5090,GPU-f869acd6-5d4a-7fb5-6be9-f88e5bd9459d,32607

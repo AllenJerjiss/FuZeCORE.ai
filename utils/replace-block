@@ -1,3 +1,4 @@
+uze@fuze-bakery:~/GitHub/FuZeCORE.ai/utils$ cat replace-block 
 #!/usr/bin/env bash
 # replace-block — robust, inclusive line-anchored replacement
 # Usage:
