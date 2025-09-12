@@ -356,12 +356,20 @@ bench_base_as_is(){ # ep baseTag
   bench_once "$ep" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
 }
 
-# Create optimized variant with a transient Modelfile (built via :11434)
+# Create optimized variant with a temp Modelfile (built via :11434)
 bake_variant(){ # newname base num_gpu
   local newname="$1" base="$2" ng="$3"
-  { echo "FROM ${base}"; echo "PARAMETER num_gpu ${ng}"; } \
-    | OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" create "$newname" -f - \
-        >>"$CREATE_LOG" 2>&1
+  local tf
+  tf="$(mktemp)" || return 1
+  {
+    echo "FROM ${base}"
+    echo "PARAMETER num_gpu ${ng}"
+  } >"$tf"
+  OLLAMA_HOST="http://${PULL_FROM}" \
+    "$OLLAMA_BIN" create "$newname" -f "$tf" >>"$CREATE_LOG" 2>&1
+  local rc=$?
+  rm -f "$tf"
+  return $rc
 }
 
 tune_and_bench_one(){ # ep baseTag aliasBase
