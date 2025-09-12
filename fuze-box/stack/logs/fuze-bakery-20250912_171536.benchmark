@@ -1,0 +1,18 @@
+=== Final Summary @ fuze-bakery 20250912_171536 ===
+CSV: /home/fuze/GitHub/FuZeCORE.ai/fuze-box/stack/logs/ollama_bench_20250912_171536.csv
+
+No optimized variants succeeded.
+
+=== Base vs Optimized (per endpoint & model) ===
+Endpoint           Model                  Base tok/s   Best opt tok/s  Best tag                       ng
+127.0.0.1:11435    llama4:16x17b               18.75            20.31  llama4-16x17b-nvidia-5090-ng24:latest 24
+127.0.0.1:11436    llama4:16x17b                0.00            15.27  llama4-16x17b-nvidia-3090ti-ng16:latest 16
+127.0.0.1:11436    deepseek-r1:70b              3.64             4.16  deepseek-r1-70b-nvidia-3090ti-ng40:latest 40
+127.0.0.1:11435    deepseek-r1:70b              0.00             8.71  deepseek-r1-70b-nvidia-5090-ng56:latest 56
+
+Top-5 runs overall (by tokens/sec) from CSV:
+  A  llama4:16x17b      optimized                    nvidia-5090     20.31 tok/s  (2025-09-12T17:16:23+00:00 127.0.0.1:11435 ngpu=24)
+  A  llama4:16x17b      base-as-is                   nvidia-5090     18.75 tok/s  (2025-09-12T17:16:03+00:00 127.0.0.1:11435 ngpu=default)
+  A  llama4:16x17b      optimized                    nvidia-5090     16.70 tok/s  (2025-09-12T17:16:38+00:00 127.0.0.1:11435 ngpu=16)
+  B  llama4:16x17b      optimized                    nvidia-3090ti   15.27 tok/s  (2025-09-12T17:17:23+00:00 127.0.0.1:11436 ngpu=16)
+  A  deepseek-r1:70b    optimized                    nvidia-5090      8.71 tok/s  (2025-09-12T17:18:30+00:00 127.0.0.1:11435 ngpu=56)

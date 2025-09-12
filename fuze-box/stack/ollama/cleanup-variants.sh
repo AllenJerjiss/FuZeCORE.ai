@@ -1,166 +1,191 @@
 #!/usr/bin/env bash
-# Robust patcher for cleanup-variants.sh CLI parse block
+# cleanup-variants.sh
+# Remove benchmark-created Ollama variants named like: <alias>-nvidia-<gpu>-ng<NUM>[:tag]
+# Safe by default (dry-run). Use --force to actually delete.
+
 set -euo pipefail
 
-# -------------------- config & args --------------------
-TARGET_FILE="${1:-}"
-BACKUP_EXT="${BACKUP_EXT:-.bak}"
-REPLACE_BIN="${REPLACE_BIN:-}"
+###############################################################################
+# Defaults (override via flags)
+###############################################################################
+HOSTS="127.0.0.1:11434"                       # space-separated list
+MATCH_RE='.*-nvidia-.*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete
+KEEP_RE=''                                     # exclude anything matching this
+CREATED_LIST=''                                # optional file: only delete names listed here
+FORCE=0                                        # 0=dry-run, 1=delete
+YES=0                                          # suppress prompt if FORCE=1
+OLLAMA_BIN="${OLLAMA_BIN:-$(command -v ollama || true)}"
 
+###############################################################################
+usage() {
+  cat <<USAGE
+Usage: $(basename "$0") [options]
+
+Options:
+  --hosts "h1:port h2:port"   Hosts to clean (default: "$HOSTS")
+  --match REGEX               Regex of names to remove (default: $MATCH_RE)
+  --keep  REGEX               Regex of names to keep (exclude)
+  --from-created FILE         Only remove names present in this file
+                              (lines like: my-variant-name OR my-variant-name:latest)
+  --force                     Actually delete (otherwise dry-run)
+  --yes                       Don't prompt when --force is set
+  --ollama-bin PATH           Path to ollama binary (default: auto-detect)
+  -h|--help                   This help
+
+Examples:
+  Dry run (show what would be removed on local daemon):
+    $(basename "$0")
+
+  Actually delete on local + another host, but keep any "golden" variants:
+    $(basename "$0") --hosts "127.0.0.1:11434 10.0.0.12:11434" \\
+      --keep 'golden|pinned' --force --yes
+
+  Remove only variants previously created by the benchmark:
+    $(basename "$0") --from-created /path/to/ollama_created_*.txt --force --yes
+USAGE
+}
+
+###############################################################################
+# Parse CLI
+###############################################################################
 while [ $# -gt 0 ]; do
   case "$1" in
-    --target) TARGET_FILE="$2"; shift 2;;
-    --replace-bin) REPLACE_BIN="$2"; shift 2;;
-    *) [ -z "${TARGET_FILE:-}" ] && TARGET_FILE="$1"; shift;;
-  esac
-done
-
-: "${TARGET_FILE:=$HOME/GitHub/FuZeCORE.ai/fuze-box/stack/ollama/cleanup-variants.sh}"
-
-# Find replace-block if not given
-if [ -z "${REPLACE_BIN}" ]; then
-  if command -v replace-block >/dev/null 2>&1; then
-    REPLACE_BIN="$(command -v replace-block)"
-  elif [ -x "$HOME/GitHub/FuZeCORE.ai/utils/replace-block" ]; then
-    REPLACE_BIN="$HOME/GitHub/FuZeCORE.ai/utils/replace-block"
-  else
-    REPLACE_BIN=""
-  fi
-fi
-
-[ -f "$TARGET_FILE" ] || { echo "ERROR: target not found: $TARGET_FILE"; exit 1; }
-
-echo "[1/6] Using:"
-echo "       TARGET_FILE = $TARGET_FILE"
-echo "       BACKUP_EXT  = $BACKUP_EXT"
-echo "       REPLACE_BIN = ${REPLACE_BIN:-<none; will fallback>}"
-echo
-
-# -------------------- anchors --------------------
-# Start at the 'while [ $# -gt 0 ]; do' line
-START_RE='^[[:space:]]*while[[:space:]]+\[[[:space:]]*\$#[[:space:]]*-gt[[:space:]]*0[[:space:]]*\][[:space:]]*;[[:space:]]*do[[:space:]]*$'
-# End at 'done' (optionally followed by '|| true' and an optional trailing ';')
-END_RE='^[[:space:]]*done([[:space:]]*\|\|[[:space:]]*true)?[[:space:]]*;?[[:space:]]*$'
-
-# -------------------- patch content (with markers for idempotency) --------------------
-PATCH_FILE="$(mktemp)"
-TMP_OUT="$(mktemp)"
-trap 'rm -f "$PATCH_FILE" "$TMP_OUT" 2>/dev/null || true' EXIT
-
-cat > "$PATCH_FILE" <<'PATCH'
-# >>> RB_PATCH: cleanup-variants arg-parse (BEGIN)
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --hosts)       HOSTS="$2"; shift 2;;
-    --match)       MATCH_RE="$2"; shift 2;;
-    --keep)        KEEP_RE="$2"; shift 2;;
-    --force)       FORCE=1; shift 1;;
-    --ollama-bin)  OLLAMA_BIN="$2"; shift 2;;
-    -h|--help)     usage; exit 0;;
+    --hosts)        HOSTS="$2"; shift 2;;
+    --match)        MATCH_RE="$2"; shift 2;;
+    --keep)         KEEP_RE="$2"; shift 2;;
+    --from-created) CREATED_LIST="$2"; shift 2;;
+    --force)        FORCE=1; shift;;
+    --yes)          YES=1; shift;;
+    --ollama-bin)   OLLAMA_BIN="$2"; shift 2;;
+    -h|--help)      usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
 done
-# <<< RB_PATCH: cleanup-variants arg-parse (END)
-PATCH
 
-# If marker already present, skip
-if grep -qF '>>> RB_PATCH: cleanup-variants arg-parse (BEGIN)' "$TARGET_FILE"; then
-  echo "[skip] Marker already present; no changes made."
-  exit 0
-fi
-
-# Pre-fix the 'endesac' typo if present
-if grep -q '\bendesac\b' "$TARGET_FILE"; then
-  echo "[pre] Found 'endesac' typo; fixing globally before patch…"
-  cp -p "$TARGET_FILE" "${TARGET_FILE}${BACKUP_EXT}.pre"
-  sed -i 's/\bendesac\b/esac/g' "$TARGET_FILE"
-fi
-
-echo "[2/6] Locate anchors…"
-start_ln="$(grep -nE "$START_RE" "$TARGET_FILE" | head -n1 | cut -d: -f1 || true)"
-if [ -z "$start_ln" ]; then
-  echo "    ! start anchor not found. Aborting for safety."
+if [ -z "${OLLAMA_BIN:-}" ] || [ ! -x "$OLLAMA_BIN" ]; then
+  echo "ERROR: 'ollama' not found. Set --ollama-bin PATH or put it in \$PATH." >&2
   exit 1
 fi
-rel_end="$(sed -n "${start_ln},\$p" "$TARGET_FILE" | grep -nE "$END_RE" | head -n1 | cut -d: -f1 || true)"
-if [ -z "$rel_end" ]; then
-  echo "    ! end anchor not found after start. Aborting for safety."
-  exit 1
-fi
-end_ln="$((start_ln + rel_end - 1))"
-echo "    ✓ anchors OK (lines ${start_ln}..${end_ln}). Snippet:"
-nl -ba "$TARGET_FILE" | sed -n "${start_ln},${end_ln}p" | sed 's/^/      | /'
-echo
 
-echo "[3/6] Apply patch…"
-# Try replace-block first
-APPLIED=0
-if [ -n "$REPLACE_BIN" ]; then
-  if "$REPLACE_BIN" "$TARGET_FILE" "$START_RE" "$END_RE" "$PATCH_FILE" "$BACKUP_EXT"; then
-    echo "    ✓ replace-block applied."
-    APPLIED=1
+need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }; }
+need curl
+need jq
+need awk
+need sed
+
+###############################################################################
+# Helpers
+###############################################################################
+_strip_latest() { sed -E 's/:latest$//'; }
+
+fetch_names() { # host -> prints model names (with tag if present) or nothing on error
+  local host="$1"
+  curl -fsS --max-time 5 "http://${host}/api/tags" \
+    | jq -r '.models[]?.name' 2>/dev/null || true
+}
+
+# Normalize a list against CREATED_LIST (if provided):
+filter_by_created_list() {
+  if [ -z "${CREATED_LIST:-}" ]; then cat; return 0; fi
+  [ -f "$CREATED_LIST" ] || { echo "WARN: created-list not found: $CREATED_LIST (ignored)" >&2; cat; return 0; }
+  # Build a normalized set from created-list (strip any :latest)
+  awk 'NF{print $0}' "$CREATED_LIST" | _strip_latest | sort -u > /tmp/created.$$.lst
+  # Keep only names whose base matches one of created list lines
+  awk 'NF{print $0}' \
+    | awk -F':' '{print $1}' \
+    | grep -Fxf /tmp/created.$$.lst || true
+  rm -f /tmp/created.$$.lst
+}
+
+apply_match_keep() { # stdin list -> stdout filtered
+  if [ -n "$MATCH_RE" ]; then
+    grep -E "$MATCH_RE" || true
   else
-    echo "    ! replace-block failed; falling back to manual splice."
+    cat
+  fi | if [ -n "$KEEP_RE" ]; then
+        grep -Ev "$KEEP_RE" || true
+      else
+        cat
+      fi
+}
+
+confirm_or_die() {
+  local count="$1" host="$2"
+  if [ "$FORCE" -eq 0 ]; then
+    echo "[dry-run] Would remove $count models on ${host}."
+    return 1
   fi
-fi
+  if [ "$YES" -eq 1 ]; then
+    return 0
+  fi
+  read -r -p "Delete $count models on ${host}? Type 'yes' to proceed: " ans
+  [ "$ans" = "yes" ]
+}
 
-# Manual splice fallback (and also path to post-fix double 'done')
-if [ "$APPLIED" -eq 0 ]; then
-  cp -p "$TARGET_FILE" "${TARGET_FILE}${BACKUP_EXT}"
-  # pre, patch, post
-  [ "$start_ln" -gt 1 ] && head -n "$((start_ln-1))" "$TARGET_FILE" > "$TMP_OUT" || : > "$TMP_OUT"
-  cat "$PATCH_FILE" >> "$TMP_OUT"
-  tail -n "+$((end_ln+1))" "$TARGET_FILE" >> "$TMP_OUT"
-  cat "$TMP_OUT" > "$TARGET_FILE"
-  echo "    ✓ manual splice applied."
-fi
+delete_one() { # host name
+  local host="$1" name="$2"
+  OLLAMA_HOST="http://${host}" "$OLLAMA_BIN" rm "$name" >/dev/null 2>&1 || \
+  { case "$name" in *:*) return 1;; *) OLLAMA_HOST="http://${host}" "$OLLAMA_BIN" rm "${name}:latest" >/dev/null 2>&1 || return 1;; esac; }
+  return 0
+}
 
-# -------------------- post-fix: duplicate 'done' right after block --------------------
-# If the very next non-empty line after the patched block is another 'done…', remove it.
-# Recompute end of our new block using the END marker we placed.
-blk_start="$(grep -nF '>>> RB_PATCH: cleanup-variants arg-parse (BEGIN)' "$TARGET_FILE" | head -n1 | cut -d: -f1)"
-blk_end="$(sed -n "${blk_start},\$p" "$TARGET_FILE" | grep -nF '# <<< RB_PATCH: cleanup-variants arg-parse (END)' | head -n1 | cut -d: -f1)"
-if [ -n "$blk_start" ] && [ -n "$blk_end" ]; then
-  blk_end_abs="$((blk_start + blk_end - 1))"
-  # find next non-empty line index after our block
-  next_nonempty="$(awk -v s="$blk_end_abs" 'NR>s && $0 !~ /^[[:space:]]*$/ {print NR; exit}' "$TARGET_FILE" || true)"
-  if [ -n "$next_nonempty" ]; then
-    if sed -n "${next_nonempty}p" "$TARGET_FILE" | grep -Eq "$END_RE"; then
-      echo "    • Removing duplicate 'done' at line $next_nonempty"
-      cp -p "$TARGET_FILE" "${TARGET_FILE}${BACKUP_EXT}.dedup"
-      # delete that single line
-      awk -v del="$next_nonempty" 'NR!=del{print $0}' "$TARGET_FILE" > "$TMP_OUT"
-      cat "$TMP_OUT" > "$TARGET_FILE"
+###############################################################################
+# Main
+###############################################################################
+total_removed=0
+total_candidates=0
+
+for host in $HOSTS; do
+  echo "== Host ${host} =="
+  names="$(fetch_names "$host")"
+  if [ -z "$names" ]; then
+    echo "  (no models or host unreachable)"
+    continue
+  fi
+
+  # Build candidate list:
+  # 1) if created-list provided, restrict to those
+  # 2) apply match regex
+  # 3) exclude keep regex
+  candidates="$(printf "%s\n" "$names" \
+      | filter_by_created_list \
+      | apply_match_keep \
+      | sort -u)"
+  if [ -z "$candidates" ]; then
+    echo "  Nothing matched."
+    continue
+  fi
+
+  n_candidates="$(printf "%s\n" "$candidates" | awk 'NF' | wc -l | awk '{print $1}')"
+  total_candidates=$((total_candidates + n_candidates))
+
+  echo "  Candidates to remove (${n_candidates}):"
+  printf "    %s\n" $candidates
+
+  if ! confirm_or_die "$n_candidates" "$host"; then
+    echo "  Skipped (dry-run)."
+    continue
+  fi
+
+  removed=0
+  # Delete both with and without :latest where applicable
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if delete_one "$host" "$name"; then
+      echo "  - removed: $name"
+      removed=$((removed+1))
+    else
+      echo "  - failed : $name"
     fi
-  fi
-fi
+  done <<< "$candidates"
+
+  echo "  Removed on ${host}: ${removed}/${n_candidates}"
+  total_removed=$((total_removed + removed))
+done
+
 echo
-
-echo "[4/6] Validate shell syntax…"
-if bash -n "$TARGET_FILE"; then
-  echo "    ✓ bash -n OK"
-else
-  echo "    ✖ bash -n failed — restoring backup and showing context."
-  # restore main backup (created by replace-block or our manual splice)
-  if [ -f "${TARGET_FILE}${BACKUP_EXT}" ]; then
-    cp -p "${TARGET_FILE}${BACKUP_EXT}" "$TARGET_FILE"
-    echo "    • restored ${TARGET_FILE}${BACKUP_EXT} -> ${TARGET_FILE}"
-  fi
-  # print 20 lines around the first 'syntax error near unexpected token'
-  # shellcheck disable=SC2001
-  err_line="$(bash -n "$TARGET_FILE" 2>&1 | sed -n 's/.*line \([0-9]\+\).*/\1/p' | head -n1 || true)"
-  if [ -n "$err_line" ]; then
-    lo=$(( err_line>10 ? err_line-10 : 1 ))
-    hi=$(( err_line+10 ))
-    echo "    • context lines ${lo}-${hi}:"
-    nl -ba "$TARGET_FILE" | sed -n "${lo},${hi}p" | sed 's/^/      | /'
-  fi
-  exit 1
+echo "Summary: candidates=${total_candidates}, removed=${total_removed} (FORCE=${FORCE})"
+if [ "$FORCE" -eq 0 ]; then
+  echo "Nothing was deleted. Re-run with --force (and optionally --yes) to remove."
 fi
-
-echo "[5/6] Ensure executable bit…"
-chmod +x "$TARGET_FILE"
-echo "    ✓ executable set"
-
-echo "[6/6] Done."
 
