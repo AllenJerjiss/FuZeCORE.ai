@@ -1,82 +1,123 @@
 #!/usr/bin/env bash
 # triton-benchmark.sh
+# Baseline Triton perf using perf_analyzer if available.
+# - Assumes a running tritonserver on HTTP :8000 (A) and :8001 (B) (override via env)
+# - Uses perf_analyzer to get throughput (infer/sec); we record it as tokens/sec baseline
+# - Same CSV header/summary format as other stacks
+
 set -euo pipefail
 
-STACK="triton"
-LOG_DIR="${LOG_DIR:-/FuZe/logs}"
-RUN_TS="${RUN_TS:-$(date +%Y%m%d_%H%M%S)}"
-CSV_FILE="${LOG_DIR}/${STACK}_bench_${RUN_TS}.csv"
-echo "ts,stack,endpoint,unit,suffix,gpu_label,model,variant,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_name,gpu_uuid,gpu_mem_mib,notes" >"$CSV_FILE"
+########## PATH ROOTS ##########################################################
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
+mkdir -p "$LOG_DIR"
 
-TRITON_MODEL_REPO="${TRITON_MODEL_REPO:-}"   # e.g. /opt/triton-model-repo
-TRITON_IMAGE="${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.05-py3}"
-MODEL_NAME="${MODEL_NAME:-tllm_llama}"       # directory name in model repo
-CTX="${CTX:-1024}"
-BATCH="${BATCH:-32}"
-PRED="${PRED:-256}"
+########## CONFIG (override with env) ##########################################
+TRITON_HTTP_A="${TRITON_HTTP_A:-127.0.0.1:8000}"
+TRITON_HTTP_B="${TRITON_HTTP_B:-127.0.0.1:8001}"
 
-if [ -z "$TRITON_MODEL_REPO" ] || [ ! -d "$TRITON_MODEL_REPO" ]; then
-  echo "! TRITON_MODEL_REPO not set or missing. Skipping Triton."
-  exit 0
+# Models to test (Triton model repository names)
+# Override or export TRITON_MODELS=(name1|alias1 name2|alias2 ...)
+TRITON_MODELS=(${TRITON_MODELS:-"llama|llama4-16x17b" "deepseek|deepseek-r1-70b" "llama-128|llama4-128x17b"})
+
+# perf_analyzer params
+CONCURRENCY="${CONCURRENCY:-1}"
+BATCH="${BATCH:-1}"
+REQUEST_COUNT="${REQUEST_COUNT:-200}"   # perf window in requests; increase for stability
+TIMEOUT_SECS="${TIMEOUT_SECS:-60}"
+
+VERBOSE="${VERBOSE:-1}"
+
+########## OUTPUT ##############################################################
+HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
+TS="$(date +%Y%m%d_%H%M%S)"
+CSV_FILE="${LOG_DIR}/triton_bench_${TS}.csv"
+SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
+
+########## UTILS ###############################################################
+c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
+log(){ echo -e "$*"; }
+info(){ [ "${VERBOSE}" -ne 0 ] && echo -e "${c_bold}==${c_reset} $*"; }
+ok(){ echo -e "${c_green}✔${c_reset} $*"; }
+warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
+err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
+
+need(){ command -v "$1" >/dev/null 2>&1 || { err "Missing dependency: $1"; exit 1; }; }
+need curl; need awk; need sed
+
+perf_bin="$(command -v perf_analyzer || true)"
+if [ -z "$perf_bin" ]; then
+  warn "perf_analyzer not found. Please install Triton SDK tools; will still write CSV with 0.00 results."
 fi
-if ! command -v docker >/dev/null 2>&1; then
-  echo "! docker not found. Skipping Triton."
-  exit 0
-fi
 
-gpu_table(){ nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader | sed 's/, /,/g'; }
-gpu_label(){
-  local name="$(echo "$1" | tr 'A-Z' 'a-z')"
-  local suffix="$(echo "$name" | sed -E 's/.*rtx[[:space:]]*([0-9]{4}([[:space:]]*ti)?).*/\1/' | tr -d ' ')"
-  [ -z "$suffix" ] && suffix="$(echo "$name" | grep -oE '[0-9]{4}(ti)?' | head -n1)"
-  suffix="$(echo "$suffix" | tr -d ' ')"
-  [ -z "$suffix" ] && { echo "nvidia"; return; }
-  echo "nvidia-${suffix}"
+wait_ready(){ # host:port
+  local hp="$1" t=0
+  while [ "$t" -lt 30 ]; do
+    curl -fsS "http://${hp}/v2/health/ready" >/dev/null 2>&1 && return 0
+    sleep 1; t=$((t+1))
+  done
+  return 1
 }
 
-# Start Triton (ephemeral)
-CONTAINER_NAME="triton-${RUN_TS}"
-docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-docker run -d --gpus all --name "$CONTAINER_NAME" \
-  -p8000:8000 -p8001:8001 -p8002:8002 \
-  -v "${TRITON_MODEL_REPO}:/models" \
-  "$TRITON_IMAGE" tritonserver --model-repository=/models >/dev/null
+bench_once(){ # endpoint alias base_tag model_name
+  local ep="$1" alias="$2" base="$3" model="$4"
+  local sfx="X"; [ "${ep##*:}" = "${TRITON_HTTP_A##*:}" ] && sfx="A"; [ "${ep##*:}" = "${TRITON_HTTP_B##*:}" ] && sfx="B"
 
-# Wait a bit for readiness
-for i in {1..30}; do
-  curl -fsS http://127.0.0.1:8000/v2/health/ready >/dev/null 2>&1 && break
-  sleep 1
+  local tokps="0.00"
+  if [ -n "$perf_bin" ]; then
+    # Use perf_analyzer throughput (infer/sec) as a proxy for tokens/sec baseline
+    # Note: For LLMs you might feed proper JSON/shape configs; this is a generic baseline.
+    local out
+    out="$("$perf_bin" -m "$model" -u "$ep" -i HTTP \
+            --concurrency-range "$CONCURRENCY" \
+            -b "$BATCH" --request-interval-us 0 \
+            -p "$REQUEST_COUNT" -v 0 2>/dev/null || true)"
+    local tput
+    tput="$(echo "$out" | awk '/Throughput:/ {print $2}' | tail -n1)"
+    if [[ "$tput" =~ ^[0-9.]+$ ]]; then
+      tokps="$(awk -v x="$tput" 'BEGIN{printf "%.2f", x}')"
+    fi
+  fi
+
+  # We don’t have GPU binding info here; leave gpu_label empty and num_gpu as 'default'
+  echo "$(date -Iseconds),$ep,proc,$sfx,$base,base-as-is,$model,default,NA,$BATCH,NA,$tokps,,,,," >>"$CSV_FILE"
+  ok "[bench] ${sfx}  ${model}  ->  ${tokps} (perf_analyzer throughput)"
+}
+
+##################################### MAIN #####################################
+echo "ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib" >"$CSV_FILE"
+
+echo -e "${c_bold}== Triton perf ==${c_reset}"
+echo "Endpoints  : A=${TRITON_HTTP_A}  B=${TRITON_HTTP_B}"
+echo "CSV        : $CSV_FILE"
+echo
+
+for pair in "${TRITON_MODELS[@]}"; do
+  name="${pair%%|*}"
+  alias_base="${pair#*|}"
+
+  if wait_ready "$TRITON_HTTP_A"; then
+    bench_once "$TRITON_HTTP_A" "$alias_base" "$alias_base" "$name" || true
+  else
+    warn "A not ready: $TRITON_HTTP_A"
+  fi
+  if wait_ready "$TRITON_HTTP_B"; then
+    bench_once "$TRITON_HTTP_B" "$alias_base" "$alias_base" "$name" || true
+  else
+    warn "B not ready: $TRITON_HTTP_B"
+  fi
 done
 
-if ! curl -fsS http://127.0.0.1:8000/v2/health/ready >/dev/null 2>&1; then
-  echo "! Triton server failed to get ready; skipping."
-  docker logs --tail 100 "$CONTAINER_NAME" || true
-  docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-  exit 0
-fi
+{
+  echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
+  echo "CSV: ${CSV_FILE}"
+  echo
+  echo "Top-5 runs overall (by tokens/sec) from CSV:"
+  tail -n +2 "$CSV_FILE" | sort -t',' -k12,12gr | head -n5 \
+    | awk -F',' '{printf "  %-2s %-18s %-28s %-14s %6.2f tok/s  (%s %s ngpu=%s)\n",$4,$5,$6,$13,$12,$1,$2,$8}'
+} | tee "${SUMMARY_FILE}"
 
-# perf_analyzer must be available (in PATH or use container exec)
-if command -v perf_analyzer >/dev/null 2>&1; then
-  PERF="perf_analyzer"
-else
-  PERF="docker exec $CONTAINER_NAME perf_analyzer"
-fi
-
-# We treat each GPU separately by constraining visible devices for the container run above;
-# For simplicity here, we just run once and record system-wide throughput (requests/s -> approx tok/s is model/input dependent).
-# If your model repo provides an output tokens metric, adapt parsing here.
-
-# Try a generic perf_analyzer call:
-OUT="$($PERF -m "$MODEL_NAME" -u 127.0.0.1:8001 -i grpc -p 2000 --concurrency-range $BATCH:$BATCH 2>&1 || true)"
-THROUGHPUT="$(echo "$OUT" | grep -i 'Inferences/Second' | tail -n1 | awk '{print $NF}' )"
-[ -z "$THROUGHPUT" ] && THROUGHPUT="0.00"
-
-# Record one line with “notes=triton_inferences_per_second”
-# GPU info (first GPU for label)
-read -r idx uuid name mem <<<"$(gpu_table | head -n1 | awk -F',' '{print $1" "$2" "$3" "$4}')"
-gpul="$(gpu_label "$name")"
-echo "$(date -Iseconds),$STACK,127.0.0.1:8001,triton,NA,$gpul,$MODEL_NAME,$MODEL_NAME,default,$CTX,$BATCH,$PRED,$THROUGHPUT,$name,$uuid,${mem%% MiB},triton_inferences_per_second" >>"$CSV_FILE"
-
-docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-echo "✔ DONE. CSV: ${CSV_FILE}"
+ok "DONE. CSV: ${CSV_FILE}"
+ok "DONE. Summary: ${SUMMARY_FILE}"
 
