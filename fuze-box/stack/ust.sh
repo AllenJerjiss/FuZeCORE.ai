@@ -18,10 +18,10 @@ ALL_CSV="${LOG_DIR}/llm_bench_${RUN_TS}_ALL.csv"
 ###############################################################################
 # Stack scripts
 ###############################################################################
-OLLAMA_SH="${ROOT_DIR}/ollama/ollama-benchmark.sh"
-LLAMACPP_SH="${ROOT_DIR}/llama.cpp/llama.cpp-benchmark.sh"
-VLLM_SH="${ROOT_DIR}/vLLM/vllm-benchmark.sh"
-TRITON_SH="${ROOT_DIR}/Triton/triton-benchmark.sh"
+OLLAMA_SH="${ROOT_DIR}/ollama/benchmark.sh"
+LLAMACPP_SH="${ROOT_DIR}/llama.cpp/benchmark.sh"
+VLLM_SH="${ROOT_DIR}/vLLM/benchmark.sh"
+TRITON_SH="${ROOT_DIR}/Triton/benchmark.sh"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 1; }; }
 need awk; need sed; need sort; need head; need tail
