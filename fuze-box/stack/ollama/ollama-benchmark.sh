@@ -32,10 +32,11 @@ EXHAUSTIVE="${EXHAUSTIVE:-0}"
 VERBOSE="${VERBOSE:-1}"
 
 # Timeouts (seconds)
-WAIT_API_SECS="${WAIT_API_SECS:-60}"
-TIMEOUT_GEN="${TIMEOUT_GEN:-40}"
-TIMEOUT_TAGS="${TIMEOUT_TAGS:-10}"
-TIMEOUT_PULL="${TIMEOUT_PULL:-600}"
+WAIT_API_SECS="${WAIT_API_SECS:-90}"
+TIMEOUT_GEN="${TIMEOUT_GEN:-90}"
+TIMEOUT_TAGS="${TIMEOUT_TAGS:-15}"
+TIMEOUT_PULL="${TIMEOUT_PULL:-900}"
+TIMEOUT_CREATE="${TIMEOUT_CREATE:-180}"
 
 SERVICE_HOME="${SERVICE_HOME:-/root}"
 
@@ -51,7 +52,7 @@ readonly OLLAMA_BIN="/usr/local/bin/ollama"
 readonly HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
 readonly TS="$(date +%Y%m%d_%H%M%S)"
 readonly CSV_FILE="${LOG_DIR}/${STACK}_bench_${TS}.csv"
-readonly SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW-${STACK}-${TS}.benchmark"
+readonly SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
 readonly PULL_FROM="127.0.0.1:${PERSISTENT_PORT}"
 ENDPOINTS=("127.0.0.1:${TEST_PORT_A}" "127.0.0.1:${TEST_PORT_B}")
 
@@ -132,18 +133,33 @@ offload_summary(){
   echo "$name,$u,${mem%% MiB}"
 }
 
-have_model(){
+have_model_on_ep(){
+  local ep="$1" tag="$2"
+  OLLAMA_HOST="http://${ep}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "$tag"
+}
+have_model_on_persist(){
   local tag="$1"
   OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "$tag"
 }
 pull_if_missing(){
-  local base="$1"
-  if have_model "$base"; then
-    info "Base image ${base} already present (via ${PULL_FROM})"
-  else
-    info "Pulling ${base} via ${PULL_FROM}"
-    OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" pull "$base" || warn "pull of $base failed"
+  local base="$1" ep="$2"
+  if have_model_on_ep "$ep" "$base"; then
+    info "Base ${base} visible on ${ep}"
+    return 0
   fi
+  if have_model_on_persist "$base"; then
+    info "Base ${base} present on persistent; restarting ${ep} to pick up store"
+    local unit; unit="$(unit_for_ep "$ep")"
+    systemctl restart "$unit" || true
+    wait_api "$ep" || true
+    have_model_on_ep "$ep" "$base" && return 0
+  fi
+  info "Pulling ${base} via ${PULL_FROM}"
+  OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" pull "$base" || warn "pull of $base failed"
+  # bounce test ep once more in case indexing needs refresh
+  local unit; unit="$(unit_for_ep "$ep")"
+  systemctl restart "$unit" || true
+  wait_api "$ep" || true
 }
 
 write_unit(){
@@ -216,17 +232,40 @@ prepare_services(){
   systemctl enable --now ollama-test-a.service || true
   systemctl enable --now ollama-test-b.service || true
 
+  info "ollama version: $($OLLAMA_BIN --version 2>&1 || echo unknown)"
   info "Waiting for APIs"
   wait_api "127.0.0.1:${PERSISTENT_PORT}" || { err "API :${PERSISTENT_PORT} did not come up"; exit 1; }
   wait_api "127.0.0.1:${TEST_PORT_A}" || warn "API :${TEST_PORT_A} slow to start (will retry per model)"
   wait_api "127.0.0.1:${TEST_PORT_B}" || warn "API :${TEST_PORT_B} slow to start (will retry per model)"
 }
 
-# Create optimized variant with a transient Modelfile
+# Create optimized variant with a transient Modelfile (+ full logging)
 bake_variant(){ # ep base newname num_gpu
   local ep="$1" base="$2" newname="$3" ng="$4"
-  { echo "FROM ${base}"; echo "PARAMETER num_gpu ${ng}"; } \
-    | OLLAMA_HOST="http://${ep}" "$OLLAMA_BIN" create -f - "$newname"
+  local bake_log="${LOG_DIR}/bake_${newname//[^A-Za-z0-9_.-]/_}_${ep##*:}.log"
+  {
+    echo "FROM ${base}"
+    echo "PARAMETER num_gpu ${ng}"
+  } > "${LOG_DIR}/Modelfile.${newname}.${ep##*:}.tmp"
+
+  set +e
+  timeout -k 5 "${TIMEOUT_CREATE}" \
+    OLLAMA_HOST="http://${ep}" "$OLLAMA_BIN" create \
+      -f "${LOG_DIR}/Modelfile.${newname}.${ep##*:}.tmp" "$newname" \
+      >"${bake_log}" 2>&1
+  local rc=$?
+  set -e
+  if [ $rc -ne 0 ]; then
+    warn "     x create failed (rc=${rc}) — see ${bake_log}"
+    # helpful tail
+    tail -n 20 "${bake_log}" | sed 's/^/       | /'
+    # also surface service logs (OOM etc.)
+    local unit; unit="$(unit_for_ep "$ep")"
+    journalctl -u "$unit" --since "2 min ago" -n 15 --no-pager 2>/dev/null | sed 's/^/       | /' || true
+    return 1
+  fi
+  echo "${bake_log}"
+  return 0
 }
 
 append_csv_row(){ echo "$*" >>"$CSV_FILE"; }
@@ -239,8 +278,7 @@ bench_once(){ # ep model label num_gpu
   unit="$(unit_for_ep "$ep")"
   read -r gname guid gmem <<<"$(offload_summary "$unit")"
 
-  # Build options JSON safely as ONE LINE to avoid jq parse errors
-  # ($ng|type) is "number" when ng is set via --argjson; "null" otherwise
+  # Build options JSON safely as ONE LINE
   opts="$(jq -n \
       --argjson ctx "$CTX" \
       --argjson batch "$BATCH" \
@@ -274,7 +312,13 @@ bench_base_as_is(){ # ep baseTag
 tune_and_bench_one(){ # ep baseTag aliasBase
   local ep="$1" base="$2" alias_base="$3"
   info "----> [${ep}] Tuning ${base} -> ${alias_base}"
-  pull_if_missing "$base"
+  pull_if_missing "$base" "$ep"
+
+  # verify base is actually visible to THIS endpoint before benching/baking
+  if ! have_model_on_ep "$ep" "$base"; then
+    err "Base ${base} not visible on ${ep} after pull/restart — skipping"
+    return 1
+  fi
 
   bench_base_as_is "$ep" "$base" || warn "base-as-is bench skipped for $base on $ep"
 
@@ -287,8 +331,8 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     info "     Trying num_gpu=${ng} ..."
     local newname="${alias_base}-$(suffix_for_ep "$ep")-ng${ng}"
 
-    if ! bake_variant "$ep" "$base" "$newname" "$ng" >/dev/null 2>&1; then
-      warn "     x bake failed (likely OOM or service error)"
+    local bake_log
+    if ! bake_log="$(bake_variant "$ep" "$base" "$newname" "$ng")"; then
       continue
     fi
 
