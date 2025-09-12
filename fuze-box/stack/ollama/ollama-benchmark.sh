@@ -65,6 +65,8 @@ ok(){ echo -e "${c_green}✔${c_reset} $*"; }
 warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
 err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
 
+trap 'echo "ERR at line $LINENO"; tail -n 50 "$CREATE_LOG" 2>/dev/null || true; tail -n 50 "$BENCH_LOG" 2>/dev/null || true' ERR
+
 echo "ts,stack,endpoint,unit,suffix,gpu_label,model,variant,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_name,gpu_uuid,gpu_mem_mib,notes" >"$CSV_FILE"
 
 json_last_line(){ grep -E '"done":\s*true' | tail -n1; }
@@ -152,10 +154,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=HOME=${SERVICE_HOME}
-Environment=OLLAMA_HOST=127.0.0.1:${listen}
 Environment=OLLAMA_MODELS=${OLLAMA_MODELS_DIR}
 ${uuid_env:+Environment=CUDA_VISIBLE_DEVICES=${uuid_env}}
-ExecStart=${OLLAMA_BIN} serve
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=${OLLAMA_BIN} serve --host 127.0.0.1:${listen}
 Restart=always
 RestartSec=2s
 LimitNOFILE=1048576
@@ -220,7 +222,7 @@ ensure_services(){
   wait_api "127.0.0.1:${TEST_PORT_A}" || warn "API :${TEST_PORT_A} slow to start (will retry per model)"
   wait_api "127.0.0.1:${TEST_PORT_B}" || warn "API :${TEST_PORT_B} slow to start (will retry per model)"
 
-  info "ollama version: $($OLLAMA_BIN --version 2>/dev/null || echo 'unknown')"
+  info "ollama version: $(${OLLAMA_BIN} --version 2>/dev/null || echo 'unknown')"
 }
 
 # Create optimized variant on the persistent endpoint (shared models store)
@@ -323,18 +325,13 @@ log "Models     : $(printf '%s ' "${MODELS[@]}")"
 log "CSV        : ${CSV_FILE}"
 log "Summary    : ${SUMMARY_FILE}"
 
-# Prepare services (won’t fight an already-running :11434)
-{
-  ensure_services
-} || {
-  err "Service setup failed"; exit 1;
-}
+ensure_services
 
 # Ensure test ports are up (restart quietly)
 for ep in "${ENDPOINTS[@]}"; do
   restart_ep "$ep" || true
   wait_api "$ep" || warn "API $ep is not up yet (continuing)"
-enddone || true  # shellcheck disable=SC2317
+done
 
 # Run sweep per model on each test endpoint
 for m in "${MODELS[@]}"; do
