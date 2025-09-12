@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# install.sh — Clean install/upgrade of Ollama with ONLY the stock ollama.service on :11434.
-#               Stops ALL ollama* services, removes custom units, restarts stock service as ollama:ollama.
+# install.sh — Clean install/upgrade of Ollama with ONLY the stock ollama.service on :11434
+# - Installs/upgrades Ollama
+# - Ensures /FuZe/models/ollama owned by ollama:ollama
+# - Stops & removes ALL custom/legacy ollama*.service units (keeps only ollama.service)
+# - Kills stray "ollama serve" daemons (e.g., on 11435/11436)
+# - Starts stock ollama.service as user ollama, store at /FuZe/models/ollama
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -35,9 +39,8 @@ chmod 755 /FuZe /FuZe/models "$CANON"
 chown -R ollama:ollama "$CANON"
 [ -e /FuZe/ollama ] || ln -s "$CANON" /FuZe/ollama || true
 
-# ---- STOP everything named ollama*.service first ----------------------------
+# ---- Stop ALL ollama* services (stock & custom) -----------------------------
 echo "== Stopping ALL ollama* services =="
-# Unmask before stop/disable to avoid surprises
 systemctl list-unit-files | awk '/^ollama.*\.service/ {print $1}' | while read -r u; do
   systemctl unmask "$u" 2>/dev/null || true
   systemctl stop "$u" 2>/dev/null || true
@@ -45,20 +48,60 @@ systemctl list-unit-files | awk '/^ollama.*\.service/ {print $1}' | while read -
   systemctl reset-failed "$u" 2>/dev/null || true
 done
 
-# ---- Remove custom/legacy units (keep ONLY stock ollama.service) ------------
+# ---- REMOVE custom/legacy units everywhere (keep ONLY stock 'ollama.service')
 echo "== Removing custom/legacy ollama units =="
-# Known custom patterns: ollama-*.service, ollama-test-*.service, ollama-persist.service
-find /etc/systemd/system -maxdepth 1 -type f -name 'ollama-*.service' -not -name 'ollama.service' -print -delete || true
-rm -f /etc/systemd/system/ollama-test-a.service /etc/systemd/system/ollama-test-b.service /etc/systemd/system/ollama-persist.service 2>/dev/null || true
+# List all systemd unit files that start with 'ollama' EXCEPT 'ollama.service'
+units_to_remove="$(systemctl list-unit-files --type=service | \
+  awk '/^ollama.*\.service/ && $1!="ollama.service" {print $1}' || true)"
 
-# Clean any dangling wants/aliases symlinks that point to removed units
-find /etc/systemd/system -type l -lname '*ollama-*service' -not -lname '*ollama.service' -print -delete || true
+# Common unit dirs to purge from:
+UNIT_DIRS="/etc/systemd/system /lib/systemd/system /usr/lib/systemd/system"
 
-# ---- Kill stray daemons on 11435/11436 (TEST ports) -------------------------
-pkill -f "/usr/local/bin/ollama serve -p 11435" 2>/dev/null || true
-pkill -f "/usr/local/bin/ollama serve -p 11436" 2>/dev/null || true
+# Remove units and their drop-ins/symlinks
+for u in $units_to_remove; do
+  # delete unit files
+  for d in $UNIT_DIRS; do
+    rm -f "$d/$u" 2>/dev/null || true
+    rm -rf "$d/${u}.d" 2>/dev/null || true
+  done
+  # delete wants/aliases symlinks that point to that unit
+  find /etc/systemd/system -type l -lname "*$u" -print -delete 2>/dev/null || true
+done
+
+# Also explicitly remove commonly seen customs
+rm -f /etc/systemd/system/ollama-persist.service \
+      /etc/systemd/system/ollama-test-a.service \
+      /etc/systemd/system/ollama-test-b.service 2>/dev/null || true
+rm -rf /etc/systemd/system/ollama-persist.service.d \
+       /etc/systemd/system/ollama-test-a.service.d 2>/dev/null || true
+
+# Catch any GPU-bound custom units like ollama-5090.service, ollama-3090ti.service
+find /etc/systemd/system -maxdepth 1 -type f -name 'ollama-*.service' -print -delete 2>/dev/null || true
+find /etc/systemd/system -maxdepth 1 -type d -name 'ollama-*.service.d' -print -exec rm -rf {} + 2>/dev/null || true
+find /etc/systemd/system -type l -name 'ollama-*.service' -print -delete 2>/dev/null || true
+
+# ---- Kill ALL stray "ollama serve" daemons (will relaunch stock fresh) ------
+echo "== Killing stray ollama daemons =="
+main_pid="$(systemctl show -p MainPID --value ollama.service 2>/dev/null || true)"
+pgrep -f "/usr/local/bin/ollama serve" >/dev/null 2>&1 && \
+  pgrep -f "/usr/local/bin/ollama serve" | while read -r pid; do
+    if [ -n "${main_pid:-}" ] && [ "$pid" = "$main_pid" ]; then
+      continue
+    fi
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+# Wait a moment, then hard-kill anything left
+sleep 1
+pgrep -f "/usr/local/bin/ollama serve" >/dev/null 2>&1 && \
+  pgrep -f "/usr/local/bin/ollama serve" | while read -r pid; do
+    if [ -n "${main_pid:-}" ] && [ "$pid" = "$main_pid" ]; then
+      continue
+    fi
+    kill -KILL "$pid" 2>/dev/null || true
+  done
 
 # ---- Enforce stock ollama.service to run as ollama with our store -----------
+echo "== Configuring stock ollama.service =="
 mkdir -p /etc/systemd/system/ollama.service.d
 cat >/etc/systemd/system/ollama.service.d/override.conf <<'DROPIN'
 [Service]
@@ -73,6 +116,12 @@ DROPIN
 systemctl daemon-reload
 systemctl unmask ollama.service 2>/dev/null || true
 systemctl enable --now ollama.service
+
+# ---- Final sweep: no listeners should remain on 11435/11436 -----------------
+for p in 11435 11436; do
+  pid="$(lsof -nP -iTCP:$p -sTCP:LISTEN -t 2>/dev/null || true)"
+  [ -n "${pid:-}" ] && kill -TERM "$pid" 2>/dev/null || true
+done
 
 # ---- Sanity: listeners & ping ------------------------------------------------
 echo
@@ -93,7 +142,7 @@ else
 fi
 
 echo
-echo "✔ Ollama ready (stock service ONLY)"
+echo "✔ Ollama ready (ONLY stock service is active)"
 echo "   Store   : $CANON (owner: ollama:ollama)"
 echo "   Version : $(ollama --version || echo 'unknown')"
 
