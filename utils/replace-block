@@ -1,27 +1,84 @@
 #!/usr/bin/env bash
+# replace-block — robust, inclusive line-anchored replacement
+# Usage:
+#   replace-block <target> <start_re> <end_re> <replacement_file> <backup_suffix>
+# Env (optional):
+#   RB_PRINT=1            # show before/after snippets
+#   VALIDATE_CMD="bash -n"  # run after replace; rollback on failure
+
 set -euo pipefail
 
-if [ "$#" -lt 4 ]; then
-  echo "Usage: $(basename "$0") <FILE> <START_REGEX> <END_REGEX> <REPLACEMENT_FILE> [BACKUP_SUFFIX]" >&2
-  echo "Example: $(basename "$0") ust.sh 'echo \"== Top-10 overall by tokens/sec ==\"' '(?:DONE\\.|$)' new_block.sh .bak" >&2
-  exit 1
+if (( $# < 5 )); then
+  echo "usage: $0 <target> <start_re> <end_re> <replacement_file> <backup_suffix>" >&2
+  exit 2
 fi
 
-FILE="$1"; START="$2"; END="$3"; REPL="$4"; BAK="${5:-.bak}"
-cp -a -- "$FILE" "$FILE$BAK"
+TARGET="$1"; START_RE="$2"; END_RE="$3"; REPL_FILE="$4"; BAK="$5"
 
-perl -0777 -e '
-  use strict; use warnings;
-  my ($file,$start,$end,$repl) = @ARGV;
-  local $/;
-  open my $fh, "<", $file or die "open $file: $!";
-  my $s = <$fh>;
-  open my $rf, "<", $repl or die "open $repl: $!";
-  my $R = <$rf>;
-  my $n = ($s =~ s/$start.*?(?=$end)/$R/gs)    # prefer lookahead style
-        || ($s =~ s/($start).*?($end)/$1$R$2/gs); # fallback if lookahead not used
-  $n or die "No match for start/end in $file\n";
-  open my $out, ">", $file or die "write $file: $!";
-  print {$out} $s;
-' -- "$FILE" "$START" "$END" "$REPL"
+[[ -f "$TARGET"     ]] || { echo "No target: $TARGET" >&2; exit 2; }
+[[ -f "$REPL_FILE"  ]] || { echo "No replacement file: $REPL_FILE" >&2; exit 2; }
+
+# Find start line (unique)
+mapfile -t START_MATCHES < <(grep -nE -- "$START_RE" "$TARGET" || true)
+if (( ${#START_MATCHES[@]} == 0 )); then
+  echo "No match for start in $TARGET" >&2; exit 3
+fi
+if (( ${#START_MATCHES[@]} > 1 )); then
+  echo "Start anchor matches ${#START_MATCHES[@]} times (expected 1)" >&2
+  printf '%s\n' "${START_MATCHES[@]}" >&2
+  exit 3
+fi
+START_LN="${START_MATCHES[0]%%:*}"
+
+# Find end line (first after start)
+END_LN="$(awk -v s="$START_LN" -v re="$END_RE" 'NR>s && $0 ~ re {print NR; exit}' "$TARGET")"
+if [[ -z "$END_LN" ]]; then
+  echo "No match for end after start (start at line $START_LN)" >&2
+  exit 3
+fi
+
+# Preview "before"
+if [[ "${RB_PRINT:-0}" == "1" ]]; then
+  echo "[replace-block] BEFORE (lines ${START_LN}..${END_LN}):"
+  nl -ba "$TARGET" | sed -n "${START_LN},${END_LN}p"
+fi
+
+TMP_OUT="$(mktemp)"
+trap 'rm -f "$TMP_OUT"' EXIT
+
+# Do the inclusive replacement
+# [1 .. START_LN-1] + replacement + [END_LN+1 .. EOF]
+{
+  if (( START_LN > 1 )); then sed -n "1,$((START_LN-1))p" "$TARGET"; fi
+  cat "$REPL_FILE"
+  sed -n "$((END_LN+1)),\$p" "$TARGET"
+} > "$TMP_OUT"
+
+# Backup & move
+cp -f -- "$TARGET" "${TARGET}${BAK}"
+mv -f -- "$TMP_OUT" "$TARGET"
+
+# Post-validate (optional)
+if [[ -n "${VALIDATE_CMD:-}" ]]; then
+  if ! bash -lc "$VALIDATE_CMD \"$TARGET\""; then
+    echo "[replace-block] validation failed — restoring ${TARGET}${BAK}" >&2
+    cp -f -- "${TARGET}${BAK}" "$TARGET"
+    exit 4
+  fi
+fi
+
+# Preview "after"
+if [[ "${RB_PRINT:-0}" == "1" ]]; then
+  # recompute anchors (they might shift)
+  NEW_START="$(grep -nE -- "$START_RE" "$TARGET" | cut -d: -f1 | head -n1 || true)"
+  if [[ -n "$NEW_START" ]]; then
+    NEW_END="$(awk -v s="$NEW_START" -v re="$END_RE" 'NR>s && $0 ~ re {print NR; exit}' "$TARGET")"
+    if [[ -n "$NEW_END" ]]; then
+      echo "[replace-block] AFTER (lines ${NEW_START}..${NEW_END}):"
+      nl -ba "$TARGET" | sed -n "${NEW_START},${NEW_END}p"
+    fi
+  fi
+fi
+
+echo "[replace-block] done. backup at: ${TARGET}${BAK}"
 
