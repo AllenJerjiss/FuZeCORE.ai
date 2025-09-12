@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# setup-ollama-test.sh
-# One-at-a-time model tuning + benchmarking with an always-on puller on :11434
+# ollama-benchmark.sh
+# One-at-a-time model tuning + benchmarking with an always-on puller/builder on :11434
 
 set -euo pipefail
 
 ########## CONFIG (override with env) ##########################################
-PERSISTENT_PORT="${PERSISTENT_PORT:-11434}"  # always-on downloader, never killed
-TEST_PORT_A="${TEST_PORT_A:-11435}"          # test instance A (bound to GPU-A)
-TEST_PORT_B="${TEST_PORT_B:-11436}"          # test instance B (bound to GPU-B)
+PERSISTENT_PORT="${PERSISTENT_PORT:-11434}"  # ALWAYS ON (pull + build here)
+TEST_PORT_A="${TEST_PORT_A:-11435}"          # test instance A (binds to GPU-A)
+TEST_PORT_B="${TEST_PORT_B:-11436}"          # test instance B (binds to GPU-B)
 
 OLLAMA_MODELS_DIR="${OLLAMA_MODELS_DIR:-/FuZe/ollama/models}"
-LOG_DIR="${LOG_DIR:-/FuZe/logs}"
+LOG_DIR_DEFAULT="${LOG_DIR:-/FuZe/logs}"     # we’ll fallback to ./logs if unwritable
 
 # Base models to try, plus a short alias for optimized variants
 MODELS=(
@@ -32,26 +32,31 @@ EXHAUSTIVE="${EXHAUSTIVE:-0}"
 VERBOSE="${VERBOSE:-1}"
 
 # Timeouts (seconds)
-WAIT_API_SECS="${WAIT_API_SECS:-90}"
-TIMEOUT_GEN="${TIMEOUT_GEN:-90}"
-TIMEOUT_TAGS="${TIMEOUT_TAGS:-15}"
-TIMEOUT_PULL="${TIMEOUT_PULL:-900}"
-TIMEOUT_CREATE="${TIMEOUT_CREATE:-180}"
+WAIT_API_SECS="${WAIT_API_SECS:-60}"
+TIMEOUT_GEN="${TIMEOUT_GEN:-120}"
+TIMEOUT_TAGS="${TIMEOUT_TAGS:-10}"
+TIMEOUT_PULL="${TIMEOUT_PULL:-600}"
 
 SERVICE_HOME="${SERVICE_HOME:-/root}"
 
 # GPU name substrings we try to bind to A/B:
 MATCH_GPU_A="${MATCH_GPU_A:-5090}"
 MATCH_GPU_B="${MATCH_GPU_B:-3090 Ti}"
-
-# AJ's addons
-STACK=ollama
 ################################################################################
 
 readonly OLLAMA_BIN="/usr/local/bin/ollama"
 readonly HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
 readonly TS="$(date +%Y%m%d_%H%M%S)"
-readonly CSV_FILE="${LOG_DIR}/${STACK}_bench_${TS}.csv"
+
+# Logs dir (fallback if not writable)
+LOG_DIR="$LOG_DIR_DEFAULT"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+if [ ! -w "$LOG_DIR" ]; then
+  LOG_DIR="$(pwd)/logs"
+  mkdir -p "$LOG_DIR"
+fi
+
+readonly CSV_FILE="${LOG_DIR}/ollama_bench_${TS}.csv"
 readonly SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
 readonly PULL_FROM="127.0.0.1:${PERSISTENT_PORT}"
 ENDPOINTS=("127.0.0.1:${TEST_PORT_A}" "127.0.0.1:${TEST_PORT_B}")
@@ -64,13 +69,12 @@ warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
 err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
 need(){ command -v "$1" >/dev/null 2>&1 || { err "Missing dependency: $1"; exit 1; }; }
 
-mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"
 need curl; need jq; need awk; need sed; need systemctl; need nvidia-smi
 if ! command -v lsof >/dev/null 2>&1 && ! command -v ss >/dev/null 2>&1; then
   warn "Neither lsof nor ss found — port cleanup may be limited."
 fi
 
-echo "ts,endpoint,unit,suffix,model,variant,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_name,gpu_uuid,gpu_mem_mib" >"$CSV_FILE"
+echo "ts,endpoint,unit,suffix,model_base,tag_used,variant_label,gpu_label,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_name,gpu_uuid,gpu_mem_mib" >"$CSV_FILE"
 
 json_last_line(){ grep -E '"done":\s*true' | tail -n1; }
 gpu_table(){ nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader | sed 's/, /,/g'; }
@@ -79,8 +83,8 @@ calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {pr
 
 curl_tags(){ local ep="$1"; curl -fsS --max-time "$TIMEOUT_TAGS" "http://${ep}/api/tags" || return 1; }
 
-# Build payload with jq (safe quoting), then POST
 curl_gen(){
+  # Build payload with jq (safe quoting), then POST
   local ep="$1" model="$2" opts_json="$3" prompt="$4" to="$5"
   local payload
   payload="$(jq -n --arg m "$model" --arg p "$prompt" --argjson o "$opts_json" '{model:$m, options:$o, prompt:$p}')"
@@ -126,40 +130,35 @@ wait_api(){
 offload_summary(){
   local unit="$1" uuid row
   uuid="$(systemctl show "$unit" -p Environment 2>/dev/null | tr '\n' ' ' | sed -E 's/.*CUDA_VISIBLE_DEVICES=([^ ]+).*/\1/')"
-  [ -z "${uuid:-}" ] && { echo ",,"; return 0; }
+  [ -z "${uuid:-}" ] && { echo ",,,"; return 0; }
   row="$(gpu_table | grep "$uuid" || true)"
-  [ -z "$row" ] && { echo ",,"; return 0; }
+  [ -z "$row" ] && { echo ",,,"; return 0; }
   IFS=',' read -r idx u name mem <<<"$row"
   echo "$name,$u,${mem%% MiB}"
 }
 
-have_model_on_ep(){
-  local ep="$1" tag="$2"
-  OLLAMA_HOST="http://${ep}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "$tag"
+label_from_name(){
+  # normalize a readable short label for tags/CSV (“5090”, “3090ti”, etc.)
+  local name="$1"
+  name="$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+  if echo "$name" | grep -q '5090'; then echo "5090"; return; fi
+  if echo "$name" | grep -q '3090'; then echo "3090ti"; return; fi
+  # fallback: strip vendor and spaces
+  echo "$name" | sed -E 's/nvidia[[:space:]]+geforce[[:space:]]+//g; s/[[:space:]]+//g'
 }
-have_model_on_persist(){
+
+have_model(){
   local tag="$1"
   OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "$tag"
 }
 pull_if_missing(){
-  local base="$1" ep="$2"
-  if have_model_on_ep "$ep" "$base"; then
-    info "Base ${base} visible on ${ep}"
-    return 0
+  local base="$1"
+  if have_model "$base"; then
+    info "Base ${base} present (via ${PULL_FROM})"
+  else
+    info "Pulling ${base} via ${PULL_FROM}"
+    OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" pull "$base" || warn "pull of $base failed"
   fi
-  if have_model_on_persist "$base"; then
-    info "Base ${base} present on persistent; restarting ${ep} to pick up store"
-    local unit; unit="$(unit_for_ep "$ep")"
-    systemctl restart "$unit" || true
-    wait_api "$ep" || true
-    have_model_on_ep "$ep" "$base" && return 0
-  fi
-  info "Pulling ${base} via ${PULL_FROM}"
-  OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" pull "$base" || warn "pull of $base failed"
-  # bounce test ep once more in case indexing needs refresh
-  local unit; unit="$(unit_for_ep "$ep")"
-  systemctl restart "$unit" || true
-  wait_api "$ep" || true
 }
 
 write_unit(){
@@ -176,6 +175,9 @@ Environment=HOME=${SERVICE_HOME}
 Environment=OLLAMA_HOST=127.0.0.1:${listen}
 Environment=OLLAMA_MODELS=${OLLAMA_MODELS_DIR}
 ${uuid_env:+Environment=CUDA_VISIBLE_DEVICES=${uuid_env}}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=OLLAMA_KEEP_ALIVE=4h
+Environment=OLLAMA_LOG_LEVEL=debug
 ExecStart=${OLLAMA_BIN} serve
 Restart=always
 RestartSec=2s
@@ -195,7 +197,10 @@ restart_ep(){
     systemctl stop "$unit" >/dev/null 2>&1 || true
     kill_port_listener "$port"
   fi
-  systemctl start "$unit" || true
+  if ! systemctl start "$unit"; then
+    warn "Failed to start $unit"
+    systemctl --no-pager -l status "$unit" || true
+  fi
 }
 
 pick_uuid_by_name_substr(){
@@ -212,8 +217,10 @@ prepare_services(){
   local all; all="$(gpu_table)"
   log "$(echo "$all" | sed 's/^/GPU: /')"
 
-  # persistent downloader on :11434
-  write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent downloader on :${PERSISTENT_PORT})"
+  info "ollama version: $("$OLLAMA_BIN" --version || true)"
+
+  # persistent downloader/builder on :11434
+  write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
   systemctl enable --now ollama-persist.service
 
   # choose GPU UUIDs
@@ -232,53 +239,33 @@ prepare_services(){
   systemctl enable --now ollama-test-a.service || true
   systemctl enable --now ollama-test-b.service || true
 
-  info "ollama version: $($OLLAMA_BIN --version 2>&1 || echo unknown)"
   info "Waiting for APIs"
   wait_api "127.0.0.1:${PERSISTENT_PORT}" || { err "API :${PERSISTENT_PORT} did not come up"; exit 1; }
   wait_api "127.0.0.1:${TEST_PORT_A}" || warn "API :${TEST_PORT_A} slow to start (will retry per model)"
   wait_api "127.0.0.1:${TEST_PORT_B}" || warn "API :${TEST_PORT_B} slow to start (will retry per model)"
 }
 
-# Create optimized variant with a transient Modelfile (+ full logging)
-bake_variant(){ # ep base newname num_gpu
-  local ep="$1" base="$2" newname="$3" ng="$4"
-  local bake_log="${LOG_DIR}/bake_${newname//[^A-Za-z0-9_.-]/_}_${ep##*:}.log"
-  {
-    echo "FROM ${base}"
-    echo "PARAMETER num_gpu ${ng}"
-  } > "${LOG_DIR}/Modelfile.${newname}.${ep##*:}.tmp"
-
-  set +e
-  timeout -k 5 "${TIMEOUT_CREATE}" \
-    OLLAMA_HOST="http://${ep}" "$OLLAMA_BIN" create \
-      -f "${LOG_DIR}/Modelfile.${newname}.${ep##*:}.tmp" "$newname" \
-      >"${bake_log}" 2>&1
-  local rc=$?
-  set -e
-  if [ $rc -ne 0 ]; then
-    warn "     x create failed (rc=${rc}) — see ${bake_log}"
-    # helpful tail
-    tail -n 20 "${bake_log}" | sed 's/^/       | /'
-    # also surface service logs (OOM etc.)
-    local unit; unit="$(unit_for_ep "$ep")"
-    journalctl -u "$unit" --since "2 min ago" -n 15 --no-pager 2>/dev/null | sed 's/^/       | /' || true
-    return 1
-  fi
-  echo "${bake_log}"
-  return 0
+# ==== BUILD OPT VARIANTS ON PERSISTENT ENDPOINT ONLY =========================
+bake_variant_on_persist(){ # base alias gpu_label num_gpu -> newtag
+  local base="$1" alias_base="$2" gpu_label="$3" ng="$4"
+  local newtag="${alias_base}-${gpu_label}-ng${ng}"
+  # Use a transient Modelfile; build on 11434 so tag is globally visible
+  { echo "FROM ${base}"; echo "PARAMETER num_gpu ${ng}"; } \
+    | OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" create -f - "$newtag"
+  echo "$newtag"
 }
 
 append_csv_row(){ echo "$*" >>"$CSV_FILE"; }
 
-bench_once(){ # ep model label num_gpu
-  local ep="$1" model="$2" label="$3" ng="${4:-}"
+bench_once(){ # ep base_tag tag_used label gpu_label num_gpu
+  local ep="$1" base="$2" tag="$3" label="$4" gpu_label="$5" ng="${6:-}"
   local sfx unit gname guid gmem opts tokps
 
   sfx="$(suffix_for_ep "$ep")"
   unit="$(unit_for_ep "$ep")"
   read -r gname guid gmem <<<"$(offload_summary "$unit")"
 
-  # Build options JSON safely as ONE LINE
+  # options JSON
   opts="$(jq -n \
       --argjson ctx "$CTX" \
       --argjson batch "$BATCH" \
@@ -287,72 +274,84 @@ bench_once(){ # ep model label num_gpu
       '($ng|type) as $t | {num_ctx:$ctx,batch:$batch,temperature:0,mirostat:0,seed:1,num_predict:$pred} + (if $t=="number" then {num_gpu:$ng} else {} end)')"
 
   local prompt="Write ok repeatedly for benchmarking."
-  local out; out="$(curl_gen "$ep" "$model" "$opts" "$prompt" "$TIMEOUT_GEN" || true)"
+  local out; out="$(curl_gen "$ep" "$tag" "$opts" "$prompt" "$TIMEOUT_GEN" || true)"
   local last; last="$(echo "$out" | json_last_line || true)"
   if [ -z "$last" ]; then
-    warn "[bench] ${label} ${model} on ${ep} -> no data (timeout/error)"
+    warn "[bench] ${label} ${tag} on ${ep} -> no data (timeout/error)"
     return 1
   fi
   local ec ed; ec="$(echo "$last" | jq -r '.eval_count // 0')"
   ed="$(echo "$last" | jq -r '.eval_duration // 0')"
   tokps="$(calc_tokps "$ec" "$ed")"
 
-  append_csv_row "$(date -Iseconds),$ep,$unit,$sfx,$model,$label,${ng:-default},$CTX,$BATCH,$PRED,$tokps,$gname,$guid,$gmem"
-  ok "[bench] ${label} ${model} on ${ep}  ->  ${tokps} tok/s (ctx=$CTX, batch=$BATCH, num_gpu=${ng:-default})"
+  append_csv_row "$(date -Iseconds),$ep,$unit,$sfx,$base,$tag,$label,$gpu_label,${ng:-default},$CTX,$BATCH,$PRED,$tokps,$gname,$guid,$gmem"
+  ok "[bench] ${label} ${tag} on ${ep}  ->  ${tokps} tok/s (ctx=$CTX, batch=$BATCH, num_gpu=${ng:-default})"
   echo "$tokps"
 }
 
-bench_base_as_is(){ # ep baseTag
-  local ep="$1" base="$2" unit; unit="$(unit_for_ep "$ep")"
+bench_base_as_is(){ # ep baseTag gpu_label
+  local ep="$1" base="$2" gpu_label="$3" unit; unit="$(unit_for_ep "$ep")"
   systemctl restart "$unit" || true
-  wait_api "$ep" || { warn "API $ep not up for base-as-is"; return 1; }
-  bench_once "$ep" "$base" "base-as-is" "" >/dev/null || return 1
+  if ! wait_api "$ep"; then
+    warn "API $ep not up for base-as-is"
+    systemctl --no-pager -l status "$unit" || true
+    journalctl -n 50 -u "$unit" --no-pager || true
+    return 1
+  fi
+  bench_once "$ep" "$base" "$base" "base" "$gpu_label" "" >/dev/null || return 1
 }
 
 tune_and_bench_one(){ # ep baseTag aliasBase
   local ep="$1" base="$2" alias_base="$3"
   info "----> [${ep}] Tuning ${base} -> ${alias_base}"
-  pull_if_missing "$base" "$ep"
+  pull_if_missing "$base"
 
-  # verify base is actually visible to THIS endpoint before benching/baking
-  if ! have_model_on_ep "$ep" "$base"; then
-    err "Base ${base} not visible on ${ep} after pull/restart — skipping"
-    return 1
-  fi
+  # determine GPU label from the bound device name
+  local unit gname guid gmem; unit="$(unit_for_ep "$ep")"
+  read -r gname guid gmem <<<"$(offload_summary "$unit")"
+  local gpu_label; gpu_label="$(label_from_name "$gname")"
 
-  bench_base_as_is "$ep" "$base" || warn "base-as-is bench skipped for $base on $ep"
+  bench_base_as_is "$ep" "$base" "$gpu_label" || warn "base bench skipped for $base on $ep"
 
-  local first_ok=0 best_tokps="0.00" best_name="" best_ng=""
-  local unit; unit="$(unit_for_ep "$ep")"
-  systemctl restart "$unit" || true
-  wait_api "$ep" || warn "API $ep not up before sweep; will try anyhow"
+  local first_ok=0 best_tokps="0.00" best_tag="" best_ng=""
 
+  # sweep: build on :11434, then run on test endpoint
   for ng in $NUM_GPU_CANDIDATES; do
-    info "     Trying num_gpu=${ng} ..."
-    local newname="${alias_base}-$(suffix_for_ep "$ep")-ng${ng}"
-
-    local bake_log
-    if ! bake_log="$(bake_variant "$ep" "$base" "$newname" "$ng")"; then
+    info "     Trying num_gpu=${ng} (build on :${PERSISTENT_PORT}) ..."
+    local newtag
+    if ! newtag="$(bake_variant_on_persist "$base" "$alias_base" "$gpu_label" "$ng" 2>/dev/null)"; then
+      warn "     x bake failed (likely OOM or build error)"
       continue
     fi
 
-    local tokps; tokps="$(bench_once "$ep" "$newname" "optimized" "$ng" || echo "0.00")"
-    awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
+    # ensure test endpoint is reachable
+    systemctl restart "$unit" || true
+    if ! wait_api "$ep"; then
+      warn "     test API $ep not up; skipping bench of ${newtag}"
+      systemctl --no-pager -l status "$unit" || true
+      journalctl -n 50 -u "$unit" --no-pager || true
+      continue
+    fi
+
+    local tokps; tokps="$(bench_once "$ep" "$base" "$newtag" "optimized" "$gpu_label" "$ng" || echo "0.00")"
+    awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_tag="$newtag"; best_ng="$ng"; }
 
     if [ "$EXHAUSTIVE" -eq 0 ] && [ "$first_ok" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
       first_ok=1
-      local latest="${alias_base}-$(suffix_for_ep "$ep")"
-      if ! OLLAMA_HOST="http://${ep}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "${latest}:latest"; then
-        info "     Tagging convenience latest: ${latest}:latest with num_gpu=${ng}"
-        bake_variant "$ep" "$base" "$latest" "$ng" || warn "     bake of ${latest} failed"
+      # Convenience alias latest for this GPU family (optional)
+      local latest="${alias_base}-${gpu_label}"
+      if ! OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "${latest}:latest"; then
+        info "     Tagging convenience latest: ${latest}:latest -> num_gpu=${ng}"
+        # re-bake as the simple latest name for quick use
+        bake_variant_on_persist "$base" "$alias_base" "$gpu_label" "$ng" >/dev/null 2>&1 || true
       fi
       break
     fi
   done
 
-  if [ -n "$best_name" ]; then
-    ok "Best on ${ep}: ${best_name} (num_gpu=${best_ng}) at ${best_tokps} tok/s"
-    echo "${ep},${alias_base},${best_name},${best_ng},${best_tokps}" >>"${SUMMARY_FILE}.raw"
+  if [ -n "$best_tag" ]; then
+    ok "Best on ${ep}: ${best_tag} (num_gpu=${best_ng}) at ${best_tokps} tok/s"
+    echo "${ep},${alias_base},${best_tag},${best_ng},${best_tokps}" >>"${SUMMARY_FILE}.raw"
   else
     warn "No working num_gpu for ${base} on ${ep}"
   fi
@@ -366,15 +365,15 @@ log "Models     : $(printf '%s ' "${MODELS[@]}")"
 log "CSV        : ${CSV_FILE}"
 log "Summary    : ${SUMMARY_FILE}"
 
+# Prepare services and wait
 prepare_services
-
 wait_api "$PULL_FROM" || { err "Persistent API ${PULL_FROM} not reachable"; exit 1; }
-
 for ep in "${ENDPOINTS[@]}"; do
   restart_ep "$ep" || true
   wait_api "$ep" || warn "API $ep is not up yet (continuing)"
 done
 
+# Per model, per endpoint
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"
   for ep in "${ENDPOINTS[@]}"; do
@@ -382,12 +381,15 @@ for m in "${MODELS[@]}"; do
     restart_ep "$ep" || true
     if ! wait_api "$ep"; then
       err "ERROR: API ${ep} did not come up — skipping ${base} on ${ep}"
+      systemctl --no-pager -l status "$(unit_for_ep "$ep")" || true
+      journalctl -n 50 -u "$(unit_for_ep "$ep")" --no-pager || true
       continue
     fi
     tune_and_bench_one "$ep" "$base" "$alias_base"
   done
 done
 
+# ===== Final summary =====
 {
   echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
   echo "CSV: ${CSV_FILE}"
@@ -400,11 +402,11 @@ done
   fi
   echo
   echo "Top-5 runs overall (by tokens/sec) from CSV:"
-  tail -n +2 "$CSV_FILE" | sort -t',' -k11,11gr | head -n5 \
-    | awk -F',' '{printf "  %-21s %-18s %6.2f tok/s  (%s %s ngpu=%s)\n",$4,$5,$11,$1,$2,$7}'
+  tail -n +2 "$CSV_FILE" | sort -t',' -k13,13gr | head -n5 \
+    | awk -F',' '{printf "  %-1s  %-22s %-30s  %-7s  %6.2f tok/s  (%s %s ngpu=%s)\n",$4,$5,$6,$8,$13,$1,$2,$9}'
 } | tee "${SUMMARY_FILE}"
 
 ok "DONE. CSV: ${CSV_FILE}"
 ok "DONE. Summary: ${SUMMARY_FILE}"
-# NOTE: :11434 is never touched; only :11435 and :11436 are started/stopped.
+# NOTE: :11434 is never killed; only :11435 and :11436 are started/stopped.
 
