@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# install.sh — Install/upgrade Ollama, set store, create ollama-run-as-user services
+# install.sh — Clean install/upgrade of Ollama with ONLY the stock ollama.service on :11434.
+#               Stops ALL ollama* services, removes custom units, restarts stock service as ollama:ollama.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -7,134 +8,92 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# ---- Packages
+# ---- Packages ----------------------------------------------------------------
 apt-get update -y
 apt-get install -y curl jq lsof gawk sed procps coreutils rsync
 
-# ---- Install or upgrade Ollama
+# ---- Install or upgrade Ollama ----------------------------------------------
 if ! command -v ollama >/dev/null 2>&1; then
   echo "== Installing Ollama =="
   curl -fsSL https://ollama.com/install.sh | sh
 else
-  echo "== Upgrading Ollama =="
-  curl -fsSL https://ollama.com/install.sh | OLLAMA_UPGRADE=1 sh || true
+  echo "== Upgrading Ollama (if newer available) =="
+  OLLAMA_UPGRADE=1 curl -fsSL https://ollama.com/install.sh | sh || true
 fi
 
-# ---- Ensure user/group & GPU access
-# Ollama installer usually creates the 'ollama' user, but ensure it and groups.
+# ---- Ensure ollama user/groups & store ownership ----------------------------
 if ! id -u ollama >/dev/null 2>&1; then
   useradd -r -s /usr/sbin/nologin -m ollama
 fi
-# Make sure the user can access GPUs
 for g in video render; do
   getent group "$g" >/dev/null 2>&1 && usermod -aG "$g" ollama || true
 done
 
-# ---- Model store
 CANON=/FuZe/models/ollama
-mkdir -p "$CANON"
-# allow traverse on parents; and give dir ownership to ollama
-mkdir -p /FuZe /FuZe/models
-chmod 755 /FuZe /FuZe/models
+mkdir -p /FuZe /FuZe/models "$CANON"
+chmod 755 /FuZe /FuZe/models "$CANON"
 chown -R ollama:ollama "$CANON"
-chmod 755 "$CANON"
-
-# Handy symlink (optional)
 [ -e /FuZe/ollama ] || ln -s "$CANON" /FuZe/ollama || true
 
-# ---- Disable distro's default service to avoid port collisions on :11434
-systemctl stop    ollama.service 2>/dev/null || true
-systemctl disable ollama.service 2>/dev/null || true
-systemctl reset-failed ollama.service 2>/dev/null || true
+# ---- STOP everything named ollama*.service first ----------------------------
+echo "== Stopping ALL ollama* services =="
+# Unmask before stop/disable to avoid surprises
+systemctl list-unit-files | awk '/^ollama.*\.service/ {print $1}' | while read -r u; do
+  systemctl unmask "$u" 2>/dev/null || true
+  systemctl stop "$u" 2>/dev/null || true
+  systemctl disable "$u" 2>/dev/null || true
+  systemctl reset-failed "$u" 2>/dev/null || true
+done
 
-# ---- (Re)create run-as-ollama services
-cat >/etc/systemd/system/ollama-persist.service <<'UNIT'
-[Unit]
-Description=Ollama (persistent on :11434)
-After=network-online.target
-Wants=network-online.target
+# ---- Remove custom/legacy units (keep ONLY stock ollama.service) ------------
+echo "== Removing custom/legacy ollama units =="
+# Known custom patterns: ollama-*.service, ollama-test-*.service, ollama-persist.service
+find /etc/systemd/system -maxdepth 1 -type f -name 'ollama-*.service' -not -name 'ollama.service' -print -delete || true
+rm -f /etc/systemd/system/ollama-test-a.service /etc/systemd/system/ollama-test-b.service /etc/systemd/system/ollama-persist.service 2>/dev/null || true
 
-[Service]
-User=ollama
-Group=ollama
-# In case your distro uses device groups for GPUs
-SupplementaryGroups=video render
-Environment=OLLAMA_MODELS=/FuZe/models/ollama
-ExecStart=/usr/local/bin/ollama serve -p 11434
-Restart=always
-RestartSec=2
-LimitMEMLOCK=infinity
-TasksMax=infinity
-NoNewPrivileges=false
+# Clean any dangling wants/aliases symlinks that point to removed units
+find /etc/systemd/system -type l -lname '*ollama-*service' -not -lname '*ollama.service' -print -delete || true
 
-[Install]
-WantedBy=multi-user.target
-UNIT
+# ---- Kill stray daemons on 11435/11436 (TEST ports) -------------------------
+pkill -f "/usr/local/bin/ollama serve -p 11435" 2>/dev/null || true
+pkill -f "/usr/local/bin/ollama serve -p 11436" 2>/dev/null || true
 
-cat >/etc/systemd/system/ollama-test-a.service <<'UNIT'
-[Unit]
-Description=Ollama (TEST A on :11435)
-After=network-online.target
-Wants=network-online.target
-
+# ---- Enforce stock ollama.service to run as ollama with our store -----------
+mkdir -p /etc/systemd/system/ollama.service.d
+cat >/etc/systemd/system/ollama.service.d/override.conf <<'DROPIN'
 [Service]
 User=ollama
 Group=ollama
 SupplementaryGroups=video render
 Environment=OLLAMA_MODELS=/FuZe/models/ollama
-ExecStart=/usr/local/bin/ollama serve -p 11435
-Restart=always
-RestartSec=2
-LimitMEMLOCK=infinity
-TasksMax=infinity
-NoNewPrivileges=false
+# ExecStart provided by package; defaults to port 11434
+DROPIN
 
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-cat >/etc/systemd/system/ollama-test-b.service <<'UNIT'
-[Unit]
-Description=Ollama (TEST B on :11436)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=ollama
-Group=ollama
-SupplementaryGroups=video render
-Environment=OLLAMA_MODELS=/FuZe/models/ollama
-ExecStart=/usr/local/bin/ollama serve -p 11436
-Restart=always
-RestartSec=2
-LimitMEMLOCK=infinity
-TasksMax=infinity
-NoNewPrivileges=false
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-# ---- Reload and bring them up
+# ---- Reload daemon and start ONLY stock service ------------------------------
 systemctl daemon-reload
-systemctl enable --now ollama-persist.service
-systemctl enable --now ollama-test-a.service
-systemctl enable --now ollama-test-b.service
+systemctl unmask ollama.service 2>/dev/null || true
+systemctl enable --now ollama.service
 
-# ---- Sanity checks
-sleep 1
+# ---- Sanity: listeners & ping ------------------------------------------------
 echo
 echo "=== Listeners ==="
 for p in 11434 11435 11436; do
   echo "PORT $p:"
   lsof -nP -iTCP:$p -sTCP:LISTEN -FpctLn | paste -sd' ' - || true
 done
-echo
-echo "=== Ping :11434 ==="
-curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && echo "OK /api/tags" || echo "NOT UP"
 
 echo
-echo "✔ Ollama ready (run-as user: ollama)"
-echo "   Store     : $CANON (owner: ollama:ollama)"
-echo "   Version   : $(ollama --version || echo 'unknown')"
+echo "=== Ping :11434 ==="
+if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+  echo "OK /api/tags"
+else
+  echo "NOT UP — check:"
+  echo "  sudo systemctl status ollama --no-pager -l"
+  echo "  sudo journalctl -u ollama -e --no-pager"
+fi
+
+echo
+echo "✔ Ollama ready (stock service ONLY)"
+echo "   Store   : $CANON (owner: ollama:ollama)"
+echo "   Version : $(ollama --version || echo 'unknown')"
 
