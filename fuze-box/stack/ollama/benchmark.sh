@@ -456,14 +456,19 @@ else
   systemctl enable --now ollama-persist.service || true
 fi
 
-# Bind A/B to GPUs by name (or index fallback)
-uuid_a="$(pick_uuid_by_name_substr "$MATCH_GPU_A" || true)"
-uuid_b="$(pick_uuid_by_name_substr "$MATCH_GPU_B" || true)"
-if [ -z "${uuid_a:-}" ] || [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then
-  warn "GPU name match failed/identical — falling back to index order."
+# Auto-detect two GPUs by total memory (descending). Fallback to index order.
+mapfile -t _GPU_ROWS < <(gpu_table | sort -t',' -k4,4nr)
+uuid_a="$(printf '%s\n' "${_GPU_ROWS[0]-}" | awk -F',' '{print $2}')"
+uuid_b="$(printf '%s\n' "${_GPU_ROWS[1]-}" | awk -F',' '{print $2}')"
+
+if [ -z "${uuid_a:-}" ]; then
   all="$(gpu_table)"
   uuid_a="$(echo "$all" | awk -F',' 'NR==1{print $2}')"
   uuid_b="$(echo "$all" | awk -F',' 'NR==2{print $2}')"
+fi
+if [ -z "${uuid_b:-}" ] || [ "$uuid_b" = "$uuid_a" ]; then
+  # if second GPU missing/identical, mirror A
+  uuid_b="$uuid_a"
 fi
 
 write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A}, GPU ${uuid_a})"
@@ -474,7 +479,6 @@ systemctl enable --now ollama-test-b.service || true
 
 info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS)"
 info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS)"
-
 info "Waiting for APIs"
 wait_api "127.0.0.1:${PERSISTENT_PORT}" || warn "API :${PERSISTENT_PORT} not reachable yet"
 wait_api "127.0.0.1:${TEST_PORT_A}" || warn "API :${TEST_PORT_A} slow to start"
