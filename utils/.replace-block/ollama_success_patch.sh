@@ -1,92 +1,76 @@
+cat > ~/.replace-block/patch_ollama_success.sh <<'BASH'
 #!/usr/bin/env bash
-# patch_ollama_success.sh
-# One-shot driver that (a) builds the patch block (inline / stdin / file),
-# (b) calls robust replace-block, and (c) validates before/after.
-
 set -euo pipefail
+TMP_OUT=""   # ensure bound even when replace-block path succeeds
 
-# --- Defaults (override via flags/env) ---------------------------------------
-BASE="${BASE:-$HOME/GitHub/FuZeCORE.ai}"
-TARGET="${TARGET:-$BASE/fuze-box/stack/ollama/benchmark.sh}"
-REPLACE_BIN="${REPLACE_BIN:-$HOME/.replace-block/replace-block}"
-BAK_SUFFIX="${BAK_SUFFIX:-.bak}"
+# ---- Config (override with flags or env) -------------------------------------
+TARGET_FILE="${TARGET_FILE:-/home/fuze/GitHub/FuZeCORE.ai/fuze-box/stack/ollama/benchmark.sh}"
+BACKUP_EXT="${BACKUP_EXT:-.bak}"
+# POSIX ERE (works in awk/sed/grep -E)
+START_RE='^[[:space:]]*if[[:space:]]+\[[[:space:]]+-s[[:space:]]+"\$\{SUMMARY_FILE\}\.raw"[[:space:]]+\][[:space:]]*;[[:space:]]*then[[:space:]]*$'
+END_RE='^[[:space:]]*fi[[:space:]]*$'
+REPLACE_BIN="${REPLACE_BIN:-}"
 
-# Anchor regexes (inclusive replace)
-START_RE="${START_RE:-^\\s*if\\s+\\[\\s+-s\\s+\"\\$\\{SUMMARY_FILE\\}\\.raw\"\\s+\\]\\s*;\\s*then\\s*$}"
-END_RE="${END_RE:-^\\s*fi\\s*$}"
-
-# Show before/after and syntax-validate with bash -n
-export RB_PRINT="${RB_PRINT:-1}"
-export VALIDATE_CMD="${VALIDATE_CMD:-bash -n}"
-
-# --- CLI ---------------------------------------------------------------------
 usage() {
   cat <<USAGE
-Usage: $(basename "$0") [options]
-
-Options:
-  --target PATH         Target file to patch (default: $TARGET)
-  --start-re REGEX      Start anchor regex (default set)
-  --end-re REGEX        End anchor regex (default set)
-  --block-file PATH     Read replacement block from this file
-  --block-stdin         Read replacement block from STDIN (use with <<'EOF' ... EOF)
-  --backup-suffix S     Backup suffix (default: $BAK_SUFFIX)
-  --replace-bin PATH    Path to replace-block (default: $REPLACE_BIN)
-  -h, --help            Show this help
-
-If no block-file/STDIN is provided, a sensible default block is embedded.
+Usage: $0 [--target FILE] [--backup-ext .ext] [--replace-bin /path/to/replace-block]
+Env overrides: TARGET_FILE, BACKUP_EXT, REPLACE_BIN
 USAGE
 }
 
-BLOCK_MODE="embedded"
-BLOCK_FILE=""
-while [[ $# -gt 0 ]]; do
+# Parse flags
+while [ $# -gt 0 ]; do
   case "$1" in
-    --target)        TARGET="$2"; shift 2;;
-    --start-re)      START_RE="$2"; shift 2;;
-    --end-re)        END_RE="$2"; shift 2;;
-    --block-file)    BLOCK_MODE="file"; BLOCK_FILE="$2"; shift 2;;
-    --block-stdin)   BLOCK_MODE="stdin"; shift 1;;
-    --backup-suffix) BAK_SUFFIX="$2"; shift 2;;
-    --replace-bin)   REPLACE_BIN="$2"; shift 2;;
-    -h|--help)       usage; exit 0;;
-    *) echo "Unknown option: $1" >&2; usage; exit 2;;
+    --target) TARGET_FILE="$2"; shift 2;;
+    --backup-ext) BACKUP_EXT="$2"; shift 2;;
+    --replace-bin) REPLACE_BIN="$2"; shift 2;;
+    -h|--help) usage; exit 0;;
+    *) echo "Unknown arg: $1" >&2; usage; exit 1;;
   esac
 done
 
-# --- Checks ------------------------------------------------------------------
-[[ -x "$REPLACE_BIN" ]] || { echo "replace-block not executable: $REPLACE_BIN" >&2; exit 2; }
-[[ -f "$TARGET" ]]      || { echo "Target not found: $TARGET" >&2; exit 2; }
+# ---- Locate replace-block ----------------------------------------------------
+if [ -z "${REPLACE_BIN}" ]; then
+  if command -v replace-block >/dev/null 2>&1; then
+    REPLACE_BIN="$(command -v replace-block)"
+  elif [ -x "$HOME/.replace-block/replace-block" ]; then
+    REPLACE_BIN="$HOME/.replace-block/replace-block"
+  else
+    REPLACE_BIN=""
+  fi
+fi
+[ -f "$TARGET_FILE" ] || { echo "ERROR: target not found: $TARGET_FILE" >&2; exit 1; }
 
-# Pre-validate anchors exist once and form a block
-mapfile -t START_MATCHES < <(grep -nE -- "$START_RE" "$TARGET" || true)
-if (( ${#START_MATCHES[@]} != 1 )); then
-  echo "Start anchor count = ${#START_MATCHES[@]} (expected 1). Lines:" >&2
-  printf '  %s\n' "${START_MATCHES[@]}" >&2
-  exit 3
+echo "[1/7] Using:"
+echo "       TARGET_FILE = $TARGET_FILE"
+echo "       BACKUP_EXT  = $BACKUP_EXT"
+echo "       REPLACE_BIN = ${REPLACE_BIN:-<not used; will fallback if needed>}"
+echo
+
+# ---- Pre-validate anchors (and capture exact start..end lines) ---------------
+echo "[2/7] Pre-validate anchors…"
+mapfile -t START_MATCHES < <(grep -nE "$START_RE" "$TARGET_FILE" || true)
+if [ "${#START_MATCHES[@]}" -ne 1 ]; then
+  echo "ERROR: start anchor matched ${#START_MATCHES[@]} times; expected 1." >&2
+  printf 'Matches:\n%s\n' "${START_MATCHES[@]}" >&2
+  exit 1
 fi
 START_LN="${START_MATCHES[0]%%:*}"
-END_LN="$(awk -v s="$START_LN" -v re="$END_RE" 'NR>s && $0 ~ re {print NR; exit}' "$TARGET")"
-if [[ -z "$END_LN" ]]; then
-  echo "End anchor not found after start (start line $START_LN)" >&2
-  exit 3
+
+REL_END="$(sed -n "${START_LN},\$p" "$TARGET_FILE" | grep -nE "$END_RE" | head -n1 | cut -d: -f1 || true)"
+if [ -z "$REL_END" ]; then
+  echo "ERROR: end anchor not found after start (line $START_LN)." >&2; exit 1
 fi
+END_LN="$((START_LN + REL_END - 1))"
 
-echo "[*] Patching: $TARGET"
-echo "    Anchors: start@$START_LN .. end@$END_LN"
+echo "    ✓ anchors OK (lines ${START_LN}..${END_LN})."
+echo "    Current block to be replaced:"
+nl -ba "$TARGET_FILE" | sed -n "${START_LN},${END_LN}p" | sed 's/^/      | /'
+echo
 
-# --- Build the block file (temp) ---------------------------------------------
-TMP_BLOCK="$(mktemp)"
-trap 'rm -f "$TMP_BLOCK"' EXIT
-
-if [[ "$BLOCK_MODE" == "file" ]]; then
-  [[ -f "$BLOCK_FILE" ]] || { echo "Block file not found: $BLOCK_FILE" >&2; exit 2; }
-  cat "$BLOCK_FILE" > "$TMP_BLOCK"
-elif [[ "$BLOCK_MODE" == "stdin" ]]; then
-  cat > "$TMP_BLOCK"
-else
-  # Embedded default block:
-  cat >"$TMP_BLOCK" <<'BLOCK'
+# ---- Build patch content (inline) -------------------------------------------
+PATCH_TMP="$(mktemp)"
+cat > "$PATCH_TMP" <<'PATCH'
 # Any optimized rows with tokens_per_sec > 0 ?
 if awk -F',' 'NR>1 && $6 ~ /^optimized$/ && $12+0>0 {exit 0} END{exit 1}' "$CSV_FILE"; then
   # Show best per endpoint/model if we computed any in SUMMARY_FILE.raw
@@ -99,53 +83,69 @@ if awk -F',' 'NR>1 && $6 ~ /^optimized$/ && $12+0>0 {exit 0} END{exit 1}' "$CSV_
 else
   echo "No optimized variants succeeded."
 fi
-BLOCK
-fi
+PATCH
 
-# Quick sanity: block not empty
-if ! [[ -s "$TMP_BLOCK" ]]; then
-  echo "Replacement block is empty." >&2
-  exit 2
-fi
+cleanup() { rm -f "$PATCH_TMP" "${TMP_OUT:-}" 2>/dev/null || true; }
+trap cleanup EXIT
 
-# Show current block (for context)
-echo
-echo "[*] Existing block (from start to matching 'fi'):"
-nl -ba "$TARGET" | sed -n "${START_LN},${END_LN}p"
-
-# --- Apply patch via replace-block -------------------------------------------
-echo
-echo "[*] Applying patch (backup suffix: $BAK_SUFFIX)…"
-"$REPLACE_BIN" \
-  "$TARGET" \
-  "$START_RE" \
-  "$END_RE" \
-  "$TMP_BLOCK" \
-  "$BAK_SUFFIX"
-
-RC=$?
-if (( RC != 0 )); then
-  echo "replace-block failed with code $RC" >&2
-  exit $RC
-fi
-
-# --- Post-check: ensure block present & file valid ---------------------------
-if ! bash -n "$TARGET"; then
-  echo "Post-validate: bash -n failed (should have been rolled back by replace-block)." >&2
-  exit 4
-fi
-
-# Re-locate new block after replace for preview (may have shifted)
-NEW_START="$(grep -nE -- "$START_RE" "$TARGET" | cut -d: -f1 | head -n1 || true)"
-if [[ -n "$NEW_START" ]]; then
-  NEW_END="$(awk -v s="$NEW_START" -v re="$END_RE" 'NR>s && $0 ~ re {print NR; exit}' "$TARGET")"
-  if [[ -n "$NEW_END" ]]; then
-    echo
-    echo "[*] New block (lines ${NEW_START}..${NEW_END}):"
-    nl -ba "$TARGET" | sed -n "${NEW_START},${NEW_END}p"
+# ---- Try replace-block first -------------------------------------------------
+APPLIED=0
+if [ -n "$REPLACE_BIN" ] && [ -x "$REPLACE_BIN" ]; then
+  echo "[3/7] Applying via replace-block (backup ${BACKUP_EXT})…"
+  if "$REPLACE_BIN" "$TARGET_FILE" "$START_RE" "$END_RE" "$PATCH_TMP" "$BACKUP_EXT"; then
+    echo "    ✓ replace-block replacement done."
+    APPLIED=1
+  else
+    echo "    ! replace-block reported failure; will attempt manual splice…" >&2
   fi
+else
+  echo "[3/7] replace-block not available; will attempt manual splice."
 fi
 
+# ---- Fallback: manual splice by line numbers --------------------------------
+if [ "$APPLIED" -eq 0 ]; then
+  echo "[4/7] Manual splice fallback (backup ${BACKUP_EXT})…"
+  cp -p "$TARGET_FILE" "${TARGET_FILE}${BACKUP_EXT}"
+  TMP_OUT="$(mktemp)"
+  # pre, patch, post
+  if [ "$START_LN" -gt 1 ]; then
+    head -n "$((START_LN-1))" "$TARGET_FILE" > "$TMP_OUT"
+  else
+    : > "$TMP_OUT"
+  fi
+  cat "$PATCH_TMP" >> "$TMP_OUT"
+  tail -n "+$((END_LN+1))" "$TARGET_FILE" >> "$TMP_OUT"
+  cat "$TMP_OUT" > "$TARGET_FILE"
+  echo "    ✓ manual splice done."
+fi
 echo
-echo "[✓] Patch applied cleanly to $TARGET"
+
+# ---- Post-validate syntax ----------------------------------------------------
+echo "[5/7] Post-validate with bash -n…"
+if bash -n "$TARGET_FILE"; then
+  echo "    ✓ bash -n OK."
+else
+  echo "ERROR: bash -n failed." >&2
+  exit 1
+fi
+echo
+
+# ---- Sanity: new block marker present ---------------------------------------
+echo "[6/7] Sanity check for new block presence…"
+grep -nF "Any optimized rows with tokens_per_sec > 0 ?" "$TARGET_FILE" >/dev/null \
+  && echo "    ✓ new block found." \
+  || { echo "ERROR: new block marker not found"; exit 1; }
+echo
+
+# ---- Diff summary (optional) ------------------------------------------------
+echo "[7/7] Diff against backup (context 3):"
+if command -v diff >/dev/null 2>&1; then
+  diff -u "${TARGET_FILE}${BACKUP_EXT}" "$TARGET_FILE" | sed 's/^/    /' || true
+else
+  echo "    (diff not available)"
+fi
+
+echo "Done."
+BASH
+chmod +x ~/.replace-block/patch_ollama_success.sh
 
