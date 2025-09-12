@@ -438,7 +438,7 @@ wait_api "$PULL_FROM" || { err "Persistent API ${PULL_FROM} not reachable"; exit
 for ep in "${ENDPOINTS[@]}"; do
   restart_ep "$ep" || true
   wait_api "$ep" || warn "API $ep is not up yet (continuing)"
-enddone || true  # guard in case ENDPOINTS empty
+done
 
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"
