@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # store-cleanup.sh — normalize Ollama model store to /FuZe/models/ollama
-# - SAME FS: recursively merge contents (rename) and remove duplicates.
-# - DIFF FS: rsync missing files with --remove-source-files, then prune.
-# Safe to re-run; idempotent. Stops services by default (use --no-stop to skip).
+# Same-FS: rename/merge with dedupe, progress, USR1 status.
+# Diff-FS: rsync missing files with --remove-source-files, then prune.
+# Idempotent & safe to re-run.
 
 set -euo pipefail
 
@@ -57,63 +57,106 @@ mkdir -p "$CANON/blobs" "$CANON/manifests"
 dev_can=$(df -P "$CANON" | tail -1 | awk '{print $1}')
 dev_alt=$(df -P "$ALT"   | tail -1 | awk '{print $1}')
 
-same_fs_merge_dir() {
-  # Recursively merge SRC into DST, renaming or removing duplicates.
-  # Assumes both exist.
-  local SRC="$1" DST="$2"
-  [ -d "$SRC" ] || return 0
+# ---- Progress plumbing -------------------------------------------------------
+SECTION=""
+TOTAL=0
+DONE=0
+MOVED=0
+REMOVED=0
+KEPT=0
+COMPARED=0
+LAST_PRINT=0
 
-  local moved=0 removed=0 kept=0 compared=0
-  # Files first
+print_progress() {
+  # Print a single status line (no trailing newline, caller decides)
+  pct="0"
+  if [ "$TOTAL" -gt 0 ]; then
+    pct=$(( DONE * 100 / TOTAL ))
+  fi
+  printf "\r   [%s] %d/%d (%s%%) moved=%d dupes_removed=%d kept_conflicts=%d compared=%d" \
+    "$SECTION" "$DONE" "$TOTAL" "$pct" "$MOVED" "$REMOVED" "$KEPT" "$COMPARED"
+}
+
+force_progress() {
+  print_progress
+  printf "\n"
+}
+trap force_progress USR1
+
+# ---- Same-FS merge with dedupe & progress -----------------------------------
+same_fs_merge_dir() {
+  local SRC="$1" DST="$2" label="$3"
+  [ -d "$SRC" ] || { echo "   [$label] nothing to merge (missing)"; return 0; }
+  mkdir -p "$DST"
+
+  SECTION="$label"
+  TOTAL=$(find "$SRC" -type f | wc -l | tr -d ' ')
+  DONE=0; MOVED=0; REMOVED=0; KEPT=0; COMPARED=0; LAST_PRINT=0
+
   while IFS= read -r -d '' f; do
     rel="${f#$SRC/}"
     t="$DST/$rel"
     mkdir -p "$(dirname "$t")"
+
     if [ -e "$t" ]; then
-      # Compare before removing (cheap for blobs; manifests are small)
-      if cmp -s -- "$f" "$t"; then
+      if [ "$label" = "blobs" ]; then
+        # blobs are content-addressed; identical filename => identical content
         rm -f -- "$f" || true
-        removed=$((removed+1))
+        REMOVED=$((REMOVED+1))
       else
-        echo "!! differs, keeping ALT copy: $rel" >&2
-        kept=$((kept+1))
+        if cmp -s -- "$f" "$t"; then
+          rm -f -- "$f" || true
+          REMOVED=$((REMOVED+1))
+        else
+          echo "\n!! differs, keeping ALT copy: $label/$rel" >&2
+          KEPT=$((KEPT+1))
+        fi
+        COMPARED=$((COMPARED+1))
       fi
-      compared=$((compared+1))
     else
       mv -- "$f" "$t"
-      moved=$((moved+1))
+      MOVED=$((MOVED+1))
     fi
-  done < <(find "$SRC" -type f -print0)
 
-  # Then empty dirs
+    DONE=$((DONE+1))
+    now=$(date +%s)
+    if [ $((DONE % 200)) -eq 0 ] || [ "$now" -ne "$LAST_PRINT" ]; then
+      LAST_PRINT="$now"; printf "\r"; print_progress
+    fi
+  done < <(find "$SRC" -type f -print0 | sort -z)
+
+  force_progress
   find "$SRC" -depth -type d -empty -delete || true
-
-  echo "   merged $SRC -> $DST   moved=$moved removed_dupes=$removed kept_conflicts=$kept compared=$compared"
 }
 
+# ---- Diff-FS rsync path ------------------------------------------------------
+diff_fs_rsync_dir() {
+  local SRC="$1" DST="$2" label="$3"
+  [ -d "$SRC" ] || { echo "   [$label] nothing to sync (missing)"; return 0; }
+  mkdir -p "$DST"
+  echo "   rsync $label -> $DST"
+  rsync -aHAX --ignore-existing --remove-source-files --info=stats1,progress2 \
+    "$SRC/" "$DST/" || true
+  find "$SRC" -depth -type d -empty -delete || true
+}
+
+# ---- Strategy selection ------------------------------------------------------
 if [ "$dev_can" = "$dev_alt" ]; then
   echo "-- same filesystem -> recursive merge (rename, no extra space)"
-  same_fs_merge_dir "$ALT/blobs"     "$CANON/blobs"
-  same_fs_merge_dir "$ALT/manifests" "$CANON/manifests"
+  same_fs_merge_dir "$ALT/blobs"     "$CANON/blobs"     "blobs"
+  same_fs_merge_dir "$ALT/manifests" "$CANON/manifests" "manifests"
 
   # If ALT subtree is empty now, remove it
   if [ -z "$(find "$ALT" -mindepth 1 -print -quit 2>/dev/null)" ]; then
     rmdir -p "$ALT" 2>/dev/null || true
   else
-    echo "   NOTE: $ALT not empty (likely kept conflicts or unexpected files)."
+    echo "   NOTE: $ALT not empty (likely conflicts or unexpected files kept)."
+    echo "         Inspect with: find \"$ALT\" -type f | head"
   fi
 else
   echo "-- different filesystems -> rsync missing, remove source files"
-  echo "   rsync blobs -> $CANON/blobs"
-  rsync -aHAX --ignore-existing --remove-source-files --info=stats1,progress2 \
-    "$ALT/blobs/" "$CANON/blobs/" || true
-
-  echo "   rsync manifests -> $CANON/manifests"
-  rsync -aHAX --ignore-existing --remove-source-files --info=stats1,progress2 \
-    "$ALT/manifests/" "$CANON/manifests/" || true
-
-  # Clean up any now-empty dirs
-  find "$ALT" -depth -type d -empty -delete || true
+  diff_fs_rsync_dir "$ALT/blobs"     "$CANON/blobs"     "blobs"
+  diff_fs_rsync_dir "$ALT/manifests" "$CANON/manifests" "manifests"
 fi
 
 # Final perms (best effort)
@@ -122,6 +165,7 @@ chmod 755 /FuZe /FuZe/models "$CANON" 2>/dev/null || true
 echo
 echo "✔ Store cleanup done."
 echo "   Canonical: $CANON"
-echo "   Tip: check counts ->  du -sh \"$CANON\" \"$ALT\" ; find \"$ALT\" -type f | wc -l"
-echo "   If Ollama was running, restart it:  sudo systemctl restart ollama || true"
+echo "   Tip:  du -sh \"$CANON\" \"$ALT\" ; find \"$ALT\" -type f | wc -l"
+echo "   USR1 progress ping:  kill -USR1 $$   (while running)"
+echo "   Restart Ollama if needed:  sudo systemctl restart ollama || true"
 
