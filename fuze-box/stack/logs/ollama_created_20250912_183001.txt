@@ -9,3 +9,6 @@ llama4-16x17b-nvidia-5090-ng24
 llama4-16x17b-nvidia-5090-ng16
 llama4-16x17b-nvidia-3090ti-ng80
 llama4-16x17b-nvidia-3090ti-ng72
+llama4-16x17b-nvidia-3090ti-ng64
+llama4-16x17b-nvidia-3090ti-ng56
+llama4-16x17b-nvidia-3090ti-ng48
