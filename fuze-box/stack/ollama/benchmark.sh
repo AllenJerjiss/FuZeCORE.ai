@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# ollama-benchmark.sh (auto-discover baseline models)
+# ollama/benchmark.sh
 # One-at-a-time model tuning + benchmarking with an always-on puller on :11434
-# Variants are named with a normalized GPU label: <alias>-nvidia-<gpu>-ng<NUM>
+# Variants are named: <alias>-<normalized-gpu>-ng<NUM>
+#
+# Key features:
+# - Discovers base models automatically from `ollama list` on the persistent daemon.
+# - Builds and benches per-GPU test services (:11435 and :11436).
+# - Records CSV with eval token/s and prints a clean summary.
 
 set -euo pipefail
 
@@ -12,14 +17,14 @@ LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
 mkdir -p "$LOG_DIR"
 
 ########## CONFIG (override with env) ##########################################
-PERSISTENT_PORT="${PERSISTENT_PORT:-11434}"  # always-on downloader, never killed
-TEST_PORT_A="${TEST_PORT_A:-11435}"          # test instance A (GPU-A)
-TEST_PORT_B="${TEST_PORT_B:-11436}"          # test instance B (GPU-B)
+PERSISTENT_PORT="${PERSISTENT_PORT:-11434}"  # always-on puller / builder
+TEST_PORT_A="${TEST_PORT_A:-11435}"          # test instance A
+TEST_PORT_B="${TEST_PORT_B:-11436}"          # test instance B
 
 # Your persistent Ollama store (what :11434 uses)
 OLLAMA_MODELS_DIR="${OLLAMA_MODELS_DIR:-/FuZe/models/ollama}"
 
-# num_gpu sweep high->low
+# num_gpu sweep (high -> low)
 NUM_GPU_CANDIDATES="${NUM_GPU_CANDIDATES:-80 72 64 56 48 40 32 24 16}"
 
 # Bench params
@@ -33,7 +38,7 @@ VERBOSE="${VERBOSE:-1}"
 
 # Timeouts (seconds)
 WAIT_API_SECS="${WAIT_API_SECS:-60}"
-TIMEOUT_GEN="${TIMEOUT_GEN:-90}"   # more generous for big models
+TIMEOUT_GEN="${TIMEOUT_GEN:-90}"
 TIMEOUT_TAGS="${TIMEOUT_TAGS:-10}"
 
 SERVICE_HOME="${SERVICE_HOME:-/root}"
@@ -46,16 +51,14 @@ MATCH_GPU_B="${MATCH_GPU_B:-3090 Ti}"
 KEEP_FAILED_VARIANTS="${KEEP_FAILED_VARIANTS:-0}"  # 0=rm failed/invisible variants
 GC_AFTER_RUN="${GC_AFTER_RUN:-1}"                  # 1=final pass GC
 
-# Auto-discovery of baseline models (names that are NOT variants)
-AUTO_DISCOVER_MODELS="${AUTO_DISCOVER_MODELS:-1}"
-# Include only names matching this ERE (default: all)
-INCLUDE_RE="${INCLUDE_RE:-.*}"
-# Exclude names that look like our created variants:  <anything>-nvidia-<gpu>-ng<num>[:tag]
-EXCLUDE_RE="${EXCLUDE_RE:--nvidia-[^-:]+-ng[0-9]+(:|$)}"
+# Optional filters for discovered models
+# RegEx (ERE) to exclude or include models by name (e.g. EXCLUDE_MODELS='^(tiny|sd3:).*')
+EXCLUDE_MODELS="${EXCLUDE_MODELS:-}"
+INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kept
 
 ################################################################################
 
-readonly OLLAMA_BIN="/usr/local/bin/ollama"
+readonly OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
 readonly HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
 readonly TS="$(date +%Y%m%d_%H%M%S)"
 readonly CSV_FILE="${LOG_DIR}/ollama_bench_${TS}.csv"
@@ -65,12 +68,9 @@ readonly CREATED_LIST="${LOG_DIR}/ollama_created_${TS}.txt"
 readonly PULL_FROM="127.0.0.1:${PERSISTENT_PORT}"
 ENDPOINTS=("127.0.0.1:${TEST_PORT_A}" "127.0.0.1:${TEST_PORT_B}")
 
-# populated later by discover_models()
-declare -a MODELS
-
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
 log(){ echo -e "$*"; }
-info(){ [ "${VERBOSE:-1}" -ne 0 ] && echo -e "${c_bold}==${c_reset} $*"; }
+info(){ [ "$VERBOSE" -ne 0 ] && echo -e "${c_bold}==${c_reset} $*"; }
 ok(){ echo -e "${c_green}✔${c_reset} $*"; }
 warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
 err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
@@ -92,7 +92,6 @@ calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {pr
 
 curl_tags(){ local ep="$1"; curl -fsS --max-time "$TIMEOUT_TAGS" "http://${ep}/api/tags" || return 1; }
 
-# Build payload with jq (safe quoting), then POST
 curl_gen(){
   local ep="$1" model="$2" opts_json="$3" prompt="$4" to="$5"
   local payload
@@ -100,7 +99,6 @@ curl_gen(){
   curl -sS --max-time "$to" -H 'Content-Type: application/json' -d "$payload" "http://${ep}/api/generate" || return 1
 }
 
-# Small helper: print a key from systemd unit Environment= line
 service_env(){
   local unit="$1" key="$2"
   systemctl show "$unit" -p Environment 2>/dev/null | tr '\n' ' ' | sed -nE "s/.*${key}=([^ ]+).*/\1/p"
@@ -154,9 +152,7 @@ offload_triplet(){
 }
 
 normalize_gpu_label(){
-  # Examples:
-  #  "NVIDIA GeForce RTX 5090"     -> nvidia-5090
-  #  "NVIDIA GeForce RTX 3090 Ti"  -> nvidia-3090ti
+  # "NVIDIA GeForce RTX 5090" -> nvidia-5090 ; "NVIDIA GeForce RTX 3090 Ti" -> nvidia-3090ti
   local raw="$1"
   local s
   s="$(echo "$raw" | tr '[:upper:]' '[:lower:]')"
@@ -169,7 +165,7 @@ normalize_gpu_label(){
 gpu_label_for_ep(){
   local ep="$1" unit lbl name uuid mem
   unit="$(unit_for_ep "$ep")"
-  IFS=',' read -r name guid gmem <<<"$(offload_triplet "$unit")"
+  IFS=',' read -r name uuid mem <<<"$(offload_triplet "$unit")"
   if [ -z "${name:-}" ]; then
     echo "nvidia-unknown"
   else
@@ -179,7 +175,8 @@ gpu_label_for_ep(){
 
 have_model(){
   local tag="$1"
-  OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '{print $1}' | grep -Fxq "$tag"
+  OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null \
+    | awk '($1!="" && $1!="NAME"){print $1}' | grep -Fxq "$tag"
 }
 pull_if_missing(){
   local base="$1"
@@ -236,7 +233,6 @@ pick_uuid_by_name_substr(){
   done
 }
 
-# Wait until a created variant becomes visible on a test endpoint.
 wait_variant_visible(){
   local ep="$1" variant="$2" secs="${3:-12}" i=0
   local unit; unit="$(unit_for_ep "$ep")"
@@ -254,81 +250,45 @@ wait_variant_visible(){
   return 1
 }
 
-prepare_services(){
-  info "Preparing directories and services"
-  mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"
-
-  local all; all="$(gpu_table)"
-  log "$(echo "$all" | sed 's/^/GPU: /')"
-
-  # Is a daemon already on :11434?
-  if curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
-    info "Using existing Ollama on :${PERSISTENT_PORT}"
-    HAVE_PERSIST=1
-  else
-    HAVE_PERSIST=0
-    write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
-    systemctl enable --now ollama-persist.service || true
-  fi
-
-  # Bind A/B to GPUs by name, else by index order
-  local uuid_a uuid_b
-  uuid_a="$(pick_uuid_by_name_substr "$MATCH_GPU_A" || true)"
-  uuid_b="$(pick_uuid_by_name_substr "$MATCH_GPU_B" || true)"
-  if [ -z "${uuid_a:-}" ] || [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then
-    warn "GPU name match failed/identical — falling back to index order."
-    uuid_a="$(echo "$all" | awk -F',' 'NR==1{print $2}')"
-    uuid_b="$(echo "$all" | awk -F',' 'NR==2{print $2}')"
-  fi
-
-  write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A}, GPU ${uuid_a})"
-  write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B}, GPU ${uuid_b})"
-
-  systemctl enable --now ollama-test-a.service || true
-  systemctl enable --now ollama-test-b.service || true
-
-  info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS)"
-  info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS)"
-
-  info "Waiting for APIs"
-  wait_api "127.0.0.1:${PERSISTENT_PORT}" || warn "API :${PERSISTENT_PORT} not reachable yet"
-  wait_api "127.0.0.1:${TEST_PORT_A}" || warn "API :${TEST_PORT_A} slow to start"
-  wait_api "127.0.0.1:${TEST_PORT_B}" || warn "API :${TEST_PORT_B} slow to start"
-
-  info "ollama version: $($OLLAMA_BIN --version || echo 'unknown')"
+base_alias(){
+  # Turn name[:tag] into a stable slug for variant prefix
+  # e.g. "llama4:16x17b" -> "llama4-16x17b", "deepseek-r1:70b" -> "deepseek-r1-70b"
+  local s="$1"
+  echo "$s" | sed -E 's#[/:]+#-#g'
 }
 
-# --- NEW: discover baseline models (not variants) -----------------------------
 discover_models(){
-  MODELS=()
-  # Query persistent endpoint; skip header if present
+  info "Discovering base models from persistent daemon (:${PERSISTENT_PORT})"
   local names
-  names="$(OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null \
-            | awk 'NR==1 && $1=="NAME"{next} {print $1}')"
-
-  while IFS= read -r name; do
-    [ -z "$name" ] && continue
-    # filter out created variants and apply include filter
-    if [[ "$name" =~ $EXCLUDE_RE ]]; then
+  names="$(OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '($1!="NAME" && $1!="") {print $1}')"
+  local out=()
+  while IFS= read -r tag; do
+    [ -z "$tag" ] && continue
+    # Skip our optimized variants: anything with -nvidia-...-ngNN in the NAME portion
+    if echo "$tag" | grep -Eq -- '-nvidia-[a-z0-9]+(super|ti)?-ng[0-9]+(:|$)'; then
       continue
     fi
-    if ! [[ "$name" =~ $INCLUDE_RE ]]; then
+    # Optional include/exclude filters
+    if [ -n "$EXCLUDE_MODELS" ] && echo "$tag" | grep -Eq "$EXCLUDE_MODELS"; then
       continue
     fi
-    # alias: replace ':' with '-'
-    local alias="${name/:/-}"
-    MODELS+=("${name}|${alias}")
-  done <<< "$names"
-
-  if [ "${#MODELS[@]}" -eq 0 ]; then
-    warn "No baseline models discovered on ${PULL_FROM} (after filters)."
+    if [ -n "$INCLUDE_MODELS" ] && ! echo "$tag" | grep -Eq "$INCLUDE_MODELS"; then
+      continue
+    fi
+    out+=("$tag|$(base_alias "$tag")")
+  done <<<"$names"
+  if [ "${#out[@]}" -eq 0 ]; then
+    warn "No base models discovered — you may need to 'ollama pull <model>' on :${PERSISTENT_PORT}."
+  else
+    info "Models     : $(printf '%s ' "${out[@]}")"
   fi
+  MODELS=("${out[@]}")
 }
 
 append_csv_row(){ echo "$*" >>"$CSV_FILE"; }
 
-bench_once(){ # ep model label num_gpu gpu_label
-  local ep="$1" model="$2" label="$3" ng="${4:-}" gpu_lbl="$5"
+bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
+  local ep="$1" base="$2" model="$3" label="$4" ng="${5:-}" gpu_lbl="$6"
   local sfx unit gname guid gmem opts tokps
 
   sfx="$(suffix_for_ep "$ep")"
@@ -369,10 +329,9 @@ bench_base_as_is(){ # ep baseTag
     wait_api "$ep" || true
     sleep 2
   fi
-  bench_once "$ep" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
+  bench_once "$ep" "$base" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
 }
 
-# Create optimized variant with a temp Modelfile (built via :11434)
 bake_variant(){ # newname base num_gpu
   local newname="$1" base="$2" ng="$3"
   local tf
@@ -382,13 +341,11 @@ bake_variant(){ # newname base num_gpu
     echo "PARAMETER num_gpu ${ng}"
   } >"$tf"
   OLLAMA_HOST="http://${PULL_FROM}" \
-    "$OLLAMA_BIN" create "$newname" -f "$tf" >>"$CREATE_LOG" 2>&1
-  local rc=$?
+    "$OLLAMA_BIN" create "$newname" -f "$tf" >>"$CREATE_LOG" 2>&1 || {
+      rm -f "$tf"; return 1; }
   rm -f "$tf"
-  if [ $rc -eq 0 ]; then
-    echo "$newname" >> "$CREATED_LIST"
-  fi
-  return $rc
+  echo "$newname" >> "$CREATED_LIST"
+  return 0
 }
 
 rm_variant_tag(){ # name[:tag]
@@ -404,7 +361,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
   pull_if_missing "$base"
 
   if ! curl_tags "$ep" | jq -r '.models[].name' 2>/dev/null | grep -Fxq "$base"; then
-    warn "Base ${base} NOT visible on ${ep}. This is ok for build (we build on :${PERSISTENT_PORT}), but benches will run via ${ep}."
+    warn "Base ${base} NOT visible on ${ep}. Build happens on :${PERSISTENT_PORT}; benches will run via ${ep}."
   fi
 
   bench_base_as_is "$ep" "$base" || warn "base-as-is bench skipped for $base on $ep"
@@ -435,11 +392,11 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       fi
     fi
 
-    local tokps rc
-    if tokps="$(bench_once "$ep" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then
+    local tokps
+    if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then
       :
     else
-      tokps="0.00"; rc=1
+      tokps="0.00"
     fi
 
     if [ "${tokps}" = "0.00" ]; then
@@ -449,8 +406,8 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
 
     if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
-      first_ok=1
       ok "     First working: ${newname} at ${tokps} tok/s"
+      first_ok=1
       break
     fi
   done
@@ -465,9 +422,10 @@ tune_and_bench_one(){ # ep baseTag aliasBase
 
 gc_created_tags(){
   [ "${GC_AFTER_RUN}" -eq 1 ] || return 0
-  [ -s "$CREATED_LIST" ] || return 0
+  [ -s "$CREATED_LIST" ] || { info "GC summary: nothing created."; return 0; }
   local removed=0 kept=0
   while IFS= read -r tag; do
+    # if tag never produced a CSV row with tokens_per_sec>0, purge it
     if ! awk -F',' -v t="${tag}:latest" 'NR>1 && $7==t && $12+0>0 {found=1} END{exit !found}' "$CSV_FILE"; then
       rm_variant_tag "${tag}:latest"
       removed=$((removed+1))
@@ -485,26 +443,56 @@ log "Test EPs   : 127.0.0.1:${TEST_PORT_A}  127.0.0.1:${TEST_PORT_B}"
 log "CSV        : ${CSV_FILE}"
 log "Summary    : ${SUMMARY_FILE}"
 
-prepare_services
-wait_api "$PULL_FROM" || { err "Persistent API ${PULL_FROM} not reachable"; exit 1; }
+# GPU table print
+info "Preparing directories and services"
+mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"
+log "$(gpu_table | sed 's/^/GPU: /')"
 
-# build model list dynamically (or honor AUTO_DISCOVER_MODELS=0 + pre-filled MODELS)
-if [ "${AUTO_DISCOVER_MODELS:-1}" -eq 1 ]; then
-  discover_models
+# Persistent daemon
+if curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
+  info "Using existing Ollama on :${PERSISTENT_PORT}"
+else
+  write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
+  systemctl enable --now ollama-persist.service || true
 fi
 
-if [ "${#MODELS[@]}" -eq 0 ]; then
-  err "No baseline models to benchmark (MODELS empty). Set AUTO_DISCOVER_MODELS=1 or export MODELS."
-  exit 2
+# Bind A/B to GPUs by name (or index fallback)
+uuid_a="$(pick_uuid_by_name_substr "$MATCH_GPU_A" || true)"
+uuid_b="$(pick_uuid_by_name_substr "$MATCH_GPU_B" || true)"
+if [ -z "${uuid_a:-}" ] || [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then
+  warn "GPU name match failed/identical — falling back to index order."
+  all="$(gpu_table)"
+  uuid_a="$(echo "$all" | awk -F',' 'NR==1{print $2}')"
+  uuid_b="$(echo "$all" | awk -F',' 'NR==2{print $2}')"
 fi
 
-log "Models     : $(printf '%s ' "${MODELS[@]}")"
+write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A}, GPU ${uuid_a})"
+write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B}, GPU ${uuid_b})"
 
+systemctl enable --now ollama-test-a.service || true
+systemctl enable --now ollama-test-b.service || true
+
+info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS)"
+info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS)"
+
+info "Waiting for APIs"
+wait_api "127.0.0.1:${PERSISTENT_PORT}" || warn "API :${PERSISTENT_PORT} not reachable yet"
+wait_api "127.0.0.1:${TEST_PORT_A}" || warn "API :${TEST_PORT_A} slow to start"
+wait_api "127.0.0.1:${TEST_PORT_B}" || warn "API :${TEST_PORT_B} slow to start"
+
+info "ollama version: $($OLLAMA_BIN --version || echo 'unknown')"
+
+# Discover base models dynamically
+MODELS=()
+discover_models
+
+# Restart test endpoints and go
 for ep in "${ENDPOINTS[@]}"; do
   restart_ep "$ep" || true
   wait_api "$ep" || warn "API $ep is not up yet (continuing)"
-fi
+done
 
+# Bench loop
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"
   for ep in "${ENDPOINTS[@]}"; do
@@ -520,22 +508,23 @@ done
 
 gc_created_tags || true
 
+# ========= Clean, canonical final summary (no duplicates) =====================
 {
   echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
   echo "CSV: ${CSV_FILE}"
   echo
-# Any optimized rows with tokens_per_sec > 0 ?
-if awk -F',' 'NR>1 && $6 ~ /^optimized$/ && $12+0>0 {exit 0} END{exit 1}' "$CSV_FILE"; then
-  # Show best per endpoint/model if we computed any in SUMMARY_FILE.raw
-  if [ -s "${SUMMARY_FILE}.raw" ]; then
-    echo "Best optimized per (endpoint, model):"
-    column -t -s',' "${SUMMARY_FILE}.raw" 2>/dev/null || cat "${SUMMARY_FILE}.raw"
+  # Any optimized rows with tokens_per_sec > 0 ?
+  if awk -F',' 'NR>1 && $6 ~ /^optimized$/ && $12+0>0 {exit 0} END{exit 1}' "$CSV_FILE"; then
+    # Show best per (endpoint, model) if we computed any in SUMMARY_FILE.raw
+    if [ -s "${SUMMARY_FILE}.raw" ]; then
+      echo "Best optimized per (endpoint, model):"
+      column -t -s',' "${SUMMARY_FILE}.raw" 2>/dev/null || cat "${SUMMARY_FILE}.raw"
+    else
+      echo "Optimized variants ran (see CSV), but per-(endpoint,model) best list is empty."
+    fi
   else
-    echo "Optimized variants ran (see CSV), but per-(endpoint,model) best list is empty."
+    echo "No optimized variants succeeded."
   fi
-else
-  echo "No optimized variants succeeded."
-fi
   echo
   echo "=== Base vs Optimized (per endpoint & model) ==="
   awk -F',' '
