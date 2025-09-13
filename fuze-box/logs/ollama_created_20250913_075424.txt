@@ -1,0 +1,4 @@
+llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng80
+llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng72
+llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng64
+llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng56
