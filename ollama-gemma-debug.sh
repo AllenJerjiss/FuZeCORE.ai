@@ -3,8 +3,8 @@
 # Default profile uses Gemma debug env; supply additional envs via --env
 # Usage:
 #   ./ollama-gemma-debug.sh [--stacks "ollama llama.cpp vLLM"] \
-#     [--env PATH]... [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze] [--loud]
-#   Env toggles: SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1, LOUD=0/1
+#     [--env PATH]... [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze]
+#   Env toggles: SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1
 
 set -euo pipefail
 
@@ -35,9 +35,9 @@ echo "ts,step,rc,seconds" > "$SUMMARY" 2>/dev/null || true
 usage(){
   cat <<USAGE
 Usage: $(basename "$0") [--stacks "ollama llama.cpp vLLM Triton"] [--env PATH]... \\
-       [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze] [--loud]
+       [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze]
 Env:
-  SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1, LOUD=0/1
+  SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1
 USAGE
 }
 
@@ -47,7 +47,6 @@ SKIP_BENCH=${SKIP_BENCH:-0}
 SKIP_EXPORT=${SKIP_EXPORT:-0}
 SKIP_ANALYZE=${SKIP_ANALYZE:-0}
 DRY_RUN=${DRY_RUN:-0}
-LOUD=${LOUD:-0}
 STACKS="${STACKS:-ollama}"
 ENV_FILES=()
 
@@ -60,7 +59,6 @@ while [ $# -gt 0 ]; do
     --no-bench)   SKIP_BENCH=1; shift;;
     --no-export)  SKIP_EXPORT=1; shift;;
     --no-analyze) SKIP_ANALYZE=1; shift;;
-    --loud)       LOUD=1; shift;;
     -h|--help) usage; exit 0;;
     *) warn "Unknown arg: $1"; shift;;
   esac
@@ -76,11 +74,10 @@ done
 # Re-exec as root preserving env
 if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
 
-if [ "$LOUD" -eq 1 ]; then
-  # Make subcommands noisier
-  export VERBOSE=1 DEBUG_BENCH=1
-  set -x
-fi
+# Be verbose by default for all subcommands
+export VERBOSE=1
+export DEBUG_BENCH=1
+set -x
 
 info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
