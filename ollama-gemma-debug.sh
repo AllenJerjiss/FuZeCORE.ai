@@ -22,7 +22,7 @@ ok(){ echo -e "${c_green}✔${c_reset} $*"; }
 warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
 err(){ echo -e "${c_red}✖${c_reset} $*" >&2; }
 
-step_begin(){ STEP_NAME="$1"; STEP_TS=$(date +%s); info "[$STEP_NAME]"; }
+step_begin(){ STEP_NAME="$1"; STEP_TS=$(date +%s); info "[${STEP_NAME}]"; }
 step_end(){ local rc=$1; local dur=$(( $(date +%s) - STEP_TS ));
   if [ "$rc" -eq 0 ]; then ok "[$STEP_NAME] done (${dur}s)"; else err "[$STEP_NAME] rc=$rc (${dur}s)"; fi
   printf "%s,%s,%s,%s\n" "${TS}" "${STEP_NAME}" "$rc" "$dur" >> "$SUMMARY" || true
@@ -72,36 +72,49 @@ if [ "$DRY_RUN" -eq 0 ]; then
 
 # 0) Install / Upgrade Ollama
 if [ "$SKIP_INSTALL" -eq 0 ]; then
-  if [ "$DRY_RUN" -eq 0 ]; then step_begin "install"; "$UST" "@${ENV_FILE}" ollama install; step_end $?; else info "[install] DRY_RUN"; fi
+  if [ "$DRY_RUN" -eq 0 ]; then 
+    step_begin "install"
+    set +e; "$UST" "@${ENV_FILE}" ollama install; rc=$?; set -e; step_end $rc
+  else info "[install] DRY_RUN"; fi
 else
   info "[install] skipped"
 fi
 
 # 1) Cleanup
 if [ "$SKIP_CLEANUP" -eq 0 ]; then
-  if [ "$DRY_RUN" -eq 0 ]; then step_begin "service-cleanup"; "$UST" "@${ENV_FILE}" ollama service-cleanup || true; step_end $?; else info "[service-cleanup] DRY_RUN"; fi
-  if [ "$DRY_RUN" -eq 0 ]; then step_begin "cleanup-variants"; "$UST" "@${ENV_FILE}" ollama cleanup-variants || true; step_end $?; else info "[cleanup-variants] DRY_RUN"; fi
+  if [ "$DRY_RUN" -eq 0 ]; then 
+    step_begin "service-cleanup"; set +e; "$UST" "@${ENV_FILE}" ollama service-cleanup; rc=$?; set -e; step_end $rc
+  else info "[service-cleanup] DRY_RUN"; fi
+  if [ "$DRY_RUN" -eq 0 ]; then 
+    step_begin "cleanup-variants"; set +e; "$UST" "@${ENV_FILE}" ollama cleanup-variants --force --yes; rc=$?; set -e; step_end $rc
+  else info "[cleanup-variants] DRY_RUN"; fi
 else
   info "[cleanup] skipped"
 fi
 
 # 2) Benchmark
 if [ "$SKIP_BENCH" -eq 0 ]; then
-  if [ "$DRY_RUN" -eq 0 ]; then step_begin "benchmark"; "$UST" "@${ENV_FILE}" ollama benchmark; step_end $?; else info "[benchmark] DRY_RUN"; fi
+  if [ "$DRY_RUN" -eq 0 ]; then 
+    step_begin "benchmark"; set +e; "$UST" "@${ENV_FILE}" ollama benchmark; rc=$?; set -e; step_end $rc
+  else info "[benchmark] DRY_RUN"; fi
 else
   info "[benchmark] skipped"
 fi
 
 # 3) Export GGUFs
 if [ "$SKIP_EXPORT" -eq 0 ]; then
-  if [ "$DRY_RUN" -eq 0 ]; then step_begin "export-gguf"; "$UST" "@${ENV_FILE}" ollama export-gguf; step_end $?; else info "[export-gguf] DRY_RUN"; fi
+  if [ "$DRY_RUN" -eq 0 ]; then 
+    step_begin "export-gguf"; set +e; "$UST" "@${ENV_FILE}" ollama export-gguf; rc=$?; set -e; step_end $rc
+  else info "[export-gguf] DRY_RUN"; fi
 else
   info "[export] skipped"
 fi
 
 # 4) Analyze results
 if [ "$SKIP_ANALYZE" -eq 0 ]; then
-  if [ "$DRY_RUN" -eq 0 ]; then step_begin "analyze"; "$UST" "@${ENV_FILE}" analyze --stack ollama; step_end $?; else info "[analyze] DRY_RUN"; fi
+  if [ "$DRY_RUN" -eq 0 ]; then 
+    step_begin "analyze"; set +e; "$UST" "@${ENV_FILE}" analyze --stack ollama; rc=$?; set -e; step_end $rc
+  else info "[analyze] DRY_RUN"; fi
 else
   info "[analyze] skipped"
 fi
