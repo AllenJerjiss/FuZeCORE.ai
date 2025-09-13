@@ -4,6 +4,11 @@
 # - Assumes a running tritonserver on HTTP :8000 (A) and :8001 (B) (override via env)
 # - Uses perf_analyzer to get throughput (infer/sec); we record it as tokens/sec baseline
 # - Same CSV header/summary format as other stacks
+#
+# Env knobs for cross-stack parity (used for CSV only):
+#   BENCH_NUM_CTX       -> CSV num_ctx column (no effect on perf_analyzer)
+#   BENCH_NUM_PREDICT   -> CSV num_predict column (no effect on perf_analyzer)
+#   TEMPERATURE         -> accepted for parity; not reflected in CSV
 
 set -euo pipefail
 
@@ -28,6 +33,10 @@ REQUEST_COUNT="${REQUEST_COUNT:-200}"   # perf window in requests; increase for 
 TIMEOUT_SECS="${TIMEOUT_SECS:-60}"
 
 VERBOSE="${VERBOSE:-1}"
+# Cross-stack parity knobs (CSV only; Triton perf_analyzer not affected)
+BENCH_NUM_CTX="${BENCH_NUM_CTX:-}"
+BENCH_NUM_PREDICT="${BENCH_NUM_PREDICT:-}"
+TEMPERATURE="${TEMPERATURE:-}"
 
 ########## OUTPUT ##############################################################
 HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
@@ -81,7 +90,10 @@ bench_once(){ # endpoint alias base_tag model_name
   fi
 
   # We don’t have GPU binding info here; leave gpu_label empty and num_gpu as 'default'
-  echo "$(date -Iseconds),$ep,proc,$sfx,$base,base-as-is,$model,default,NA,$BATCH,NA,$tokps,,,,," >>"$CSV_FILE"
+  # Map parity knobs into CSV columns where applicable
+  local csv_num_ctx="${BENCH_NUM_CTX:-NA}"
+  local csv_num_pred="${BENCH_NUM_PREDICT:-NA}"
+  echo "$(date -Iseconds),$ep,proc,$sfx,$base,base-as-is,$model,default,${csv_num_ctx},$BATCH,${csv_num_pred},$tokps,,,,," >>"$CSV_FILE"
   ok "[bench] ${sfx}  ${model}  ->  ${tokps} (perf_analyzer throughput)"
 }
 
@@ -120,4 +132,3 @@ done
 
 ok "DONE. CSV: ${CSV_FILE}"
 ok "DONE. Summary: ${SUMMARY_FILE}"
-

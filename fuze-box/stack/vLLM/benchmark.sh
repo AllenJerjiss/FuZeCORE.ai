@@ -27,9 +27,11 @@ MODELS=(
   "llama4:128x17b|llama4-128x17b|${VLLM_MODEL_llama4_128x17b:-meta-llama/Llama-3.1-70B-Instruct}"
 )
 
-CTX="${CTX:-4096}"                 # --max-model-len
+BENCH_NUM_CTX="${BENCH_NUM_CTX:-}"
+if [ -n "$BENCH_NUM_CTX" ]; then CTX="$BENCH_NUM_CTX"; else CTX="${CTX:-4096}"; fi  # --max-model-len
 BATCH="${BATCH:-16}"               # request batch not used; vLLM batches internally
 PRED="${PRED:-256}"                # n tokens to generate per request
+TEMPERATURE="${TEMPERATURE:-0.0}"
 DTYPE="${DTYPE:-float16}"          # float16|bfloat16|auto
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.90}"
 
@@ -119,7 +121,7 @@ bench_once(){ # ep base_tag variant_label model_name gpu_lbl
   local sfx="X"; [ "${ep##*:}" = "$PORT_A" ] && sfx="A"; [ "${ep##*:}" = "$PORT_B" ] && sfx="B"
 
   local prompt="Write 'ok' repeatedly."
-  local req="$(jq -n --arg m "$mname" --arg p "$prompt" --argjson n "$PRED" '{model:$m, prompt:$p, max_tokens:$n, temperature:0.0}')"
+  local req="$(jq -n --arg m "$mname" --arg p "$prompt" --argjson n "$PRED" --argjson t "$TEMPERATURE" '{model:$m, prompt:$p, max_tokens:$n, temperature:$t}')"
 
   local t0 t1 elapsed tokps ctoks
   t0=$(date +%s%N)
@@ -198,4 +200,3 @@ done
 
 ok "DONE. CSV: ${CSV_FILE}"
 ok "DONE. Summary: ${SUMMARY_FILE}"
-

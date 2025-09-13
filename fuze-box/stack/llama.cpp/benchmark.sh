@@ -49,9 +49,11 @@ MODELS=(
 NGL_CANDIDATES=${NGL_CANDIDATES:-"-1 64 48 32 24 16 0"}
 
 # Bench params
-CTX="${CTX:-1024}"
+BENCH_NUM_CTX="${BENCH_NUM_CTX:-}"
+if [ -n "$BENCH_NUM_CTX" ]; then CTX="$BENCH_NUM_CTX"; else CTX="${CTX:-1024}"; fi
 BATCH="${BATCH:-32}"
 PRED="${PRED:-256}"
+TEMPERATURE="${TEMPERATURE:-0.0}"
 
 # Stop after first working NGL?
 EXHAUSTIVE="${EXHAUSTIVE:-0}"
@@ -168,7 +170,7 @@ bench_once(){ # ep base_tag variant_label model_tag ngl gpu_lbl
   local prompt="Write 'ok' repeatedly."
   local out
   out="$(curl -fsS -H 'Content-Type: application/json' \
-      -d "$(jq -n --arg p "$prompt" --argjson n "$PRED" '{prompt:$p, n_predict:$n, stream:false}')" \
+      -d "$(jq -n --arg p "$prompt" --argjson n "$PRED" --argjson t "$TEMPERATURE" '{prompt:$p, n_predict:$n, temperature:$t, stream:false}')" \
       "http://${ep}/completion" 2>/dev/null || true)"
 
   if [ -z "$out" ]; then
@@ -280,4 +282,3 @@ done
 
 ok "DONE. CSV: ${CSV_FILE}"
 ok "DONE. Summary: ${SUMMARY_FILE}"
-

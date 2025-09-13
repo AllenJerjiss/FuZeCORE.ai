@@ -1,0 +1,109 @@
+# FuZe LLM Stack Benchmarks
+
+Unified driver and per‑stack benchmark scripts for Ollama, vLLM, llama.cpp, and Triton. All stacks write CSV with the same 16‑column schema and a short human summary.
+
+## Driver
+
+- Command: `./fuze-box/stack/ust.sh <stack> [command] [args...]`
+- Stacks: `ollama`, `vLLM`, `llama.cpp`, `Triton`
+- Default command: `benchmark`
+
+Examples
+- Ollama fast bench: `FAST_MODE=1 EXHAUSTIVE=0 BENCH_NUM_PREDICT=64 ./fuze-box/stack/ust.sh ollama`
+- vLLM bench: `./fuze-box/stack/ust.sh vLLM`
+- llama.cpp bench: `./fuze-box/stack/ust.sh llama.cpp`
+- Triton bench (perf_analyzer): `./fuze-box/stack/ust.sh Triton`
+
+Ollama management commands
+- Install/upgrade + stock service: `sudo ./fuze-box/stack/ust.sh ollama install`
+- Persistent service reset (:11434): `sudo ./fuze-box/stack/ust.sh ollama service-cleanup`
+- Store migration to `/FuZe/models/ollama`: `sudo ./fuze-box/stack/ust.sh ollama store-cleanup [--canon PATH --alt PATH]`
+- Remove baked variants: `sudo ./fuze-box/stack/ust.sh ollama cleanup-variants --from-created fuze-box/stack/logs/ollama_created_*.txt --force --yes`
+
+## Common Env Knobs (all stacks)
+
+- `BENCH_NUM_CTX`: context length used or recorded in CSV (stack‑specific application)
+- `BENCH_NUM_PREDICT`: number of tokens to generate per request (CSV and/or request)
+- `TEMPERATURE`: generation temperature (0.0 default)
+
+Logs and CSV
+- Logs directory: `fuze-box/stack/logs`
+- CSV header (16 columns): `ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib`
+- `tokens_per_sec` is column 12 across all stacks
+
+## Ollama Stack
+
+Script: `fuze-box/stack/ollama/benchmark.sh`
+
+Fast mode (default)
+- `FAST_MODE=1`: no tag baking; pass options at runtime
+- `AUTO_NG=1`: auto‑derive `num_gpu` candidates from `layers.model` seen in systemd logs
+- `NG_PERCENT_SET`: default `"100 90 75 60 50 40 30 20 10"` (tried high→low)
+- `EXHAUSTIVE=0`: stop at first working config (set `1` to try all)
+- `BENCH_NUM_PREDICT`, `BENCH_NUM_CTX`, `TEMPERATURE` included in request
+
+Tag baking mode
+- `FAST_MODE=0`: bakes `num_gpu` variants as tags and benches them
+- Auto‑GC of non‑working variants unless `KEEP_FAILED_VARIANTS=1`
+
+Discovery and filters
+- Pulls base models from persistent daemon `:11434`
+- Filters: `INCLUDE_MODELS` (regex), `EXCLUDE_MODELS` (regex)
+
+Service handling
+- Test units: `ollama-test-a.service` (`:11435`), `ollama-test-b.service` (`:11436`)
+- Uses `OLLAMA_HOST=127.0.0.1:<port>` and `CUDA_VISIBLE_DEVICES=<GPU_UUID>`
+- Readiness: `/api/tags`
+- To bench on the stock daemon: `TEST_PORT_A=11434`
+
+Other knobs
+- `TIMEOUT_GEN`, `TIMEOUT_TAGS`, `WAIT_API_SECS`
+- `OLLAMA_MODELS_DIR` (default `/FuZe/models/ollama`), `OLLAMA_BIN` (default `/usr/local/bin/ollama`)
+
+Management helpers
+- `ollama/install.sh`: installs/upgrades Ollama, normalizes stock service to use `/FuZe/models/ollama`
+- `ollama/service-cleanup.sh`: forces a consistent persistent service on `:11434`
+- `ollama/store-cleanup.sh`: merges/migrates stores into `/FuZe/models/ollama`
+- `ollama/cleanup-variants.sh`: removes baked variant tags by pattern or from created list
+
+CSV timing
+- `eval_duration` is in nanoseconds; script converts to seconds for `tokens_per_sec`
+
+## vLLM Stack
+
+Script: `fuze-box/stack/vLLM/benchmark.sh`
+
+- Ports: `PORT_A=11435`, `PORT_B=11436`
+- GPU binding: `CUDA_VISIBLE_DEVICES=<GPU_UUID>` per server process
+- Models: edit `MODELS` list or override with `VLLM_MODEL_<alias>` envs
+- Context: `BENCH_NUM_CTX` overrides `CTX` (`--max-model-len`)
+- Tokens: `PRED` (or `BENCH_NUM_PREDICT`) controls `max_tokens`
+- `TEMPERATURE` carried in request JSON
+- Dtype and memory: `DTYPE` (float16/bfloat16/auto), `GPU_MEM_UTIL` (default 0.90)
+
+## llama.cpp Stack
+
+Script: `fuze-box/stack/llama.cpp/benchmark.sh`
+
+- Ports: `PORT_A=11435`, `PORT_B=11436`
+- Server binary: `LLAMACPP_BIN` (auto‑detects `llama-server`/`server`)
+- Models: sets `MODEL_DIR` and `MODELS` pattern list, or override with `LLAMACPP_PATH_<alias>`
+- Sweep: `NGL_CANDIDATES` (e.g., `"-1 64 48 32 24 16 0"`)
+- Context: `BENCH_NUM_CTX` overrides `CTX`; tokens via `PRED` or `BENCH_NUM_PREDICT`
+- `TEMPERATURE` carried in `/completion` request
+
+## Triton Stack
+
+Script: `fuze-box/stack/Triton/benchmark.sh`
+
+- Endpoints: `TRITON_HTTP_A=127.0.0.1:8000`, `TRITON_HTTP_B=127.0.0.1:8001`
+- Models: `TRITON_MODELS` (pairs `name|alias`)
+- Uses `perf_analyzer` if present; outputs throughput as `tokens_per_sec`
+- Parity knobs into CSV only: `BENCH_NUM_CTX`, `BENCH_NUM_PREDICT` (no effect on perf)
+
+## Notes
+
+- All scripts aim to be idempotent and resilient to missing services.
+- CSVs and summaries are written to `fuze-box/stack/logs`.
+- For GPU binding, the scripts prefer matching GPU name substrings, with a fallback to the first two devices by index where applicable.
+

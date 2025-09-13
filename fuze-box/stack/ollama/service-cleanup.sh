@@ -1,7 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Ensure a consistent persistent Ollama service on :11434 using OLLAMA_HOST
+
 # 0) Vars
 UNIT=/etc/systemd/system/ollama-persist.service
 PORT=11434
-MODELDIR=/FuZe/models/ollama
+MODELDIR=${MODELDIR:-/FuZe/models/ollama}
+OLLAMA_BIN=${OLLAMA_BIN:-/usr/local/bin/ollama}
 
 # 1) Unmask (and remove any /dev/null mask symlink)
 if systemctl is-enabled ollama-persist.service 2>/dev/null | grep -q masked; then
@@ -12,17 +17,19 @@ if [ -L "$UNIT" ] && readlink "$UNIT" | grep -q '/dev/null'; then
 fi
 
 # 2) Ensure a proper unit file exists (root user to match your test services & store perms)
-sudo tee "$UNIT" >/dev/null <<'UNIT'
+sudo tee "$UNIT" >/dev/null <<UNIT
 [Unit]
 Description=Ollama (persistent on :11434)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=root
-Group=root
-Environment=OLLAMA_MODELS=/FuZe/models/ollama
-ExecStart=/usr/local/bin/ollama serve -p 11434
+User=ollama
+Group=ollama
+SupplementaryGroups=video render
+Environment=OLLAMA_MODELS=${MODELDIR}
+Environment=OLLAMA_HOST=127.0.0.1:${PORT}
+ExecStart=${OLLAMA_BIN} serve
 Restart=always
 RestartSec=2
 LimitMEMLOCK=infinity
@@ -35,6 +42,7 @@ UNIT
 
 # 3) Make sure the models dir exists & is usable
 sudo mkdir -p "$MODELDIR"
+sudo chown -R ollama:ollama "$MODELDIR" || true
 sudo chmod 755 /FuZe /FuZe/models "$MODELDIR" || true
 
 # 4) Don’t let the distro service collide on :11434
@@ -57,4 +65,3 @@ curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && echo "OK /api/tags" || e
 
 # 7) `ollama ls` should work again
 ollama ls || true
-

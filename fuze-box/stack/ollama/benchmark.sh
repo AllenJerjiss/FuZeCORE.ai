@@ -34,6 +34,17 @@ NUM_GPU_CANDIDATES="${NUM_GPU_CANDIDATES:-80 72 64 56 48 40 32 24 16}"
 # Bench params
 PROMPT="${PROMPT:-Tell me a 1-sentence fun fact about GPUs.}"
 EXHAUSTIVE="${EXHAUSTIVE:-0}"  # 0 = stop at first working optimized variant per (endpoint,base)
+# Fast mode: skip baking variants; just pass options at runtime.
+FAST_MODE="${FAST_MODE:-1}"
+# Auto-NG selection: derive candidates from observed layers.model in logs.
+AUTO_NG="${AUTO_NG:-1}"
+# Percent steps (only used if AUTO_NG=1 and FAST_MODE=1)
+NG_PERCENT_SET="${NG_PERCENT_SET:-100 90 75 60 50 40 30 20 10}"
+# Early stop if improvement < this fraction over best so far (FAST_MODE only)
+EARLY_STOP_DELTA="${EARLY_STOP_DELTA:-0.03}"
+BENCH_NUM_PREDICT="${BENCH_NUM_PREDICT:-64}"
+BENCH_NUM_CTX="${BENCH_NUM_CTX:-4096}"
+TEMPERATURE="${TEMPERATURE:-0.0}"
 
 # Verbose log toggle
 VERBOSE="${VERBOSE:-1}"
@@ -70,7 +81,7 @@ readonly PULL_FROM="127.0.0.1:${PERSISTENT_PORT}"
 
 # CPU/GPU watchdog for optimized variants
 CPU_PEG_MONITOR="${CPU_PEG_MONITOR:-1}"      # 1=on
-CPU_PEG_THRESHOLD="${CPU_PEG_THRESHOLD:-300}"# %CPU threshold for peg (integer)
+CPU_PEG_THRESHOLD="${CPU_PEG_THRESHOLD:-300}" # %CPU threshold for peg (integer)
 CPU_PEG_WINDOW="${CPU_PEG_WINDOW:-4}"        # consecutive samples that must exceed threshold
 GPU_MIN_UTIL="${GPU_MIN_UTIL:-10}"           # %GPU util below which we consider "not using GPU"
 CPU_ABANDONED_FILE="${SUMMARY_FILE}.cpu_abandoned"
@@ -91,14 +102,22 @@ need curl; need jq; need awk; need sed; need systemctl
 # ------------------------------------------------------------------------------
 # HTTP helpers
 # ------------------------------------------------------------------------------
-calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {printf "%.2f", (ec+0.0)/(ed/1000.0)} }'; }
+# Ollama durations are in nanoseconds; convert to seconds for tok/s
+calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {printf "%.2f", (ec+0.0)/(ed/1000000000.0)} }'; }
 
 curl_tags(){ local ep="$1"; curl -fsS --max-time "$TIMEOUT_TAGS" "http://${ep}/api/tags" || return 1; }
 
 curl_gen(){
   local ep="$1" model="$2" opts_json="$3" prompt="$4" to="$5"
   local payload
-  payload="$(jq -cn --arg m "$model" --arg p "$prompt" --argjson o "$opts_json" '{model:$m, prompt:$p} + $o')" || return 1
+  # Force non-streaming responses for simpler parsing; merge any provided options
+  payload="$(jq -cn \
+    --arg m "$model" \
+    --arg p "$prompt" \
+    --argjson o "$opts_json" \
+    --argjson t "$TEMPERATURE" \
+    --argjson nc "$BENCH_NUM_CTX" \
+    '{model:$m, prompt:$p, stream:false, temperature:$t, num_ctx:$nc} + $o')" || return 1
   curl -sS --max-time "$to" -H 'Content-Type: application/json' -d "$payload" "http://${ep}/api/generate" || return 1
 }
 
@@ -113,7 +132,7 @@ service_env(){
 wait_api(){
   local ep="$1" i=0
   while (( i < WAIT_API_SECS )); do
-    if curl -fsS "http://${ep}/" >/dev/null 2>&1; then return 0; fi
+    curl_tags "$ep" >/dev/null 2>&1 && return 0
     sleep 1; i=$((i+1))
   done
   return 1
@@ -142,7 +161,8 @@ Group=ollama
 SupplementaryGroups=video render
 Environment=OLLAMA_MODELS=${OLLAMA_MODELS_DIR}
 Environment=CUDA_VISIBLE_DEVICES=${uuid}
-ExecStart=${OLLAMA_BIN} serve -p ${port}
+Environment=OLLAMA_HOST=127.0.0.1:${port}
+ExecStart=${OLLAMA_BIN} serve
 Restart=always
 RestartSec=2
 NoNewPrivileges=false
@@ -151,6 +171,14 @@ NoNewPrivileges=false
 WantedBy=multi-user.target
 UNIT
 }
+
+# Optional clean start of test units
+CLEAN_START_TESTS="${CLEAN_START_TESTS:-1}"
+stop_unit(){ local u="$1"; systemctl stop "$u" 2>/dev/null || true; systemctl disable "$u" 2>/dev/null || true; systemctl reset-failed "$u" 2>/dev/null || true; }
+
+# Ensure service user and models dir ownership
+ensure_service_user(){ if ! id -u ollama >/dev/null 2>&1; then warn "Creating system user 'ollama'"; groupadd --system ollama 2>/dev/null || true; useradd --system --no-create-home --gid ollama --groups video,render --shell /usr/sbin/nologin ollama 2>/dev/null || true; fi; }
+prep_models_dir(){ mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"; chown -R ollama:ollama "$OLLAMA_MODELS_DIR" 2>/dev/null || true; }
 
 restart_ep(){
   local ep="$1" u; u="$(unit_for_ep "$ep")"
@@ -225,6 +253,25 @@ bench_base_as_is(){ # ep baseTag
     sleep 2
   fi
   bench_once "$ep" "$base" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
+}
+
+# Discover model layer count (layers.model) by scraping recent unit logs
+discover_layers_model(){ # ep -> echoes integer or empty
+  local ep="$1" unit; unit="$(unit_for_ep "$ep")"
+  # pull the last few hundred lines and look for 'layers.model=NN'
+  journalctl -u "$unit" -n 400 --no-pager 2>/dev/null \
+    | sed -nE 's/.*layers\.model=([0-9]+).*/\1/p' | tail -n1 || true
+}
+
+# Build NG candidate list from a layer count and NG_PERCENT_SET
+ng_candidates_from_layers(){ # layers -> echo list high->low unique >=1
+  local layers="$1"; local out=(); local seen="|" ng
+  for pct in $NG_PERCENT_SET; do
+    ng=$(( (layers * pct + 99) / 100 ))
+    (( ng < 1 )) && ng=1
+    case "$seen" in *"|$ng|"*) ;; *) out+=("$ng"); seen+="$ng|" ;; esac
+  done
+  echo "${out[*]}"
 }
 
 bake_variant(){ # newname base num_gpu
@@ -342,9 +389,18 @@ bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
   IFS=',' read -r gname guid gmem <<<"$(offload_triplet "$unit")"
 
   if [ -n "${ng:-}" ]; then
-    opts="$(jq -n --argjson ng "$ng" '{num_gpu:$ng}')" || opts='{"num_gpu":'"${ng}"'}'
+    opts="$(jq -n \
+      --argjson ng "$ng" \
+      --argjson np "$BENCH_NUM_PREDICT" \
+      --argjson nc "$BENCH_NUM_CTX" \
+      --argjson t "$TEMPERATURE" \
+      '{num_gpu:$ng, num_predict:$np, num_ctx:$nc, temperature:$t}')" || opts='{"num_gpu":'"${ng}"'}'
   else
-    opts='{}'
+    opts="$(jq -n \
+      --argjson np "$BENCH_NUM_PREDICT" \
+      --argjson nc "$BENCH_NUM_CTX" \
+      --argjson t "$TEMPERATURE" \
+      '{num_predict:$np, num_ctx:$nc, temperature:$t}')"
   fi
 
   tmp="$(mktemp)"
@@ -363,24 +419,25 @@ bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
       label="optimized-cpu-bound"
       ec=0; ed=1; tokps="0.00"
     else
-      if [ -s "$tmp" ]; then
-        ec="$(jq -r '.eval_count // 0' "$tmp" 2>/dev/null || echo 0)"
-        ed="$(jq -r '.eval_duration // 0' "$tmp" 2>/dev/null || echo 1)"
+  if [ -s "$tmp" ]; then
+        # Slurp and take last JSON object to be robust to any streaming-like output
+        ec="$(jq -r -s '.[-1].eval_count // 0' "$tmp" 2>/dev/null || echo 0)"
+        ed="$(jq -r -s '.[-1].eval_duration // 0' "$tmp" 2>/dev/null || echo 1)"
         tokps="$(calc_tokps "$ec" "$ed")"
       fi
     fi
   else
     o="$(curl_gen "$ep" "$model" "$opts" "$PROMPT" "$TIMEOUT_GEN" || true)"
     if [ -n "$o" ]; then
-      ec="$(jq -r '.eval_count // 0' <<<"$o" 2>/dev/null || echo 0)"
-      ed="$(jq -r '.eval_duration // 0' <<<"$o" 2>/dev/null || echo 1)"
+      ec="$(jq -r -s '.[-1].eval_count // 0' <<<"$o" 2>/dev/null || echo 0)"
+      ed="$(jq -r -s '.[-1].eval_duration // 0' <<<"$o" 2>/dev/null || echo 1)"
       tokps="$(calc_tokps "$ec" "$ed")"
     fi
   fi
   rm -f "$tmp" 2>/dev/null || true
 
   # CSV: keep this 16-col schema (ust.sh expects tokens_per_sec at column 12)
-  append_csv_row "${TS},${ep},${unit},${sfx},${base},${label},${model},${ng:-},,, ,${tokps},${gpu_lbl},${gname},${guid},${gmem}"
+  append_csv_row "${TS},${ep},${unit},${sfx},${base},${label},${model},${ng:-},,,${tokps},${gpu_lbl},${gname},${guid},${gmem}"
 
   if [ "$label" = "optimized" ] && awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
     [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "$model" || true
@@ -402,30 +459,47 @@ tune_and_bench_one(){ # ep baseTag aliasBase
   bench_base_as_is "$ep" "$base" || warn "base-as-is bench skipped for $base on $ep"
 
   local best_tokps="0.00" best_name="" best_ng="" first_ok=0
-  for ng in ${NUM_GPU_CANDIDATES}; do
-    local newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
-    info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
-    if ! bake_variant "$newname" "$base" "$ng"; then
-      warn "Variant bake failed: ${newname}"
-      [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
-      continue
+  local ng_list=""
+  if [ "$FAST_MODE" -eq 1 ] && [ "$AUTO_NG" -eq 1 ]; then
+    # Try to infer model layers from logs after the base run
+    local lm="$(discover_layers_model "$ep" || true)"
+    if [[ "$lm" =~ ^[0-9]+$ ]]; then
+      ng_list="$(ng_candidates_from_layers "$lm")"
+      info " Using AUTO_NG (layers.model=$lm) -> ng: ${ng_list}"
     fi
+  fi
+  [ -z "$ng_list" ] && ng_list="${NUM_GPU_CANDIDATES}"
 
-    wait_variant_visible "$ep" "${newname}:latest" 12 || true
-
-    local tokps
-    if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then :; else tokps="0.00"; fi
-
-    if awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
-      [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
-    fi
-
-    awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
-
-    if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
-      ok "     First working: ${newname} at ${tokps} tok/s"
-      first_ok=1
-      break
+  for ng in ${ng_list}; do
+    if [ "$FAST_MODE" -eq 1 ]; then
+      # No baking; bench base with runtime option
+      local tokps; tokps="$(bench_once "$ep" "$base" "$base" "optimized" "$ng" "$gpu_lbl" || echo 0.00)"
+      # Track best and optional early-stop on marginal gain
+      if awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}'; then
+        best_ng="$ng"; best_tokps="$tokps"; best_name="${alias_base}+ng${ng}"
+      fi
+      # stop early if improvement < EARLY_STOP_DELTA over current best
+      if [ "$EXHAUSTIVE" -eq 0 ]; then
+        # since list is descending from high->low, break after first working
+        if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then ok "     First working: ng=${ng} at ${tokps} tok/s"; first_ok=1; break; fi
+      fi
+    else
+      local newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
+      info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
+      if ! bake_variant "$newname" "$base" "$ng"; then
+        warn "Variant bake failed: ${newname}"
+        [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
+        continue
+      fi
+      wait_variant_visible "$ep" "${newname}:latest" 12 || true
+      local tokps
+      if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then :; else tokps="0.00"; fi
+      if awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
+        [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
+      fi
+      awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
+      if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
+        ok "     First working: ${newname} at ${tokps} tok/s"; first_ok=1; break; fi
     fi
   done
 
@@ -468,7 +542,8 @@ log "Summary    : ${SUMMARY_FILE}"
 # Prepare services (use stock service for :11434; create test A/B here)
 # ------------------------------------------------------------------------------
 info "Preparing directories and services"
-mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"
+ensure_service_user || true
+prep_models_dir || true
 log "$(gpu_table | sed 's/^/GPU: /')"
 
 # Make sure :11434 is up (stock "ollama.service" _or_ our "ollama-persist.service")
@@ -496,12 +571,16 @@ fi
 # Build endpoints array dynamically (single-GPU friendly)
 ENDPOINTS=()
 if [ -n "${uuid_a:-}" ]; then
+  if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; fi
   write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
+  systemctl daemon-reload || true
   systemctl enable --now ollama-test-a.service || true
   ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
 fi
 if [ -n "${uuid_b:-}" ]; then
+  if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-b.service; fi
   write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
+  systemctl daemon-reload || true
   systemctl enable --now ollama-test-b.service || true
   ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}")
 fi
@@ -607,4 +686,3 @@ awk -F',' '
 } | tee "${SUMMARY_FILE}.txt" >/dev/null
 
 ok "Done."
-
