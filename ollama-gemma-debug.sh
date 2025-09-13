@@ -186,6 +186,11 @@ step_begin "collect"
 rc=0; "${ROOT_DIR}/fuze-box/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "$STACKS" || rc=$?
 step_end $rc
 
+# Summarize best combos into a readable report and best.csv
+step_begin "summary"
+rc=0; "${ROOT_DIR}/fuze-box/stack/common/summarize-benchmarks.sh" --csv "${ROOT_DIR}/fuze-box/benchmarks.csv" --top 15 | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt" || rc=$?
+step_end $rc
+
 ok "Wrapper complete. Summary: $SUMMARY"
 log "  CSVs    : $(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || echo none)"
 log "  Summary : $(ls -t ${LOG_DIR}/*benchmark.txt 2>/dev/null | head -n1 || echo none)"
