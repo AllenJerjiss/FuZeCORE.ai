@@ -14,6 +14,9 @@ DEFAULT_ENV="${ROOT_DIR}/fuze-box/stack/FuZe-CORE-gemma-debug.env"
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 TS="$(date +%Y%m%d_%H%M%S)"
 SUMMARY="${LOG_DIR}/wrapper_ollama_gemma_${TS}.summary"
+# Structured logs
+RUN_LOG="${LOG_DIR}/wrapper_${TS}.log"
+TRACE_LOG="${LOG_DIR}/wrapper_${TS}.trace"
 
 # UI helpers (align with stack scripts)
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
@@ -31,6 +34,19 @@ step_end(){ local rc=$1; local dur=$(( $(date +%s) - STEP_TS ));
 
 mkdir -p "$LOG_DIR" || true
 echo "ts,step,rc,seconds" > "$SUMMARY" 2>/dev/null || true
+
+# Route stdout/stderr to a timestamped logfile while echoing to terminal
+exec > >(stdbuf -oL tee -a "$RUN_LOG") 2>&1
+
+# Rich xtrace with timestamps to a separate file (not console)
+PS4='+ [$EPOCHREALTIME] ${BASH_SOURCE##*/}:${LINENO}:${FUNCNAME[0]:-main}() '
+exec 9>>"$TRACE_LOG"
+BASH_XTRACEFD=9
+set -x
+
+# Error trap with location
+set -E -o functrace
+trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINENO}"; exit $rc' ERR
 
 usage(){
   cat <<USAGE
@@ -77,7 +93,6 @@ if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
 # Be verbose by default for all subcommands
 export VERBOSE=1
 export DEBUG_BENCH=1
-set -x
 
 info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
