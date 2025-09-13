@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+# Elevate to root as early as possible (needed for /var/log and services)
+if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UST="${ROOT_DIR}/fuze-box/stack/ust.sh"
 DEFAULT_ENV="${ROOT_DIR}/fuze-box/stack/FuZe-CORE-gemma-debug.env"
