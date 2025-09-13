@@ -37,6 +37,9 @@ case "$stack" in
   logs|log-migrate|migrate-logs)
     exec "${STACK_ROOT}/common/migrate-logs.sh" "$@"
     ;;
+  analyze|analysis|summary)
+    exec "${STACK_ROOT}/common/analyze.sh" "$@"
+    ;;
 esac
 
 # Enforce a single way to run stack commands: as root (sudo -E)

@@ -12,7 +12,7 @@ BENCH_NUM_PREDICT ?= 64
 BENCH_NUM_CTX ?= 4096
 TEMPERATURE ?= 0.0
 
-.PHONY: help gpu-prepare preflight migrate-logs \
+.PHONY: help gpu-prepare preflight migrate-logs analyze \
         ollama-install ollama-service-cleanup ollama-store-cleanup ollama-cleanup-variants ollama-export-gguf ollama-bench \
         vllm-bench llamacpp-bench triton-bench \
         tail-ollama-csv tail-vllm-csv tail-llamacpp-csv tail-triton-csv
@@ -22,6 +22,7 @@ help:
 	@echo "  gpu-prepare             Install NVIDIA driver/CUDA toolkit if GPU detected"
 	@echo "  preflight               Run environment checks for all stacks"
 	@echo "  migrate-logs            Move old logs to /var/log/fuze-stack and link old dirs"
+	@echo "  analyze                 Summarize latest benchmark CSV (use ARGS=...)"
 	@echo "  ollama-install           Install/upgrade Ollama + stock service"
 	@echo "  ollama-service-cleanup   Reset persistent Ollama service on :11434"
 	@echo "  ollama-store-cleanup     Migrate/merge stores into /FuZe/models/ollama (use ARGS=...)"
@@ -87,3 +88,6 @@ preflight:
 
 migrate-logs:
 	sudo -E $(UST) migrate-logs
+
+analyze:
+	$(UST) analyze $(ARGS)
