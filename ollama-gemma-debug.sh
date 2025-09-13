@@ -34,7 +34,7 @@ echo "[2/4] Benchmark (ollama with Gemma debug profile)"
 "$UST" "@${ENV_FILE}" ollama benchmark
 
 echo "[3/4] Export GGUFs from Ollama"
-"$UST" "@${ENV_FILE}" ollama export-gguf
+"$UST" "@${ENV_FILE}" ollama export-gguf || true
 
 echo "[4/4] Analyze latest results (ollama)"
 "$UST" "@${ENV_FILE}" analyze --stack ollama || true
