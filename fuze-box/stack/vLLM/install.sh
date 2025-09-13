@@ -11,7 +11,14 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 apt-get update -y
-apt-get install -y python3-venv python3-pip python3-dev jq curl
+apt-get install -y python3-venv python3-pip python3-dev jq curl lsb-release pciutils
+
+# Ensure NVIDIA driver presence if GPU exists (vLLM needs runtime driver, not nvcc)
+if command -v nvidia-smi >/dev/null 2>&1 || lspci | grep -qi 'nvidia'; then
+  echo "== NVIDIA GPU detected: ensuring driver is present =="
+  # This will install driver and toolkit if missing; toolkit is optional for vLLM but harmless.
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/common/gpu-setup.sh" || true
+fi
 
 VENV="/opt/vllm-venv"
 if [ ! -d "$VENV" ]; then
@@ -48,4 +55,3 @@ echo
 echo "✔ vLLM installed."
 echo "   Venv   : /opt/vllm-venv"
 echo "   Runner : vllmapi (e.g., vllmapi --model meta-llama/Llama-3.1-8B-Instruct --port 11435)"
-

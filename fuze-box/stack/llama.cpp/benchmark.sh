@@ -14,6 +14,13 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
 mkdir -p "$LOG_DIR"
 
+# Auto-source Ollama-exported GGUF mappings if present
+MODELS_ENV_FILE="${LLAMACPP_MODELS_ENV:-${SCRIPT_DIR}/models.env}"
+if [ -f "$MODELS_ENV_FILE" ]; then
+  # shellcheck disable=SC1090
+  . "$MODELS_ENV_FILE"
+fi
+
 ########## CONFIG (override with env) ##########################################
 PORT_A="${PORT_A:-11435}"                 # test instance A (GPU-A)
 PORT_B="${PORT_B:-11436}"                 # test instance B (GPU-B)

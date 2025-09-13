@@ -33,6 +33,7 @@ case "$stack" in
       install)                   exec "${STACK_ROOT}/ollama/install.sh" "$@" ;;
       service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
       store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
+      export-gguf|export)        exec "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;
       cleanup-variants|variants) exec "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
       *) echo "Unknown ollama command: $cmd" >&2; usage; exit 2;;
     esac ;;

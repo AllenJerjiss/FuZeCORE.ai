@@ -12,7 +12,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 apt-get update -y
-apt-get install -y git build-essential cmake ninja-build jq curl
+apt-get install -y git build-essential cmake ninja-build jq curl lsb-release pciutils
 
 LLAMA_DIR="/opt/llama.cpp"
 if [ ! -d "$LLAMA_DIR/.git" ]; then
@@ -27,19 +27,24 @@ fi
 
 mkdir -p /FuZe/models/gguf
 
-# Try CUDA build first (NVCC present), else CPU
+# Try to ensure GPU toolchain if NVIDIA GPU is present
+if command -v nvidia-smi >/dev/null 2>&1 || lspci | grep -qi 'nvidia'; then
+  echo "== NVIDIA GPU detected: ensuring driver + CUDA toolkit =="
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/common/gpu-setup.sh" || true
+fi
+
+# Configure and build
 echo "== Configuring build =="
 if command -v nvcc >/dev/null 2>&1; then
   echo "   -> CUDA detected (nvcc). Building with CUDA/cuBLAS."
   cmake -S "$LLAMA_DIR" -B "$LLAMA_DIR/build" -G Ninja \
         -DGGML_CUDA=1 -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$LLAMA_DIR/build" -j
 else
-  echo "   -> No nvcc. Building CPU-only (you can still test correctness)."
+  echo "   -> No nvcc present. Building CPU-only."
   cmake -S "$LLAMA_DIR" -B "$LLAMA_DIR/build" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$LLAMA_DIR/build" -j
 fi
+cmake --build "$LLAMA_DIR/build" -j
 
 # Install server & cli
 install -m 0755 "$LLAMA_DIR/build/bin/server"     /usr/local/bin/llama-server
@@ -49,4 +54,3 @@ echo
 echo "✔ llama.cpp installed."
 echo "   Binaries:  /usr/local/bin/llama-server  (/usr/local/bin/llama-cli)"
 echo "   GGUF dir:  /FuZe/models/gguf"
-
