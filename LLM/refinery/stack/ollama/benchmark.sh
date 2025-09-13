@@ -46,6 +46,8 @@ AUTO_NG="${AUTO_NG:-1}"
 NG_PERCENT_SET="${NG_PERCENT_SET:-100 90 75 60 50 40 30 20 10}"
 # Early stop if improvement < this fraction over best so far (FAST_MODE only)
 EARLY_STOP_DELTA="${EARLY_STOP_DELTA:-0.03}"
+ZERO_TOKPS_BREAK="${ZERO_TOKPS_BREAK:-3}"
+NO_IMPROVE_LIMIT="${NO_IMPROVE_LIMIT:-5}"
 BENCH_NUM_PREDICT="${BENCH_NUM_PREDICT:-64}"
 BENCH_NUM_CTX="${BENCH_NUM_CTX:-4096}"
 TEMPERATURE="${TEMPERATURE:-0.0}"
@@ -457,6 +459,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
   bench_base_as_is "$ep" "$base" || warn "base-as-is bench skipped for $base on $ep"
 
   local best_tokps="0.00" best_name="" best_ng="" first_ok=0
+  local zero_run=0 no_improve_run=0
   local ng_list=""
   if [ "$FAST_MODE" -eq 1 ] && [ "$AUTO_NG" -eq 1 ]; then
     # Try to infer model layers from logs after the base run
@@ -474,7 +477,15 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       local tokps; tokps="$(bench_once "$ep" "$base" "$base" "optimized" "$ng" "$gpu_lbl" || echo 0.00)"
       # Track best and optional early-stop on marginal gain
       if awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}'; then
-        best_ng="$ng"; best_tokps="$tokps"; best_name="${alias_base}+ng${ng}"
+        best_ng="$ng"; best_tokps="$tokps"; best_name="${alias_base}+ng${ng}"; no_improve_run=0
+      else
+        no_improve_run=$((no_improve_run+1))
+      fi
+      # Count consecutive zero tok/s (avoid CPU thrash)
+      if awk -v a="$tokps" 'BEGIN{exit !(a+0==0)}'; then
+        zero_run=$((zero_run+1))
+      else
+        zero_run=0
       fi
       # Mark that at least one optimized run succeeded
       if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then first_ok=1; fi
@@ -482,6 +493,16 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       if [ "$EXHAUSTIVE" -eq 0 ]; then
         # since list is descending from high->low, break after first working
         if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then ok "     First working: ng=${ng} at ${tokps} tok/s"; first_ok=1; break; fi
+      else
+        # In EXHAUSTIVE=1, still guard against thrash and long flat streaks
+        if [ "${ZERO_TOKPS_BREAK:-0}" -gt 0 ] && [ "$zero_run" -ge "${ZERO_TOKPS_BREAK}" ]; then
+          warn "     Breaking after ${zero_run} consecutive zero tok/s trials"
+          break
+        fi
+        if [ "${NO_IMPROVE_LIMIT:-0}" -gt 0 ] && [ "$no_improve_run" -ge "${NO_IMPROVE_LIMIT}" ] && awk -v b="$best_tokps" 'BEGIN{exit !(b>0)}'; then
+          warn "     Breaking after ${no_improve_run} non-improving trials (best=${best_tokps} tok/s)"
+          break
+        fi
       fi
     else
       local newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
