@@ -1,5 +1,0 @@
-ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib
-20250913_075424,127.0.0.1:11435,ollama-test-a.service,A,llama4:17b-scout-16e-instruct-fp16,base-as-is,llama4:17b-scout-16e-instruct-fp16,,,,0.00,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
-20250913_075424,127.0.0.1:11435,ollama-test-a.service,A,llama4:17b-scout-16e-instruct-fp16,optimized,llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng80:latest,80,,,0.00,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
-20250913_075424,127.0.0.1:11435,ollama-test-a.service,A,llama4:17b-scout-16e-instruct-fp16,optimized,llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng72:latest,72,,,0.00,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
-20250913_075424,127.0.0.1:11435,ollama-test-a.service,A,llama4:17b-scout-16e-instruct-fp16,optimized,llama4-17b-scout-16e-instruct-fp16-nvidia-5060ti-ng64:latest,64,,,0.00,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311

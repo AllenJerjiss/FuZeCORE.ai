@@ -1,9 +1,0 @@
-gemma3-4b-it-fp16-nvidia-5060ti-ng80
-gemma3-4b-it-fp16-nvidia-5060ti-ng72
-gemma3-4b-it-fp16-nvidia-5060ti-ng64
-gemma3-4b-it-fp16-nvidia-5060ti-ng56
-gemma3-4b-it-fp16-nvidia-5060ti-ng48
-gemma3-4b-it-fp16-nvidia-5060ti-ng40
-gemma3-4b-it-fp16-nvidia-5060ti-ng32
-gemma3-4b-it-fp16-nvidia-5060ti-ng24
-gemma3-4b-it-fp16-nvidia-5060ti-ng16
