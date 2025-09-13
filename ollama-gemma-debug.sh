@@ -95,7 +95,7 @@ fi
 # 2) Benchmark
 if [ "$SKIP_BENCH" -eq 0 ]; then
   if [ "$DRY_RUN" -eq 0 ]; then 
-    step_begin "benchmark"; set +e; "$UST" "@${ENV_FILE}" ollama benchmark; rc=$?; set -e; step_end $rc
+    step_begin "benchmark"; set +e; PRINT_SUMMARY=0 "$UST" "@${ENV_FILE}" ollama benchmark; rc=$?; set -e; step_end $rc
   else info "[benchmark] DRY_RUN"; fi
 else
   info "[benchmark] skipped"

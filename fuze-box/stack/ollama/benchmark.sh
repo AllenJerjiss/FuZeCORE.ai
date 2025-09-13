@@ -77,6 +77,8 @@ PUBLISH_BEST="${PUBLISH_BEST:-0}"
 # Optional warm-up before benchmarking published tag
 WARMUP_PUBLISH="${WARMUP_PUBLISH:-1}"
 WARMUP_NUM_PREDICT="${WARMUP_NUM_PREDICT:-64}"
+# Control whether to print final summary to console (default: 1)
+PRINT_SUMMARY="${PRINT_SUMMARY:-1}"
 
 # Binary
 readonly OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
@@ -682,44 +684,44 @@ awk -F',' -v SF="$SUMMARY_FILE" '
 # ------------------------------------------------------------------------------
 # Final summary
 # ------------------------------------------------------------------------------
-{
-  echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
-  echo "CSV: ${CSV_FILE}"
-  echo
-  # Any optimized rows with tokens_per_sec > 0 ?
-if awk -F',' 'NR>1 && $6=="optimized" && $12+0>0 {found=1} END{exit !(found)}' "$CSV_FILE"; then
-    # Show best per (endpoint, model) if we computed any in SUMMARY_FILE.raw
-    if [ -s "${SUMMARY_FILE}.raw" ]; then
-      echo "Best optimized per (endpoint, model):"
-      column -t -s',' "${SUMMARY_FILE}.raw" 2>/dev/null || cat "${SUMMARY_FILE}.raw"
+if [ "${PRINT_SUMMARY}" -ne 0 ]; then
+  {
+    echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
+    echo "CSV: ${CSV_FILE}"
+    echo
+    # Any optimized rows with tokens_per_sec > 0 ?
+    if awk -F',' 'NR>1 && $6=="optimized" && $12+0>0 {found=1} END{exit !(found)}' "$CSV_FILE"; then
+      # Show best per (endpoint, model) if we computed any in SUMMARY_FILE.raw
+      if [ -s "${SUMMARY_FILE}.raw" ]; then
+        echo "Best optimized per (endpoint, model):"
+        column -t -s',' "${SUMMARY_FILE}.raw" 2>/dev/null || cat "${SUMMARY_FILE}.raw"
+      else
+        echo "Optimized variants ran (see CSV), but per-(endpoint,model) best list is empty."
+      fi
     else
-      echo "Optimized variants ran (see CSV), but per-(endpoint,model) best list is empty."
+      echo "No optimized variants succeeded."
     fi
-  else
-    echo "No optimized variants succeeded."
-  fi
 
-  # CPU-bound abandon logic removed; failures are handled via tok/s==0
-
-  echo
-  echo "=== Base vs Optimized (per endpoint & model) ==="
-  awk -F',' '
-    NR==1{next}
-    {
-      key=$2"|" $5
-      if ($6=="base-as-is"){base[key]=$12+0}
-      else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=$7} }
-    }
-    END{
-      printf "%-21s %-28s %10s %10s %8s %s\n","endpoint","model","base_t/s","opt_t/s","x","best_variant"
-      for (k in base){
-        be=base[k]+0; op=opt[k]+0
-        split(k,a,"|")
-        mult=(be>0? op/be : 0)
-        printf "%-21s %-28s %10.2f %10.2f %8.2fx %s\n", a[1],a[2],be,op,(be>0?mult:0),optname[k]
+    echo
+    echo "=== Base vs Optimized (per endpoint & model) ==="
+    awk -F',' '
+      NR==1{next}
+      {
+        key=$2"|" $5
+        if ($6=="base-as-is"){base[key]=$12+0}
+        else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=$7} }
       }
-    }
-  ' "$CSV_FILE"
-} | tee "${SUMMARY_FILE}.txt"
+      END{
+        printf "%-21s %-28s %10s %10s %8s %s\n","endpoint","model","base_t/s","opt_t/s","x","best_variant"
+        for (k in base){
+          be=base[k]+0; op=opt[k]+0
+          split(k,a,"|")
+          mult=(be>0? op/be : 0)
+          printf "%-21s %-28s %10.2f %10.2f %8.2fx %s\n", a[1],a[2],be,op,(be>0?mult:0),optname[k]
+        }
+      }
+    ' "$CSV_FILE"
+  } | tee "${SUMMARY_FILE}.txt"
+fi
 
 ok "Done."
