@@ -70,6 +70,9 @@ GC_AFTER_RUN="${GC_AFTER_RUN:-1}"                  # 1=final pass GC
 EXCLUDE_MODELS="${EXCLUDE_MODELS:-}"
 INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kept
 
+# Optional alias prefix for variant naming and logs
+ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
+
 # Binary
 readonly OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
 
@@ -83,12 +86,11 @@ readonly CREATED_LIST="${LOG_DIR}/ollama_created_${TS}.txt"
 
 readonly PULL_FROM="127.0.0.1:${PERSISTENT_PORT}"
 
-# CPU/GPU watchdog for optimized variants
-CPU_PEG_MONITOR="${CPU_PEG_MONITOR:-1}"      # 1=on
-CPU_PEG_THRESHOLD="${CPU_PEG_THRESHOLD:-300}" # %CPU threshold for peg (integer)
-CPU_PEG_WINDOW="${CPU_PEG_WINDOW:-4}"        # consecutive samples that must exceed threshold
-GPU_MIN_UTIL="${GPU_MIN_UTIL:-10}"           # %GPU util below which we consider "not using GPU"
-CPU_ABANDONED_FILE="${SUMMARY_FILE}.cpu_abandoned"
+# Debug capture (request/response per bench)
+DEBUG_BENCH="${DEBUG_BENCH:-0}"
+DEBUG_DIR="${LOG_DIR}/debug_${TS}"
+[ "$DEBUG_BENCH" -eq 1 ] && mkdir -p "$DEBUG_DIR" || true
+
 IS_ROOT=$([ "$(id -u)" -eq 0 ] && echo 1 || echo 0)
 SKIP_TEST_UNITS="${SKIP_TEST_UNITS:-$([ "$IS_ROOT" -eq 1 ] && echo 0 || echo 1)}"
 
@@ -335,7 +337,11 @@ discover_models(){
     if [ -n "$INCLUDE_MODELS" ] && ! echo "$tag" | grep -Eq "$INCLUDE_MODELS"; then
       continue
     fi
-    out+=("$tag|$(base_alias "$tag")")
+    # Build alias and apply optional prefix
+    local alias alias_pref
+    alias="$(base_alias "$tag")"
+    if [ -n "$ALIAS_PREFIX" ]; then alias_pref="${ALIAS_PREFIX}${alias}"; else alias_pref="$alias"; fi
+    out+=("$tag|${alias_pref}")
   done <<<"$names"
 
   if [ "${#out[@]}" -eq 0 ]; then
@@ -351,38 +357,7 @@ append_csv_row(){ echo "$*" >>"$CSV_FILE"; }
 # ------------------------------------------------------------------------------
 # CPU/GPU watchdog + record abandoned
 # ------------------------------------------------------------------------------
-record_cpu_abandoned(){ # ep base variant ng gpu_lbl
-  local ep="$1" base="$2" variant="$3" ng="$4" gpu_lbl="$5"
-  if [ ! -e "$CPU_ABANDONED_FILE" ]; then
-    echo "endpoint,base,variant,num_gpu,gpu_label" > "$CPU_ABANDONED_FILE"
-  fi
-  echo "${ep},${base},${variant},${ng},${gpu_lbl}" >> "$CPU_ABANDONED_FILE"
-}
-
-monitor_cpu_gpu(){ # unit uuid secs
-  local unit="$1" uuid="$2" secs="${3:-$TIMEOUT_GEN}"
-  local pid cpu gpu consec=0 t0 now
-  pid="$(systemctl show "$unit" -p MainPID --value 2>/dev/null || true)"
-  [ -n "${pid:-}" ] && [ "$pid" -gt 0 ] || return 0
-  t0="$(date +%s)"
-  while :; do
-    now="$(date +%s)"; [ $((now - t0)) -ge "$secs" ] && return 0
-    cpu="$(ps -p "$pid" -o %cpu= 2>/dev/null | awk '{printf("%d",$1+0)}')"
-    gpu=0
-    if command -v nvidia-smi >/dev/null 2>&1 && [ -n "${uuid:-}" ]; then
-      gpu="$(nvidia-smi -i "$uuid" --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null | awk 'NR==1{printf("%d",$1+0)}')"
-    fi
-    if [ "${cpu:-0}" -ge "$CPU_PEG_THRESHOLD" ] && [ "${gpu:-0}" -lt "$GPU_MIN_UTIL" ]; then
-      consec=$((consec+1))
-    else
-      consec=0
-    fi
-    if [ "$consec" -ge "$CPU_PEG_WINDOW" ]; then
-      return 10
-    fi
-    sleep 0.5
-  done
-}
+## CPU peg watcher removed — we key off tokens_per_sec==0 instead
 
 # ------------------------------------------------------------------------------
 # bench_once (writes a CSV row; echoes tok/s)
@@ -409,43 +384,55 @@ bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
       '{num_predict:$np, num_ctx:$nc, temperature:$t}')"
   fi
 
-  tmp="$(mktemp)"
-  if [ "$label" = "optimized" ] && [ "${CPU_PEG_MONITOR}" -eq 1 ]; then
-    curl_gen "$ep" "$model" "$opts" "$PROMPT" "$TIMEOUT_GEN" >"$tmp" 2>/dev/null &
-    gen_pid=$!
-    monitor_cpu_gpu "$unit" "$guid" "$TIMEOUT_GEN" &
-    mon_pid=$!
-    wait -n "$gen_pid" "$mon_pid" || true
-    rc=$?
-    if [ "$rc" -eq 10 ]; then
-      kill -TERM "$gen_pid" 2>/dev/null || true
-      wait "$gen_pid" 2>/dev/null || true
-      record_cpu_abandoned "$ep" "$base" "$model" "${ng:-}" "$gpu_lbl"
-      [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "$model" || true
-      label="optimized-cpu-bound"
-      ec=0; ed=1; tokps="0.00"
-    else
-  if [ -s "$tmp" ]; then
-        # Slurp and take last JSON object to be robust to any streaming-like output
-        ec="$(jq -r -s '.[-1].eval_count // 0' "$tmp" 2>/dev/null || echo 0)"
-        ed="$(jq -r -s '.[-1].eval_duration // 0' "$tmp" 2>/dev/null || echo 1)"
-        tokps="$(calc_tokps "$ec" "$ed")"
-      fi
-    fi
-  else
-    o="$(curl_gen "$ep" "$model" "$opts" "$PROMPT" "$TIMEOUT_GEN" || true)"
-    if [ -n "$o" ]; then
-      ec="$(jq -r -s '.[-1].eval_count // 0' <<<"$o" 2>/dev/null || echo 0)"
-      ed="$(jq -r -s '.[-1].eval_duration // 0' <<<"$o" 2>/dev/null || echo 1)"
-      tokps="$(calc_tokps "$ec" "$ed")"
+  # Single-path generate: no CPU monitoring; treat tok/s==0 as failure
+  if [ "$DEBUG_BENCH" -eq 1 ]; then
+    dbg_base="${DEBUG_DIR}/ollama_${sfx}_$(echo "$base" | sed 's#[/:]#-#g')_${label}_ng${ng:-base}"
+    dbg_req="$(jq -cn --arg m "$model" --arg p "$PROMPT" --argjson o "$opts" '{model:$m, prompt:$p, stream:false} + $o')"
+    echo "$dbg_req" > "${dbg_base}.request.json"
+  fi
+  o="$(curl_gen "$ep" "$model" "$opts" "$PROMPT" "$TIMEOUT_GEN" || true)"
+  if [ -n "$o" ]; then
+    ec="$(jq -r -s '.[-1].eval_count // 0' <<<"$o" 2>/dev/null || echo 0)"
+    ed="$(jq -r -s '.[-1].eval_duration // 0' <<<"$o" 2>/dev/null || echo 1)"
+    tokps="$(calc_tokps "$ec" "$ed")"
+    if [ "$DEBUG_BENCH" -eq 1 ]; then
+      echo "$o" > "${dbg_base}.response.json"
+      printf '{"eval_count":%s,"eval_duration":%s,"tokens_per_sec":%s,"endpoint":"%s","model":"%s"}\n' \
+        "$ec" "$ed" "$tokps" "$ep" "$model" > "${dbg_base}.metrics.json" || true
     fi
   fi
-  rm -f "$tmp" 2>/dev/null || true
 
-  # CSV: keep this 16-col schema (ust.sh expects tokens_per_sec at column 12)
-  append_csv_row "${TS},${ep},${unit},${sfx},${base},${label},${model},${ng:-},,,${tokps},${gpu_lbl},${gname},${guid},${gmem}"
+  # If tok/s is zero in debug mode, capture a real-time probe and recent journal logs
+  if [ "$DEBUG_BENCH" -eq 1 ] && awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
+    # Probe generate with a minimal prompt
+    local probe_req probe_out
+    probe_req="$(jq -cn --arg m "$model" --arg p "ping" '{model:$m, prompt:$p, stream:false, num_predict:32}')"
+    echo "$probe_req" > "${dbg_base}.probe.request.json"
+    probe_out="$(curl -sS -H 'Content-Type: application/json' -d "$probe_req" "http://${ep}/api/generate" || true)"
+    [ -n "$probe_out" ] && echo "$probe_out" > "${dbg_base}.probe.response.json"
+    # Derive probe metrics if present
+    if [ -n "$probe_out" ]; then
+      local pec ped ptok
+      pec="$(jq -r '.eval_count // 0' <<<"$probe_out" 2>/dev/null || echo 0)"
+      ped="$(jq -r '.eval_duration // 0' <<<"$probe_out" 2>/dev/null || echo 1)"
+      ptok="$(calc_tokps "$pec" "$ped")"
+      printf '{"eval_count":%s,"eval_duration":%s,"tokens_per_sec":%s,"endpoint":"%s","model":"%s","probe":true}\n' \
+        "$pec" "$ped" "$ptok" "$ep" "$model" > "${dbg_base}.probe.metrics.json" || true
+    fi
+    # Capture recent journal logs for the service behind this endpoint
+    local u
+    u="$(unit_for_ep "$ep")"
+    if [ -n "$u" ]; then
+      journalctl -u "$u" -n 200 --no-pager > "${dbg_base}.journal.txt" 2>/dev/null || true
+    fi
+  fi
+  # No temp file cleanup needed in single-path mode
 
-  if [ "$label" = "optimized" ] && awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
+  # CSV: keep this 16-col schema (tokens_per_sec at column 12)
+  # num_gpu (8), then explicitly leave num_ctx (9), batch (10), num_predict (11) empty
+  append_csv_row "${TS},${ep},${unit},${sfx},${base},${label},${model},${ng:-},,,,${tokps},${gpu_lbl},${gname},${guid},${gmem}"
+
+  if [ "$label" = "optimized" ] && [ "$model" != "$base" ] && awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
     [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "$model" || true
   fi
 
@@ -675,12 +662,7 @@ awk -F',' '
     echo "No optimized variants succeeded."
   fi
 
-  # CPU-bound abandons (if any)
-  if [ -s "${CPU_ABANDONED_FILE}" ]; then
-    echo
-    echo "Abandoned optimized variants (CPU-bound):"
-    column -t -s',' "${CPU_ABANDONED_FILE}" 2>/dev/null || cat "${CPU_ABANDONED_FILE}"
-  fi
+  # CPU-bound abandon logic removed; failures are handled via tok/s==0
 
   echo
   echo "=== Base vs Optimized (per endpoint & model) ==="

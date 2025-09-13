@@ -17,6 +17,8 @@ if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
   mkdir -p "$LOG_DIR" 2>/dev/null || { LOG_DIR="$HOME/.fuze/stack/logs"; mkdir -p "$LOG_DIR"; }
 fi
 
+## Debug capture setup moved below to reuse the same TS as CSV
+
 ########## CONFIG (override with env) ##########################################
 PORT_A="${PORT_A:-11435}"
 PORT_B="${PORT_B:-11436}"
@@ -51,6 +53,11 @@ HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
 TS="$(date +%Y%m%d_%H%M%S)"
 CSV_FILE="${LOG_DIR}/vllm_bench_${TS}.csv"
 SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
+
+# Debug capture (reuse CSV TS for correlation)
+DEBUG_BENCH="${DEBUG_BENCH:-0}"
+DEBUG_DIR="${LOG_DIR}/debug_${TS}"
+[ "$DEBUG_BENCH" -eq 1 ] && mkdir -p "$DEBUG_DIR" || true
 
 ########## UTILS ###############################################################
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
@@ -127,6 +134,11 @@ bench_once(){ # ep base_tag variant_label model_name gpu_lbl
 
   local prompt="Write 'ok' repeatedly."
   local req="$(jq -n --arg m "$mname" --arg p "$prompt" --argjson n "$PRED" --argjson t "$TEMPERATURE" '{model:$m, prompt:$p, max_tokens:$n, temperature:$t}')"
+  local dbg_base
+  if [ "$DEBUG_BENCH" -eq 1 ]; then
+    dbg_base="${DEBUG_DIR}/vllm_${sfx}_$(echo "$base" | sed 's#[/:]#-#g')_${vlabel}"
+    echo "$req" > "${dbg_base}.request.json"
+  fi
 
   local t0 t1 elapsed tokps ctoks
   t0=$(date +%s%N)
@@ -141,6 +153,12 @@ bench_once(){ # ep base_tag variant_label model_name gpu_lbl
   ctoks="$(echo "$out" | jq -r '.usage.completion_tokens // 0')"
   elapsed="$(awk -v t0="$t0" -v t1="$t1" 'BEGIN{printf "%.3f", (t1-t0)/1e9}')"
   if [ "$elapsed" = "0.000" ]; then tokps="0.00"; else tokps="$(awk -v n="$ctoks" -v s="$elapsed" 'BEGIN{printf "%.2f", (s<=0?0:n/s)}')"; fi
+
+  if [ "$DEBUG_BENCH" -eq 1 ]; then
+    echo "$out" > "${dbg_base}.response.json"
+    printf '{"completion_tokens":%s,"elapsed_sec":%s,"tokens_per_sec":%s,"endpoint":"%s","model":"%s"}\n' \
+      "${ctoks:-0}" "$elapsed" "$tokps" "$ep" "$mname" > "${dbg_base}.metrics.json" || true
+  fi
 
   echo "$(date -Iseconds),$ep,proc,$sfx,$base,$vlabel,$mname,default,$CTX,$BATCH,$PRED,$tokps,${gpu_lbl},,,," >>"$CSV_FILE"
   ok "[bench] ${sfx}  ${mname}  ->  ${tokps} tok/s (ctx=$CTX, max_tokens=$PRED, dtype=$DTYPE)"

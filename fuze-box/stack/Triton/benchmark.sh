@@ -22,6 +22,8 @@ if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
   mkdir -p "$LOG_DIR" 2>/dev/null || { LOG_DIR="$HOME/.fuze/stack/logs"; mkdir -p "$LOG_DIR"; }
 fi
 
+## Debug capture setup moved below to reuse the same TS as CSV
+
 ########## CONFIG (override with env) ##########################################
 TRITON_HTTP_A="${TRITON_HTTP_A:-127.0.0.1:8000}"
 TRITON_HTTP_B="${TRITON_HTTP_B:-127.0.0.1:8001}"
@@ -47,6 +49,11 @@ HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
 TS="$(date +%Y%m%d_%H%M%S)"
 CSV_FILE="${LOG_DIR}/triton_bench_${TS}.csv"
 SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
+
+# Debug capture (reuse CSV TS for correlation)
+DEBUG_BENCH="${DEBUG_BENCH:-0}"
+DEBUG_DIR="${LOG_DIR}/debug_${TS}"
+[ "$DEBUG_BENCH" -eq 1 ] && mkdir -p "$DEBUG_DIR" || true
 
 ########## UTILS ###############################################################
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
@@ -78,6 +85,10 @@ bench_once(){ # endpoint alias base_tag model_name
   local sfx="X"; [ "${ep##*:}" = "${TRITON_HTTP_A##*:}" ] && sfx="A"; [ "${ep##*:}" = "${TRITON_HTTP_B##*:}" ] && sfx="B"
 
   local tokps="0.00"
+  local dbg_base
+  if [ "$DEBUG_BENCH" -eq 1 ]; then
+    dbg_base="${DEBUG_DIR}/triton_${sfx}_$(echo "$base" | sed 's#[/:]#-#g')_${model}"
+  fi
   if [ -n "$perf_bin" ]; then
     # Use perf_analyzer throughput (infer/sec) as a proxy for tokens/sec baseline
     # Note: For LLMs you might feed proper JSON/shape configs; this is a generic baseline.
@@ -90,6 +101,11 @@ bench_once(){ # endpoint alias base_tag model_name
     tput="$(echo "$out" | awk '/Throughput:/ {print $2}' | tail -n1)"
     if [[ "$tput" =~ ^[0-9.]+$ ]]; then
       tokps="$(awk -v x="$tput" 'BEGIN{printf "%.2f", x}')"
+    fi
+    if [ "$DEBUG_BENCH" -eq 1 ]; then
+      echo "$out" > "${dbg_base}.perf.txt"
+      printf '{"throughput":%s,"tokens_per_sec":%s,"endpoint":"%s","model":"%s"}\n' \
+        "${tput:-0}" "$tokps" "$ep" "$model" > "${dbg_base}.metrics.json" || true
     fi
   fi
 

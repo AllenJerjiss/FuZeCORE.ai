@@ -15,10 +15,11 @@ STACK=""
 CSV=""
 MODEL_RE=""
 TOPN=5
+WITH_DEBUG=1
 
 usage(){
   cat <<USAGE
-Usage: $0 [--stack STACK] [--csv PATH] [--model REGEX] [--top N]
+Usage: $0 [--stack STACK] [--csv PATH] [--model REGEX] [--top N] [--no-debug]
   STACK: one of {ollama, vLLM, llama.cpp, Triton}
   CSV  : path to a benchmark CSV (overrides autodiscovery)
   MODEL: regex to filter base_model (e.g., '^gemma3:4b')
@@ -34,6 +35,7 @@ while [ $# -gt 0 ]; do
     --csv)   CSV="$2"; shift 2;;
     --model) MODEL_RE="$2"; shift 2;;
     --top)   TOPN="$2"; shift 2;;
+    --no-debug) WITH_DEBUG=0; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
@@ -127,7 +129,40 @@ awk -F',' '
   }
 ' "$TMP_CSV"
 
+# Optional: correlate with debug metrics from the same run timestamp
+if [ "$WITH_DEBUG" -eq 1 ]; then
+  # Extract run timestamp from CSV filename (last _YYYYMMDD_HHMMSS before .csv)
+  TS_FROM_CSV=$(basename "$CSV" | grep -Eo '[0-9]{8}_[0-9]{6}' | tail -n1 || true)
+  if [ -n "$TS_FROM_CSV" ]; then
+    DDIR="${LOG_DIR_DEFAULT}/debug_${TS_FROM_CSV}"
+    if [ -d "$DDIR" ]; then
+      echo
+      echo "Debug metrics (from ${DDIR}):"
+      METS=("$DDIR"/*metrics.json)
+      if [ -e "${METS[0]}" ]; then
+        # Summary counts
+        nz=$(jq -r '.tokens_per_sec // 0' "$DDIR"/*metrics.json 2>/dev/null | awk '{if($1+0>0) c++} END{print c+0}')
+        z=$(jq -r '.tokens_per_sec // 0' "$DDIR"/*metrics.json 2>/dev/null | awk '{if(!($1+0>0)) c++} END{print c+0}')
+        echo "  calls: $((nz+z))   nonzero: $nz   zero: $z"
+        echo
+        echo "  Top by tokens/sec:"
+        jq -r '[(.tokens_per_sec // 0), (.endpoint // ""), (.model // "")] | @tsv' "$DDIR"/*metrics.json 2>/dev/null \
+          | sort -k1,1gr | head -n "$TOPN" \
+          | awk -F'\t' '{printf "    %-21s %-30s %8.2f\n", $2, $3, $1+0}'
+        if [ "$nz" = "0" ]; then
+          echo
+          echo "  First few zero t/s calls:"
+          for f in "$DDIR"/*metrics.json; do
+            jq -r 'select((.tokens_per_sec//0)==0) | "    "+(.endpoint//"-")+"  "+(.model//"-")' "$f" 2>/dev/null || true
+          done | head -n 5
+        fi
+      else
+        echo "  (no debug metrics files found)"
+      fi
+    fi
+  fi
+fi
+
 [ "$TMP_CSV" != "$CSV" ] && rm -f "$TMP_CSV" || true
 
 ok "Analysis complete."
-

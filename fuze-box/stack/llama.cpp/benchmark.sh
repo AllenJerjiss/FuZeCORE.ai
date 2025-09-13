@@ -18,6 +18,8 @@ if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
   mkdir -p "$LOG_DIR" 2>/dev/null || { LOG_DIR="$HOME/.fuze/stack/logs"; mkdir -p "$LOG_DIR"; }
 fi
 
+## Debug capture setup moved below to reuse the same TS as CSV
+
 # Auto-source Ollama-exported GGUF mappings if present
 MODELS_ENV_FILE="${LLAMACPP_MODELS_ENV:-${SCRIPT_DIR}/models.env}"
 if [ -f "$MODELS_ENV_FILE" ]; then
@@ -80,6 +82,11 @@ HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
 TS="$(date +%Y%m%d_%H%M%S)"
 CSV_FILE="${LOG_DIR}/llamacpp_bench_${TS}.csv"
 SUMMARY_FILE="${LOG_DIR}/${HOSTNAME_NOW}-${TS}.benchmark"
+
+# Debug capture (reuse CSV TS for correlation)
+DEBUG_BENCH="${DEBUG_BENCH:-0}"
+DEBUG_DIR="${LOG_DIR}/debug_${TS}"
+[ "$DEBUG_BENCH" -eq 1 ] && mkdir -p "$DEBUG_DIR" || true
 
 ########## UTILS ###############################################################
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
@@ -181,9 +188,14 @@ bench_once(){ # ep base_tag variant_label model_tag ngl gpu_lbl
 
   local prompt="Write 'ok' repeatedly."
   local out
-  out="$(curl -fsS -H 'Content-Type: application/json' \
-      -d "$(jq -n --arg p "$prompt" --argjson n "$PRED" --argjson t "$TEMPERATURE" '{prompt:$p, n_predict:$n, temperature:$t, stream:false}')" \
-      "http://${ep}/completion" 2>/dev/null || true)"
+  local req
+  req="$(jq -n --arg p "$prompt" --argjson n "$PRED" --argjson t "$TEMPERATURE" '{prompt:$p, n_predict:$n, temperature:$t, stream:false}')"
+  local dbg_base
+  if [ "$DEBUG_BENCH" -eq 1 ]; then
+    dbg_base="${DEBUG_DIR}/llamacpp_${sfx}_$(echo "$base" | sed 's#[/:]#-#g')_${vlabel}_ngl${ngl}"
+    echo "$req" > "${dbg_base}.request.json"
+  fi
+  out="$(curl -fsS -H 'Content-Type: application/json' -d "$req" "http://${ep}/completion" 2>/dev/null || true)"
 
   if [ -z "$out" ]; then
     warn "[bench] ${sfx}  ${mtag} -> no data (timeout/error)"
@@ -191,18 +203,26 @@ bench_once(){ # ep base_tag variant_label model_tag ngl gpu_lbl
   fi
 
   # Use timings if available; else fall back to usage-style estimation if present
-  local n_tokens ms tokps
+  local n_tokens ms tokps sec
   n_tokens="$(echo "$out" | jq -r '.timings.predicted_n // .usage.completion_tokens // 0')"
   ms="$(echo "$out" | jq -r '.timings.predicted_ms // 0')"
   if [[ "$ms" != "0" ]]; then
     tokps="$(awk -v n="$n_tokens" -v m="$ms" 'BEGIN{ if(m<=0){print "0.00"} else { printf("%.2f", n/(m/1000.0)) } }')"
+    sec="$(awk -v m="$ms" 'BEGIN{ printf "%.3f", (m+0.0)/1000.0 }')"
   else
     # no timings: treat as unknown
     tokps="0.00"
+    sec="0.000"
   fi
 
   echo "$(date -Iseconds),$ep,proc,$sfx,$base,$vlabel,$mtag,${ngl},$CTX,$BATCH,$PRED,$tokps,${gpu_lbl},,,," >>"$CSV_FILE"
   ok "[bench] ${sfx}  ${mtag}  ->  ${tokps} tok/s (ctx=$CTX, batch=$BATCH, ngl=${ngl})"
+
+  if [ "$DEBUG_BENCH" -eq 1 ]; then
+    echo "$out" > "${dbg_base}.response.json"
+    printf '{"predicted_tokens":%s,"elapsed_sec":%s,"tokens_per_sec":%s,"endpoint":"%s","model":"%s"}\n' \
+      "${n_tokens:-0}" "${sec:-0}" "$tokps" "$ep" "$mtag" > "${dbg_base}.metrics.json" || true
+  fi
 }
 
 ##################################### MAIN #####################################

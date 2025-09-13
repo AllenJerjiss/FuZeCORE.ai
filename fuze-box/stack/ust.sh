@@ -20,27 +20,26 @@ usage(){
 }
 
 stack="${1:-}" || true
-cmd="${2:-benchmark}" || true
-shift $(( $#>0 ? 1 : 0 )) || true
-shift $(( $#>0 ? 1 : 0 )) || true
-
 if [ -z "$stack" ]; then usage; exit 1; fi
 
-# Top-level GPU preparation (not tied to a specific stack)
+# Shift past the stack token
+shift $(( $#>0 ? 1 : 0 )) || true
+
+# Top-level utilities that don't use the per-stack command concept
 case "$stack" in
   gpu|gpu-prepare|gpu-setup)
-    exec "${STACK_ROOT}/common/gpu-setup.sh" "$@"
-    ;;
+    exec "${STACK_ROOT}/common/gpu-setup.sh" "$@" ;;
   preflight|check|doctor)
-    exec "${STACK_ROOT}/common/preflight.sh" "$@"
-    ;;
+    exec "${STACK_ROOT}/common/preflight.sh" "$@" ;;
   logs|log-migrate|migrate-logs)
-    exec "${STACK_ROOT}/common/migrate-logs.sh" "$@"
-    ;;
+    exec "${STACK_ROOT}/common/migrate-logs.sh" "$@" ;;
   analyze|analysis|summary)
-    exec "${STACK_ROOT}/common/analyze.sh" "$@"
-    ;;
+    exec "${STACK_ROOT}/common/analyze.sh" "$@" ;;
 esac
+
+# For normal stacks, the next token is the command (default: benchmark)
+cmd="${1:-benchmark}" || true
+shift $(( $#>0 ? 1 : 0 )) || true
 
 # Enforce a single way to run stack commands: as root (sudo -E)
 if [ "$(id -u)" -ne 0 ]; then

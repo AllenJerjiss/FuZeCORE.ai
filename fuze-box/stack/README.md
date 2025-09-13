@@ -58,6 +58,7 @@ Tag baking mode
 Discovery and filters
 - Pulls base models from persistent daemon `:11434`
 - Filters: `INCLUDE_MODELS` (regex), `EXCLUDE_MODELS` (regex)
+- Alias prefix: set `ALIAS_PREFIX` (default `FuZeCORE-`) to prefix model aliases and variant names, e.g., `gemma3:4b-it-fp16 (alias FuZeCORE-gemma3-4b-it-fp16)`
 
 Service handling
 - Test units: `ollama-test-a.service` (`:11435`), `ollama-test-b.service` (`:11436`)
