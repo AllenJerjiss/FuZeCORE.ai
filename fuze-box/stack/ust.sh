@@ -34,7 +34,16 @@ case "$stack" in
   preflight|check|doctor)
     exec "${STACK_ROOT}/common/preflight.sh" "$@"
     ;;
+  logs|log-migrate|migrate-logs)
+    exec "${STACK_ROOT}/common/migrate-logs.sh" "$@"
+    ;;
 esac
+
+# Enforce a single way to run stack commands: as root (sudo -E)
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Please run as root: sudo -E $0 $stack ${cmd:-}" >&2
+  exit 1
+fi
 
 case "$stack" in
   ollama|Ollama)

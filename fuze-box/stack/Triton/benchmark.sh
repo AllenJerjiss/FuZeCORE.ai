@@ -15,8 +15,12 @@ set -euo pipefail
 ########## PATH ROOTS ##########################################################
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
-mkdir -p "$LOG_DIR"
+LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
+# Ensure writable log dir; fall back to per-user location if repo logs are not writable
+if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
+  LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack/logs"
+  mkdir -p "$LOG_DIR" 2>/dev/null || { LOG_DIR="$HOME/.fuze/stack/logs"; mkdir -p "$LOG_DIR"; }
+fi
 
 ########## CONFIG (override with env) ##########################################
 TRITON_HTTP_A="${TRITON_HTTP_A:-127.0.0.1:8000}"

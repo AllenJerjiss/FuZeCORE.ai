@@ -10,8 +10,12 @@ set -euo pipefail
 ########## PATH ROOTS ##########################################################
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
-mkdir -p "$LOG_DIR"
+LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
+# Ensure writable log dir; fall back to per-user location if repo logs are not writable
+if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
+  LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack/logs"
+  mkdir -p "$LOG_DIR" 2>/dev/null || { LOG_DIR="$HOME/.fuze/stack/logs"; mkdir -p "$LOG_DIR"; }
+fi
 
 ########## CONFIG (override with env) ##########################################
 PORT_A="${PORT_A:-11435}"
@@ -31,6 +35,7 @@ BENCH_NUM_CTX="${BENCH_NUM_CTX:-}"
 if [ -n "$BENCH_NUM_CTX" ]; then CTX="$BENCH_NUM_CTX"; else CTX="${CTX:-4096}"; fi  # --max-model-len
 BATCH="${BATCH:-16}"               # request batch not used; vLLM batches internally
 PRED="${PRED:-256}"                # n tokens to generate per request
+if [ -n "${BENCH_NUM_PREDICT:-}" ]; then PRED="$BENCH_NUM_PREDICT"; fi
 TEMPERATURE="${TEMPERATURE:-0.0}"
 DTYPE="${DTYPE:-float16}"          # float16|bfloat16|auto
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.90}"

@@ -15,8 +15,12 @@ set -euo pipefail
 # Paths & logging
 # ------------------------------------------------------------------------------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
-mkdir -p "$LOG_DIR"
+LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
+# Ensure writable log dir; fall back to per-user location if repo logs are root-owned
+if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
+  LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack/logs"
+  mkdir -p "$LOG_DIR" 2>/dev/null || { LOG_DIR="$HOME/.fuze/stack/logs"; mkdir -p "$LOG_DIR"; }
+fi
 
 # ------------------------------------------------------------------------------
 # Config (override via env)
@@ -85,6 +89,8 @@ CPU_PEG_THRESHOLD="${CPU_PEG_THRESHOLD:-300}" # %CPU threshold for peg (integer)
 CPU_PEG_WINDOW="${CPU_PEG_WINDOW:-4}"        # consecutive samples that must exceed threshold
 GPU_MIN_UTIL="${GPU_MIN_UTIL:-10}"           # %GPU util below which we consider "not using GPU"
 CPU_ABANDONED_FILE="${SUMMARY_FILE}.cpu_abandoned"
+IS_ROOT=$([ "$(id -u)" -eq 0 ] && echo 1 || echo 0)
+SKIP_TEST_UNITS="${SKIP_TEST_UNITS:-$([ "$IS_ROOT" -eq 1 ] && echo 0 || echo 1)}"
 
 # ------------------------------------------------------------------------------
 # UI helpers
@@ -542,18 +548,24 @@ log "Summary    : ${SUMMARY_FILE}"
 # Prepare services (use stock service for :11434; create test A/B here)
 # ------------------------------------------------------------------------------
 info "Preparing directories and services"
-ensure_service_user || true
-prep_models_dir || true
+if [ "$IS_ROOT" -eq 1 ]; then
+  ensure_service_user || true
+  prep_models_dir || true
+fi
 log "$(gpu_table | sed 's/^/GPU: /')"
 
 # Make sure :11434 is up (stock "ollama.service" _or_ our "ollama-persist.service")
 if ! curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
   # Prefer stock unit if present; else create our persist unit
-  if systemctl list-unit-files | grep -q '^ollama.service'; then
-    systemctl enable --now ollama.service || true
+  if [ "$IS_ROOT" -eq 1 ]; then
+    if systemctl list-unit-files | grep -q '^ollama.service'; then
+      systemctl enable --now ollama.service || true
+    else
+      write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
+      systemctl enable --now ollama-persist.service || true
+    fi
   else
-    write_unit "ollama-persist.service" "$PERSISTENT_PORT" "" "Ollama (persistent on :${PERSISTENT_PORT})"
-    systemctl enable --now ollama-persist.service || true
+    warn "Persistent daemon :${PERSISTENT_PORT} is not up and this run is not root. Start ollama.service or rerun with sudo."
   fi
 fi
 
@@ -570,19 +582,23 @@ fi
 
 # Build endpoints array dynamically (single-GPU friendly)
 ENDPOINTS=()
-if [ -n "${uuid_a:-}" ]; then
-  if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; fi
-  write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
-  systemctl daemon-reload || true
-  systemctl enable --now ollama-test-a.service || true
-  ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
-fi
-if [ -n "${uuid_b:-}" ]; then
-  if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-b.service; fi
-  write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
-  systemctl daemon-reload || true
-  systemctl enable --now ollama-test-b.service || true
-  ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}")
+if [ "$SKIP_TEST_UNITS" -eq 1 ]; then
+  ENDPOINTS+=("127.0.0.1:${PERSISTENT_PORT}")
+else
+  if [ -n "${uuid_a:-}" ]; then
+    if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; fi
+    write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
+    systemctl daemon-reload || true
+    systemctl enable --now ollama-test-a.service || true
+    ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
+  fi
+  if [ -n "${uuid_b:-}" ]; then
+    if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-b.service; fi
+    write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
+    systemctl daemon-reload || true
+    systemctl enable --now ollama-test-b.service || true
+    ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}")
+  fi
 fi
 
 info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS || true)"
@@ -603,11 +619,13 @@ if [ "${#MODELS[@]}" -eq 0 ]; then
   warn "Nothing to do (no base models)."
 fi
 
-# Make sure test endpoints are freshly restarted
-for ep in "${ENDPOINTS[@]}"; do
-  restart_ep "$ep" || true
-  wait_api "$ep" || warn "API $ep is not up yet (continuing)"
-done
+# Make sure test endpoints are freshly restarted (skip if using persistent only)
+if [ "$SKIP_TEST_UNITS" -eq 0 ]; then
+  for ep in "${ENDPOINTS[@]}"; do
+    restart_ep "$ep" || true
+    wait_api "$ep" || warn "API $ep is not up yet (continuing)"
+  done
+fi
 
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"

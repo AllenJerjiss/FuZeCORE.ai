@@ -8,13 +8,14 @@ Unified driver and per‑stack benchmark scripts for Ollama, vLLM, llama.cpp, an
 - Stacks: `ollama`, `vLLM`, `llama.cpp`, `Triton`
 - Default command: `benchmark`
 
-Examples
-- Ollama fast bench: `FAST_MODE=1 EXHAUSTIVE=0 BENCH_NUM_PREDICT=64 ./fuze-box/stack/ust.sh ollama`
-- vLLM bench: `./fuze-box/stack/ust.sh vLLM`
-- llama.cpp bench: `./fuze-box/stack/ust.sh llama.cpp`
-- Triton bench (perf_analyzer): `./fuze-box/stack/ust.sh Triton`
+Examples (always run with sudo -E)
+- Ollama fast bench: `sudo -E FAST_MODE=1 EXHAUSTIVE=0 BENCH_NUM_PREDICT=64 ./fuze-box/stack/ust.sh ollama`
+- vLLM bench: `sudo -E ./fuze-box/stack/ust.sh vLLM`
+- llama.cpp bench: `sudo -E ./fuze-box/stack/ust.sh llama.cpp`
+- Triton bench (perf_analyzer): `sudo -E ./fuze-box/stack/ust.sh Triton`
 - GPU prepare (drivers/CUDA): `sudo ./fuze-box/stack/ust.sh gpu-prepare`
 - Preflight (env checks): `./fuze-box/stack/ust.sh preflight`
+ - Migrate logs to system path: `sudo ./fuze-box/stack/ust.sh migrate-logs`
 
 Ollama management commands
 - Install/upgrade + stock service: `sudo ./fuze-box/stack/ust.sh ollama install`
@@ -34,7 +35,8 @@ System prep
 - `TEMPERATURE`: generation temperature (0.0 default)
 
 Logs and CSV
-- Logs directory: `fuze-box/stack/logs`
+- Logs directory: `/var/log/fuze-stack` (override with `LOG_DIR`)
+ - Use `migrate-logs` to move old files from `fuze-box/stack/logs` and `fuze-box/logs` and create symlinks.
 - CSV header (16 columns): `ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib`
 - `tokens_per_sec` is column 12 across all stacks
 
