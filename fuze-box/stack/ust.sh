@@ -55,10 +55,9 @@ esac
 cmd="${1:-benchmark}" || true
 shift $(( $#>0 ? 1 : 0 )) || true
 
-# Enforce root for consistent service and log handling
+# Enforce root for consistent service and log handling (auto-escalate, preserve env)
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Please run as root: sudo -E $0 $stack ${cmd:-}" >&2
-  exit 1
+  exec sudo -E "$0" "$stack" "$cmd" "$@"
 fi
 
 case "$stack" in
