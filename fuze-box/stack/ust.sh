@@ -33,6 +33,8 @@ KEEP_FAILED_VARIANTS="${KEEP_FAILED_VARIANTS:-0}"
 GC_AFTER_RUN="${GC_AFTER_RUN:-1}"
 EXCLUDE_MODELS="${EXCLUDE_MODELS:-}"
 INCLUDE_MODELS="${INCLUDE_MODELS:-}"
+# If 1, stop/disable any existing test services before recreating them.
+CLEAN_START_TESTS="${CLEAN_START_TESTS:-1}"
 readonly OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
 
 readonly HOSTNAME_NOW="$(hostname -s 2>/dev/null || hostname)"
@@ -73,7 +75,7 @@ curl_gen(){ local ep="$1" model="$2" opts_json="$3" prompt="$4" to="$5"; local p
 service_env(){ local unit="$1" key="$2"
   systemctl show "$unit" -p Environment 2>/dev/null | tr '\n' ' ' | sed -nE "s/.*${key}=([^ ]+).*/\1/p"; }
 
-wait_api(){ local ep="$1" i=0; while (( i < WAIT_API_SECS )); do curl -fsS "http://${ep}/" >/dev/null 2>&1 && return 0; sleep 1; i=$((i+1)); done; return 1; }
+wait_api(){ local ep="$1" i=0; while (( i < WAIT_API_SECS )); do curl_tags "$ep" >/dev/null 2>&1 && return 0; sleep 1; i=$((i+1)); done; return 1; }
 
 unit_for_ep(){ case "$1" in
   *:${TEST_PORT_A}) echo "ollama-test-a.service" ;;
@@ -102,6 +104,13 @@ NoNewPrivileges=false
 WantedBy=multi-user.target
 UNIT
 }
+
+# Stop/disable a unit cleanly if present.
+stop_unit(){ local u="$1"; systemctl stop "$u" 2>/dev/null || true; systemctl disable "$u" 2>/dev/null || true; systemctl reset-failed "$u" 2>/dev/null || true; }
+
+# Ensure the 'ollama' service account exists and owns the models directory.
+ensure_service_user(){ if ! id -u ollama >/dev/null 2>&1; then warn "Creating system user 'ollama' (missing)"; groupadd --system ollama 2>/dev/null || true; useradd --system --no-create-home --gid ollama --groups video,render --shell /usr/sbin/nologin ollama 2>/dev/null || true; fi; }
+prep_models_dir(){ mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"; chown -R ollama:ollama "$OLLAMA_MODELS_DIR" 2>/dev/null || true; }
 
 restart_ep(){ local ep="$1" u; u="$(unit_for_ep "$ep")"; [ -n "$u" ] || return 0; systemctl daemon-reload || true; systemctl enable --now "$u" || true; systemctl restart "$u" || true; }
 
@@ -255,7 +264,8 @@ log "CSV        : ${CSV_FILE}"
 log "Summary    : ${SUMMARY_FILE}"
 
 info "Preparing directories and services"
-mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"
+ensure_service_user || true
+prep_models_dir || true
 log "$(gpu_table | sed 's/^/GPU: /')"
 
 # Ensure :11434 is up
@@ -271,8 +281,10 @@ uuid_b="$(echo "$all_gpus" | awk -F',' -v s="$MATCH_GPU_B" 'tolower($1) ~ tolowe
 if [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then uuid_b="$(echo "$all_gpus" | awk -F',' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}')"; fi
 
 ENDPOINTS=()
-if [ -n "${uuid_a:-}" ]; then write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"; systemctl enable --now ollama-test-a.service || true; ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}"); fi
-if [ -n "${uuid_b:-}" ]; then write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"; systemctl enable --now ollama-test-b.service || true; ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}"); fi
+# Optional clean start: stop/disable any existing test services before recreating.
+if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; stop_unit ollama-test-b.service; systemctl daemon-reload || true; fi
+if [ -n "${uuid_a:-}" ]; then write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"; systemctl daemon-reload || true; systemctl enable --now ollama-test-a.service || true; ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}"); fi
+if [ -n "${uuid_b:-}" ]; then write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"; systemctl daemon-reload || true; systemctl enable --now ollama-test-b.service || true; ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}"); fi
 
 info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS || true)"
 info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS || true)"
