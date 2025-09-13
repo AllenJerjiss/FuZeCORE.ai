@@ -66,7 +66,8 @@ need curl; need jq; need awk; need sed; need systemctl
 calc_tokps(){ awk -v ec="$1" -v ed="$2" 'BEGIN{ if(ed<=0){print "0.00"} else {printf "%.2f", (ec+0.0)/(ed/1000.0)} }'; }
 curl_tags(){ local ep="$1"; curl -fsS --max-time "$TIMEOUT_TAGS" "http://${ep}/api/tags" || return 1; }
 curl_gen(){ local ep="$1" model="$2" opts_json="$3" prompt="$4" to="$5"; local payload
-  payload="$(jq -cn --arg m "$model" --arg p "$prompt" --argjson o "$opts_json" '{model:$m, prompt:$p} + $o')" || return 1
+  # Force non-streaming responses and merge any provided options.
+  payload="$(jq -cn --arg m "$model" --arg p "$prompt" --argjson o "$opts_json" '{model:$m, prompt:$p, stream:false} + $o')" || return 1
   curl -sS --max-time "$to" -H 'Content-Type: application/json' -d "$payload" "http://${ep}/api/generate" || return 1; }
 
 service_env(){ local unit="$1" key="$2"
@@ -190,16 +191,18 @@ bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
       label="optimized-cpu-bound"; ec=0; ed=1; tokps="0.00"
     else
       if [ -s "$tmp" ]; then
-        ec="$(jq -r '.eval_count // 0' "$tmp" 2>/dev/null || echo 0)"
-        ed="$(jq -r '.eval_duration // 0' "$tmp" 2>/dev/null || echo 1)"
+        # Be robust to streaming-style logs by slurping and taking the last object.
+        ec="$(jq -r -s '.[-1].eval_count // 0' "$tmp" 2>/dev/null || echo 0)"
+        ed="$(jq -r -s '.[-1].eval_duration // 0' "$tmp" 2>/dev/null || echo 1)"
         tokps="$(calc_tokps "$ec" "$ed")"
       fi
     fi
   else
     o="$(curl_gen "$ep" "$model" "$opts" "$PROMPT" "$TIMEOUT_GEN" || true)"
     if [ -n "$o" ]; then
-      ec="$(jq -r '.eval_count // 0' <<<"$o" 2>/dev/null || echo 0)"
-      ed="$(jq -r '.eval_duration // 0' <<<"$o" 2>/dev/null || echo 1)"
+      # Handle either streaming or non-streaming output by slurping.
+      ec="$(jq -r -s '.[-1].eval_count // 0' <<<"$o" 2>/dev/null || echo 0)"
+      ed="$(jq -r -s '.[-1].eval_duration // 0' <<<"$o" 2>/dev/null || echo 1)"
       tokps="$(calc_tokps "$ec" "$ed")"
     fi
   fi
@@ -326,4 +329,3 @@ awk -F',' '
 } | tee "${SUMMARY_FILE}.txt" >/dev/null
 
 ok "Done."
-
