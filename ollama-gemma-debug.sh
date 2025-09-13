@@ -2,8 +2,8 @@
 # Orchestrator: install → cleanup → benchmark → export → analyze
 # Profile: Gemma debug (fuze-box/stack/FuZe-CORE-gemma-debug.env)
 # Usage:
-#   ./ollama-gemma-debug.sh [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze]
-#   Env toggles: SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1
+#   ./ollama-gemma-debug.sh [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze] [--loud]
+#   Env toggles: SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1, LOUD=0/1
 
 set -euo pipefail
 
@@ -33,9 +33,9 @@ echo "ts,step,rc,seconds" > "$SUMMARY" 2>/dev/null || true
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze]
+Usage: $(basename "$0") [--no-install] [--no-cleanup] [--no-bench] [--no-export] [--no-analyze] [--loud]
 Env:
-  SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1
+  SKIP_INSTALL, SKIP_CLEANUP, SKIP_BENCH, SKIP_EXPORT, SKIP_ANALYZE, DRY_RUN=1, LOUD=0/1
 USAGE
 }
 
@@ -45,6 +45,7 @@ SKIP_BENCH=${SKIP_BENCH:-0}
 SKIP_EXPORT=${SKIP_EXPORT:-0}
 SKIP_ANALYZE=${SKIP_ANALYZE:-0}
 DRY_RUN=${DRY_RUN:-0}
+LOUD=${LOUD:-0}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -53,6 +54,7 @@ while [ $# -gt 0 ]; do
     --no-bench)   SKIP_BENCH=1; shift;;
     --no-export)  SKIP_EXPORT=1; shift;;
     --no-analyze) SKIP_ANALYZE=1; shift;;
+    --loud)       LOUD=1; shift;;
     -h|--help) usage; exit 0;;
     *) warn "Unknown arg: $1"; shift;;
   esac
@@ -63,6 +65,12 @@ if [ ! -f "$ENV_FILE" ]; then err "Gemma debug env not found: $ENV_FILE"; exit 2
 
 # Re-exec as root preserving env
 if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
+
+if [ "$LOUD" -eq 1 ]; then
+  # Make subcommands noisier
+  export VERBOSE=1 DEBUG_BENCH=1
+  set -x
+fi
 
 info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
