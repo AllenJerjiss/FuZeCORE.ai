@@ -2,12 +2,12 @@
 # collect-results.sh — Append summarized benchmarks to a central CSV
 # - Scans latest bench CSV for each stack in LOG_DIR
 # - For each base_model, computes best baseline and best optimized (if any)
-# - Appends rows to an aggregate CSV (default: <repo>/fuze-box/benchmarks.csv)
+# - Appends rows to an aggregate CSV (default: <repo>/LLM/refinery/benchmarks.csv)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Repo fuze-box root (this script lives in fuze-box/stack/common)
+# Repo refinery root (this script lives in LLM/refinery/stack/common)
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"

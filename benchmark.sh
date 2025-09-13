@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # benchmark.sh — Orchestrate install → cleanup → benchmark → export → analyze across stacks and models
-# - Discovers model env files in fuze-box/stack/*.env by default
+# - Discovers model env files in LLM/refinery/stack/*.env by default
 # - Runs all stacks by default: ollama, llama.cpp, vLLM, Triton (if present)
 # - Flags:
 #     --stack "ollama llama.cpp ..."    limit to these stacks (space/comma separated)

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# summarize-benchmarks.sh — Read fuze-box/benchmarks.csv and print best combos
+# summarize-benchmarks.sh — Read LLM/refinery/benchmarks.csv and print best combos
 # Sections:
 #  - Top N overall by optimal_tokps
 #  - Best per (stack, model)
 #  - Best per (stack, model, gpu_label)
-# Also writes a machine-friendly CSV of best per (stack, model): fuze-box/benchmarks.best.csv
+# Also writes a machine-friendly CSV of best per (stack, model): LLM/refinery/benchmarks.best.csv
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ usage(){
   cat <<USAGE
 Usage: $(basename "$0") [--csv PATH] [--top N] [--stack REGEX] [--model REGEX] [--gpu REGEX] [--host REGEX] [--md-out FILE]
 Env:
-  CSV (default: fuze-box/benchmarks.csv)
+  CSV (default: LLM/refinery/benchmarks.csv)
   TOPN (default: 10)
   STACK_RE, MODEL_RE, GPU_RE, HOST_RE (regex filters)
   MD_OUT (optional path to write Markdown copy)
