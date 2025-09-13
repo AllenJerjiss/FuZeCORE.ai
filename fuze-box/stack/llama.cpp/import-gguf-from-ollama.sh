@@ -18,6 +18,8 @@ DRY_RUN="${DRY_RUN:-0}"
 ENV_OUT="${ENV_OUT:-}"
 LOG_DIR="${LOG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/logs}"
 OLLAMA_BIN="${OLLAMA_BIN:-$(command -v ollama || true)}"
+# Filter out models very unlikely to be exportable to GGUF
+AUTO_FILTER_NON_GGUF="${AUTO_FILTER_NON_GGUF:-1}"
 
 usage(){
   cat <<USAGE
@@ -57,10 +59,19 @@ if [ -z "${OLLAMA_BIN:-}" ] || [ ! -x "$OLLAMA_BIN" ]; then
   exit 1
 fi
 
+# Verify that this Ollama build supports the 'export' subcommand
+if ! "$OLLAMA_BIN" help 2>&1 | grep -Eq '(^|[[:space:]])export([[:space:]]|$)'; then
+  echo "✖ This Ollama CLI does not support 'export'. Please upgrade Ollama to a version with 'ollama export' (server + CLI)." >&2
+  "$OLLAMA_BIN" version 2>/dev/null || true
+  exit 2
+fi
+
 mkdir -p "$DEST_DIR" "$LOG_DIR"
 TS="$(date +%Y%m%d_%H%M%S)"
 CSV_OUT="${LOG_DIR}/ollama_export_${TS}.csv"
 echo "model_tag,gguf_path,size_bytes,host,status" > "$CSV_OUT"
+ERR_DIR="${ERR_DIR:-${LOG_DIR}/export_errors_${TS}}"
+mkdir -p "$ERR_DIR"
 
 base_alias(){ echo "$1" | sed -E 's#[/:]+#-#g'; }
 env_key(){ echo "$1" | tr -c '[:alnum:]' '_' ; }
@@ -74,6 +85,12 @@ should_keep(){
   if [ -n "$INCLUDE_RE" ] && ! echo "$name" | grep -Eq "$INCLUDE_RE"; then return 1; fi
   if [ -n "$EXCLUDE_RE" ] && echo "$name" | grep -Eq "$EXCLUDE_RE"; then return 1; fi
   if [ "$SKIP_VARIANTS" -eq 1 ] && echo "$name" | grep -Eq -- '-nvidia-[a-z0-9]+(super|ti)?-ng[0-9]+(:|$)'; then return 1; fi
+  if [ "$AUTO_FILTER_NON_GGUF" -eq 1 ]; then
+    # Skip obvious non-GGUF exportables: llama4 MoE families, DeepSeek R1, large MoE forms, embeddings
+    if echo "$name" | grep -Eq '^(llama4:|deepseek-r1:)' ; then return 1; fi
+    if echo "$name" | grep -Eq ':[0-9]+x[0-9]+b(:|$)'; then return 1; fi
+    if echo "$name" | grep -Eiq '(embed|embedding)'; then return 1; fi
+  fi
   return 0
 }
 
@@ -93,7 +110,9 @@ export_one(){ # model_tag -> status
     return 0
   fi
   tmp="${dest}.tmp"
-  if OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" export "$tag" > "$tmp" 2>/dev/null; then
+  local errf
+  errf="${ERR_DIR}/$(echo "$alias" | tr -c '[:alnum:].-_' '_').stderr.log"
+  if OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" export "$tag" > "$tmp" 2>"$errf"; then
     mv -f "$tmp" "$dest"
     size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
     echo "OK  export: $tag -> $dest (${size} bytes)"
@@ -102,8 +121,11 @@ export_one(){ # model_tag -> status
   else
     rc=$?
     rm -f "$tmp" 2>/dev/null || true
-    echo "NO  export: $tag (ollama export failed, rc=$rc)"
-    echo "$tag,$dest,0,$HOST,failed" >> "$CSV_OUT"
+    # capture a short reason snippet
+    local reason
+    reason="$(head -c 200 "$errf" | tr '\n' ' ' | sed 's/,/;/g')"
+    echo "NO  export: $tag (ollama export failed, rc=$rc) ${reason:+— $reason}"
+    echo "$tag,$dest,0,$HOST,failed${reason:+:$reason}" >> "$CSV_OUT"
     return 1
   fi
 }
@@ -133,3 +155,4 @@ echo
 echo "Summary: found=$count kept=$kept exported=$exp_ok failed=$exp_fail"
 echo "CSV: $CSV_OUT"
 echo "llama.cpp env mappings: $ENV_OUT"
+echo "Errors (if any): $ERR_DIR"
