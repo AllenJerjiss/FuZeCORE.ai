@@ -8,14 +8,27 @@
 
 set -euo pipefail
 
-# Elevate to root as early as possible (needed for /var/log and services)
+# Elevate to root as early as possible (needed for services). Logs fall back to user dir if /var/log not writable.
 if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UST="${ROOT_DIR}/fuze-box/stack/ust.sh"
 DEFAULT_ENV="${ROOT_DIR}/fuze-box/stack/FuZe-CORE-gemma-debug.env"
-LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 TS="$(date +%Y%m%d_%H%M%S)"
+
+# Pick a writable LOG_DIR (prefer /var/log/fuze-stack; fallback to user space)
+LOG_DIR_CANDIDATE="${LOG_DIR:-/var/log/fuze-stack}"
+choose_log_dir(){
+  local candidates=("$LOG_DIR_CANDIDATE" "${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack" "$HOME/.fuze/stack/logs")
+  for d in "${candidates[@]}"; do
+    mkdir -p "$d" 2>/dev/null || continue
+    touch "$d/.wtest" 2>/dev/null && rm -f "$d/.wtest" && LOG_DIR="$d" && return 0
+  done
+  # Last resort: current dir
+  LOG_DIR="$ROOT_DIR"
+}
+choose_log_dir
+
 SUMMARY="${LOG_DIR}/wrapper_ollama_gemma_${TS}.summary"
 # Structured logs
 RUN_LOG="${LOG_DIR}/wrapper_${TS}.log"
@@ -49,7 +62,8 @@ set -x
 
 # Error trap with location
 set -E -o functrace
-trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINENO}"; exit $rc' ERR
+# Log errors without aborting; each step captures rc explicitly
+trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINENO}"' ERR
 
 usage(){
   cat <<USAGE
@@ -90,9 +104,6 @@ for e in "${ENV_FILES[@]}"; do
   [ -f "$e" ] || { err "Env file not found: $e"; exit 2; }
 done
 
-# Re-exec as root preserving env
-if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
-
 # Be verbose by default for all subcommands
 export VERBOSE=1
 export DEBUG_BENCH=1
@@ -112,57 +123,57 @@ for S in $STACKS; do
     ollama|Ollama)
       # 0) install
       if [ "$SKIP_INSTALL" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; set +e; "$UST" "${UST_ENV_ARGS[@]}" ollama install; rc=$?; set -e; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" ollama install || rc=$?; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
       fi
       # 1) cleanup
       if [ "$SKIP_CLEANUP" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:service-cleanup"; set +e; "$UST" "${UST_ENV_ARGS[@]}" ollama service-cleanup; rc=$?; set -e; step_end $rc; else info "[${S}:service-cleanup] DRY_RUN"; fi
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:cleanup-variants"; set +e; "$UST" "${UST_ENV_ARGS[@]}" ollama cleanup-variants --force --yes; rc=$?; set -e; step_end $rc; else info "[${S}:cleanup-variants] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:service-cleanup"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" ollama service-cleanup || rc=$?; step_end $rc; else info "[${S}:service-cleanup] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:cleanup-variants"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc; else info "[${S}:cleanup-variants] DRY_RUN"; fi
       fi
       # 2) benchmark
       if [ "$SKIP_BENCH" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; set +e; "$UST" "${UST_ENV_ARGS[@]}" ollama benchmark; rc=$?; set -e; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" ollama benchmark || rc=$?; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
       fi
       # 3) export
       if [ "$SKIP_EXPORT" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:export-gguf"; set +e; "$UST" "${UST_ENV_ARGS[@]}" ollama export-gguf; rc=$?; set -e; step_end $rc; else info "[${S}:export-gguf] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:export-gguf"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" ollama export-gguf || rc=$?; step_end $rc; else info "[${S}:export-gguf] DRY_RUN"; fi
       fi
       # 4) analyze
       if [ "$SKIP_ANALYZE" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; set +e; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack ollama; rc=$?; set -e; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack ollama || rc=$?; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
       fi
       ;;
     llama.cpp|llamacpp|llama-cpp)
       if [ "$SKIP_INSTALL" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; set +e; "$UST" "${UST_ENV_ARGS[@]}" llama.cpp install; rc=$?; set -e; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" llama.cpp install || rc=$?; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
       fi
       if [ "$SKIP_BENCH" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; set +e; "$UST" "${UST_ENV_ARGS[@]}" llama.cpp benchmark; rc=$?; set -e; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" llama.cpp benchmark || rc=$?; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
       fi
       if [ "$SKIP_ANALYZE" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; set +e; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack llama.cpp; rc=$?; set -e; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack llama.cpp || rc=$?; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
       fi
       ;;
     vllm|vLLM|VLLM)
       if [ "$SKIP_INSTALL" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; set +e; "$UST" "${UST_ENV_ARGS[@]}" vLLM install; rc=$?; set -e; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" vLLM install || rc=$?; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
       fi
       if [ "$SKIP_BENCH" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; set +e; "$UST" "${UST_ENV_ARGS[@]}" vLLM benchmark; rc=$?; set -e; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" vLLM benchmark || rc=$?; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
       fi
       if [ "$SKIP_ANALYZE" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; set +e; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack vLLM; rc=$?; set -e; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack vLLM || rc=$?; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
       fi
       ;;
     Triton|triton)
       if [ "$SKIP_INSTALL" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; set +e; "$UST" "${UST_ENV_ARGS[@]}" Triton install; rc=$?; set -e; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:install"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" Triton install || rc=$?; step_end $rc; else info "[${S}:install] DRY_RUN"; fi
       fi
       if [ "$SKIP_BENCH" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; set +e; "$UST" "${UST_ENV_ARGS[@]}" Triton benchmark; rc=$?; set -e; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:benchmark"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" Triton benchmark || rc=$?; step_end $rc; else info "[${S}:benchmark] DRY_RUN"; fi
       fi
       if [ "$SKIP_ANALYZE" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; set +e; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack Triton; rc=$?; set -e; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
+        if [ "$DRY_RUN" -eq 0 ]; then step_begin "${S}:analyze"; rc=0; "$UST" "${UST_ENV_ARGS[@]}" analyze --stack Triton || rc=$?; step_end $rc; else info "[${S}:analyze] DRY_RUN"; fi
       fi
       ;;
     *) warn "Unknown stack: $S" ;;
