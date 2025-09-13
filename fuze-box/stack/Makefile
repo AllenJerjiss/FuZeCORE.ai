@@ -100,4 +100,11 @@ ollama-bench-gemma-debug:
 
 ollama-bench-gpt20-debug:
 	sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-gpt-oss-20-debug.env ollama
-	$(UST) analyze --stack ollama
+	@echo ""
+	@echo "Profiles:"
+	@echo "  sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-gemma3-27b-it-fp16-debug.env ollama"
+	@echo "  sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-llama4-17b-scout-16e-instruct-fp16-debug.env ollama"
+	@echo "  sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-deepseek-r1-671b-q4_K_M-debug.env ollama"
+	@echo "  sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-deepseek-r1-70b-debug.env ollama"
+	@echo "  sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-llama4-16x17b-debug.env ollama"
+	@echo "  sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-llama4-128x17b-debug.env ollama"
