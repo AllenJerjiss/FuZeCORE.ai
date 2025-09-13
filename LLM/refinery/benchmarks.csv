@@ -1,3 +1,3 @@
 run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_endpoint,optimal_endpoint,gpu_label,gpu_name,num_gpu,csv_file
-20250913_211816,fuze-bakery,ollama,gemma3:4b-it-fp16,49.23,gemma3:4b-it-fp16,50.97,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,28,/var/log/fuze-stack/ollama_bench_20250913_211816.csv
-20250913_215857,fuze-bakery,ollama,gemma3:4b-it-fp16,49.37,gemma3:4b-it-fp16,50.57,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,27,/var/log/fuze-stack/ollama_bench_20250913_215857.csv
+20250913_211816,fuze-factory,ollama,gemma3:4b-it-fp16,49.23,gemma3:4b-it-fp16,50.97,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,28,/var/log/fuze-stack/ollama_bench_20250913_211816.csv
+20250913_215857,fuze-factory,ollama,gemma3:4b-it-fp16,49.37,gemma3:4b-it-fp16,50.57,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,27,/var/log/fuze-stack/ollama_bench_20250913_215857.csv
