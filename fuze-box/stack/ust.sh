@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unified Stack Tool (driver)
 # Thin wrapper to select and run per-stack benchmark scripts.
-# Usage: ./ust.sh <stack>
+# Usage: ./ust.sh [@envfile.env] <stack> [command] [args...]
 # Stacks: ollama | vLLM | llama.cpp | Triton
 
 set -euo pipefail
@@ -15,34 +15,31 @@ usage(){
   echo "Commands per stack:"
   echo "  ollama   : benchmark (default) | install | service-cleanup | store-cleanup | cleanup-variants"
   echo "  vLLM     : benchmark (default) | install"
-  echo "  llama.cpp: benchmark (default) | install"
+  echo "  llama.cpp: benchmark (default) | import-gguf | install"
   echo "  Triton   : benchmark (default) | install"
 }
 
-## Optional env file(s) loader: any leading args of form @file or *.env
+# Optional env file(s) loader: any leading args of form @file or *.env
 while [ $# -gt 0 ]; do
   case "$1" in
     @*|*.env)
       envf="${1#@}"
       if [ -f "$envf" ]; then
         set -a; . "$envf"; set +a
-        shift
-        continue
+        shift; continue
       else
         echo "Env file not found: $envf" >&2; exit 2
       fi
       ;;
-    *) break;;
+    *) break ;;
   esac
 done
 
 stack="${1:-}" || true
 if [ -z "$stack" ]; then usage; exit 1; fi
-
-# Shift past the stack token
 shift $(( $#>0 ? 1 : 0 )) || true
 
-# Top-level utilities that don't use the per-stack command concept
+# Top-level utilities (not tied to a specific stack)
 case "$stack" in
   gpu|gpu-prepare|gpu-setup)
     exec "${STACK_ROOT}/common/gpu-setup.sh" "$@" ;;
@@ -58,7 +55,7 @@ esac
 cmd="${1:-benchmark}" || true
 shift $(( $#>0 ? 1 : 0 )) || true
 
-# Enforce a single way to run stack commands: as root (sudo -E)
+# Enforce root for consistent service and log handling
 if [ "$(id -u)" -ne 0 ]; then
   echo "Please run as root: sudo -E $0 $stack ${cmd:-}" >&2
   exit 1
@@ -71,7 +68,6 @@ case "$stack" in
       install)                   exec "${STACK_ROOT}/ollama/install.sh" "$@" ;;
       service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
       store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
-      export-gguf|export)        exec "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;
       cleanup-variants|variants) exec "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
       *) echo "Unknown ollama command: $cmd" >&2; usage; exit 2;;
     esac ;;
@@ -84,6 +80,7 @@ case "$stack" in
   llama.cpp|llamacpp|llama-cpp)
     case "$cmd" in
       bench|benchmark) exec "${STACK_ROOT}/llama.cpp/benchmark.sh" "$@" ;;
+      import-gguf|import-from-ollama|import) exec "${STACK_ROOT}/llama.cpp/import-gguf-from-ollama.sh" "$@" ;;
       install)         exec "${STACK_ROOT}/llama.cpp/install.sh" "$@" ;;
       *) echo "Unknown llama.cpp command: $cmd" >&2; usage; exit 2;;
     esac ;;
@@ -96,6 +93,6 @@ case "$stack" in
   *)
     echo "Unknown stack: $stack" >&2
     usage
-    exit 2
-    ;;
+    exit 2 ;;
 esac
+
