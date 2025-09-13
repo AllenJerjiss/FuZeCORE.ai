@@ -720,6 +720,6 @@ if awk -F',' 'NR>1 && $6=="optimized" && $12+0>0 {found=1} END{exit !(found)}' "
       }
     }
   ' "$CSV_FILE"
-} | tee "${SUMMARY_FILE}.txt" >/dev/null
+} | tee "${SUMMARY_FILE}.txt"
 
 ok "Done."

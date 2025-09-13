@@ -60,10 +60,9 @@ if [ -z "${OLLAMA_BIN:-}" ] || [ ! -x "$OLLAMA_BIN" ]; then
 fi
 
 # Verify that this Ollama build supports the 'export' subcommand
-if ! "$OLLAMA_BIN" help 2>&1 | grep -Eq '(^|[[:space:]])export([[:space:]]|$)'; then
-  echo "✖ This Ollama CLI does not support 'export'. Please upgrade Ollama to a version with 'ollama export' (server + CLI)." >&2
-  "$OLLAMA_BIN" version 2>/dev/null || true
-  exit 2
+EXPORT_SUPPORTED=0
+if "$OLLAMA_BIN" help 2>&1 | grep -Eq '(^|[[:space:]])export([[:space:]]|$)'; then
+  EXPORT_SUPPORTED=1
 fi
 
 mkdir -p "$DEST_DIR" "$LOG_DIR"
@@ -112,22 +111,70 @@ export_one(){ # model_tag -> status
   tmp="${dest}.tmp"
   local errf
   errf="${ERR_DIR}/$(echo "$alias" | tr -c '[:alnum:].-_' '_').stderr.log"
-  if OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" export "$tag" > "$tmp" 2>"$errf"; then
-    mv -f "$tmp" "$dest"
-    size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
-    echo "OK  export: $tag -> $dest (${size} bytes)"
-    echo "$tag,$dest,$size,$HOST,exported" >> "$CSV_OUT"
-    return 0
-  else
-    rc=$?
-    rm -f "$tmp" 2>/dev/null || true
-    # capture a short reason snippet
-    local reason
-    reason="$(head -c 200 "$errf" | tr '\n' ' ' | sed 's/,/;/g')"
-    echo "NO  export: $tag (ollama export failed, rc=$rc) ${reason:+— $reason}"
-    echo "$tag,$dest,0,$HOST,failed${reason:+:$reason}" >> "$CSV_OUT"
-    return 1
+  if [ "$EXPORT_SUPPORTED" -eq 1 ]; then
+    if OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" export "$tag" > "$tmp" 2>"$errf"; then
+      mv -f "$tmp" "$dest"
+      size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
+      echo "OK  export: $tag -> $dest (${size} bytes)"
+      echo "$tag,$dest,$size,$HOST,exported" >> "$CSV_OUT"
+      return 0
+    else
+      rc=$?
+      rm -f "$tmp" 2>/dev/null || true
+      # capture a short reason snippet
+      local reason
+      reason="$(head -c 200 "$errf" | tr '\n' ' ' | sed 's/,/;/g')"
+      echo "NO  export: $tag (ollama export failed, rc=$rc) ${reason:+— $reason}"
+      echo "$tag,$dest,0,$HOST,failed${reason:+:$reason}" >> "$CSV_OUT"
+      # try fallback below
+    fi
   fi
+
+  # Fallback: manifest-based blob copy if GGUF
+  local base ns name_tag name ver mfroot mfpath digest blob
+  base="$tag"
+  ns="${base%%/*}"
+  name_tag="${base#*/}"
+  if [ "$ns" = "$base" ]; then ns="library"; name_tag="$base"; fi
+  name="${name_tag%%:*}"
+  ver="${name_tag#*:}"
+  mfroot="/FuZe/models/ollama/manifests/registry.ollama.ai"
+  if [ "$ver" = "$name_tag" ]; then
+    mfpath="${mfroot}/${ns}/${name}"
+  else
+    mfpath="${mfroot}/${ns}/${name}/${ver}"
+  fi
+  if [ -f "$mfpath" ]; then
+    digest="$(awk -F'"' '/application\/vnd.ollama.image.model/ {getline; if ($2=="digest") print $4}' "$mfpath" | sed 's/^sha256://;q')"
+    if [ -n "$digest" ]; then
+      blob="/FuZe/models/ollama/blobs/sha256-${digest}"
+      if [ -f "$blob" ]; then
+        if head -c 4 "$blob" 2>/dev/null | grep -q '^GGUF'; then
+          if [ "$DRY_RUN" -eq 1 ]; then
+            echo "DRY export(manifest): $tag -> $dest (blob=$blob)"
+            echo "$tag,$dest,0,$HOST,dry-run(manifest)" >> "$CSV_OUT"
+            return 0
+          fi
+          cp -f "$blob" "$tmp" && mv -f "$tmp" "$dest"
+          size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
+          echo "OK  export(manifest): $tag -> $dest (${size} bytes)"
+          echo "$tag,$dest,$size,$HOST,exported(manifest)" >> "$CSV_OUT"
+          return 0
+        else
+          echo "NO  export: $tag (blob not GGUF)" | tee -a "$errf" >/dev/null
+        fi
+      else
+        echo "NO  export: $tag (blob missing: $blob)" | tee -a "$errf" >/dev/null
+      fi
+    else
+      echo "NO  export: $tag (model layer digest not found in manifest)" | tee -a "$errf" >/dev/null
+    fi
+  else
+    echo "NO  export: $tag (manifest not found: $mfpath)" | tee -a "$errf" >/dev/null
+  fi
+
+  echo "$tag,$dest,0,$HOST,failed:fallback" >> "$CSV_OUT"
+  return 1
 }
 
 ENV_OUT_DEFAULT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/llama.cpp/models.env"
