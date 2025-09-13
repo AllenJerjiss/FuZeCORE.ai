@@ -24,6 +24,7 @@ help:
 	@echo "  migrate-logs            Move old logs to /var/log/fuze-stack and link old dirs"
 	@echo "  analyze                 Summarize latest benchmark CSV (use ARGS=...)"
 	@echo "  ollama-bench-gemma-debug Run Ollama with FuZe-CORE-gemma-debug.env then analyze"
+	@echo "  ollama-bench-gpt20-debug Run Ollama with FuZe-CORE-gpt-oss-20-debug.env then analyze"
 	@echo "  ollama-install           Install/upgrade Ollama + stock service"
 	@echo "  ollama-service-cleanup   Reset persistent Ollama service on :11434"
 	@echo "  ollama-store-cleanup     Migrate/merge stores into /FuZe/models/ollama (use ARGS=...)"
@@ -95,4 +96,8 @@ analyze:
 
 ollama-bench-gemma-debug:
 	sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-gemma-debug.env ollama
+	$(UST) analyze --stack ollama
+
+ollama-bench-gpt20-debug:
+	sudo -E $(UST) @$(STACK_DIR)FuZe-CORE-gpt-oss-20-debug.env ollama
 	$(UST) analyze --stack ollama
