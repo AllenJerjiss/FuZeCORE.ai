@@ -654,20 +654,20 @@ gc_created_tags || true
 # ------------------------------------------------------------------------------
 # Build per-(endpoint,base_model) best optimized list (tokens_per_sec > 0)
 # ------------------------------------------------------------------------------
-awk -F',' '
+awk -F',' -v SF="$SUMMARY_FILE" '
   NR>1 && $6=="optimized" && $12+0>0 {
     k=$2"|" $5
     if ($12+0>best[k]) {best[k]=$12+0; n[k]=$7; ng[k]=$8}
   }
   END{
-    f=ENVIRON["SUMMARY_FILE"] ".raw"
+    f = SF ".raw"
     print "endpoint,base_model,best_variant,num_gpu,tokens_per_sec" > f
     for (k in best){
       split(k,a,"|")
       printf "%s,%s,%s,%s,%.2f\n",a[1],a[2],n[k],ng[k],best[k] >> f
     }
   }
-' SUMMARY_FILE="$SUMMARY_FILE" "$CSV_FILE"
+' "$CSV_FILE"
 
 # ------------------------------------------------------------------------------
 # Final summary
@@ -677,7 +677,7 @@ awk -F',' '
   echo "CSV: ${CSV_FILE}"
   echo
   # Any optimized rows with tokens_per_sec > 0 ?
-  if awk -F',' 'NR>1 && $6 ~ /^optimized$/ && $12+0>0 {exit 0} END{exit 1}' "$CSV_FILE"; then
+if awk -F',' 'NR>1 && $6=="optimized" && $12+0>0 {found=1} END{exit !(found)}' "$CSV_FILE"; then
     # Show best per (endpoint, model) if we computed any in SUMMARY_FILE.raw
     if [ -s "${SUMMARY_FILE}.raw" ]; then
       echo "Best optimized per (endpoint, model):"
