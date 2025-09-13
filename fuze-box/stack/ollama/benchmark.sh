@@ -74,6 +74,9 @@ INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kep
 ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
 # Optionally bake the best variant tag at the end (even in FAST_MODE)
 PUBLISH_BEST="${PUBLISH_BEST:-0}"
+# Optional warm-up before benchmarking published tag
+WARMUP_PUBLISH="${WARMUP_PUBLISH:-1}"
+WARMUP_NUM_PREDICT="${WARMUP_NUM_PREDICT:-64}"
 
 # Binary
 readonly OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
@@ -516,6 +519,13 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     if bake_variant "$pub_name" "$base" "$best_ng"; then
       wait_variant_visible "$ep" "${pub_name}:latest" 12 || true
       ok " Published: ${pub_name}:latest"
+      # Optional warm-up request to reduce cold-start skew
+      if [ "$WARMUP_PUBLISH" -eq 1 ]; then
+        local wu_req
+        wu_req="$(jq -cn --arg m "${pub_name}:latest" --arg p "warm up" --argjson np "$WARMUP_NUM_PREDICT" '{model:$m, prompt:$p, stream:false, num_predict:$np}')"
+        curl -sS -H 'Content-Type: application/json' -d "$wu_req" "http://${ep}/api/generate" >/dev/null 2>&1 || true
+        sleep 1
+      fi
       # Re-bench the published tag so CSV contains an explicit row for it
       local pub_tokps
       pub_tokps="$(bench_once "$ep" "$base" "${pub_name}:latest" "published" "$best_ng" "$gpu_lbl" || echo 0.00)"
