@@ -212,6 +212,6 @@ for entry in "${MODELS[@]}"; do
   stop_proc "$pid"; pids=("${pids[@]:1}")
 done
 
-echo "Analyze    : ./fuze-box/stack/common/analyze.sh --stack vLLM"
+echo "Analyze    : $(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/common/analyze.sh --stack vLLM"
 
 ok "DONE. CSV: ${CSV_FILE}"

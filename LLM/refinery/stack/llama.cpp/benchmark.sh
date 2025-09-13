@@ -303,6 +303,6 @@ for entry in "${MODELS[@]}"; do
   done
 done
 
-echo "Analyze    : ./fuze-box/stack/common/analyze.sh --stack llama.cpp"
+echo "Analyze    : $(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/common/analyze.sh --stack llama.cpp"
 
 ok "DONE. CSV: ${CSV_FILE}"

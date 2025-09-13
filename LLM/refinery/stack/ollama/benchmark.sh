@@ -566,7 +566,7 @@ echo "ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx
 log "== One-at-a-time auto-tune + bench (POSIX) =="
 log "Persistent : 127.0.0.1:${PERSISTENT_PORT}"
 log "CSV        : ${CSV_FILE}"
-log "Analyze    : ./fuze-box/stack/common/analyze.sh --stack ollama"
+log "Analyze    : $(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/common/analyze.sh --stack ollama"
 
 # ------------------------------------------------------------------------------
 # Prepare services (use stock service for :11434; create test A/B here)

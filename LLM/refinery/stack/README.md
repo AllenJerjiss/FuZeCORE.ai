@@ -2,28 +2,33 @@
 
 Unified driver and per‑stack benchmark scripts for Ollama, vLLM, llama.cpp, and Triton. All stacks write CSV with the same 16‑column schema and a short human summary.
 
-## Driver
+## Drivers
 
-- Command: `./fuze-box/stack/ust.sh <stack> [command] [args...]`
+- Orchestrator: `./benchmark.sh` (auto-discovers env files under `LLM/refinery/stack/*.env` and runs all stacks by default). Flags:
+  - `--stack "ollama llama.cpp vLLM Triton"` to limit stacks
+  - `--model REGEX` (repeatable) to select env files by name
+- Per-stack driver: `./LLM/refinery/stack/ust.sh <stack> [command] [args...]`
 - Stacks: `ollama`, `vLLM`, `llama.cpp`, `Triton`
 - Default command: `benchmark`
 
 Examples (always run with sudo -E)
-- Use an env file: `sudo -E ./fuze-box/stack/ust.sh @fuze-box/stack/FuZe-CORE-default.env ollama`
-- Ollama fast bench: `sudo -E FAST_MODE=1 EXHAUSTIVE=0 BENCH_NUM_PREDICT=64 ./fuze-box/stack/ust.sh ollama`
-- vLLM bench: `sudo -E ./fuze-box/stack/ust.sh vLLM`
-- llama.cpp bench: `sudo -E ./fuze-box/stack/ust.sh llama.cpp`
-- Triton bench (perf_analyzer): `sudo -E ./fuze-box/stack/ust.sh Triton`
-- GPU prepare (drivers/CUDA): `sudo ./fuze-box/stack/ust.sh gpu-prepare`
-- Preflight (env checks): `./fuze-box/stack/ust.sh preflight`
- - Migrate logs to system path: `sudo ./fuze-box/stack/ust.sh migrate-logs`
+- Run everything (all stacks, all envs): `./benchmark.sh`
+- Only Gemma profiles on Ollama + llama.cpp: `./benchmark.sh --stack "ollama llama.cpp" --model gemma`
+- Per-stack, with env file: `sudo -E ./LLM/refinery/stack/ust.sh @LLM/refinery/stack/FuZe-CORE-default.env ollama`
+- Ollama fast bench: `sudo -E FAST_MODE=1 EXHAUSTIVE=0 BENCH_NUM_PREDICT=64 ./LLM/refinery/stack/ust.sh ollama`
+- vLLM bench: `sudo -E ./LLM/refinery/stack/ust.sh vLLM`
+- llama.cpp bench: `sudo -E ./LLM/refinery/stack/ust.sh llama.cpp`
+- Triton bench (perf_analyzer): `sudo -E ./LLM/refinery/stack/ust.sh Triton`
+- GPU prepare (drivers/CUDA): `sudo ./LLM/refinery/stack/ust.sh gpu-prepare`
+- Preflight (env checks): `./LLM/refinery/stack/ust.sh preflight`
+- Migrate logs to system path: `sudo ./LLM/refinery/stack/ust.sh migrate-logs`
 
 Ollama management commands
-- Install/upgrade + stock service: `sudo ./fuze-box/stack/ust.sh ollama install`
-- Persistent service reset (:11434): `sudo ./fuze-box/stack/ust.sh ollama service-cleanup`
-- Store migration to `/FuZe/models/ollama`: `sudo ./fuze-box/stack/ust.sh ollama store-cleanup [--canon PATH --alt PATH]`
-- Remove baked variants: `sudo ./fuze-box/stack/ust.sh ollama cleanup-variants --from-created fuze-box/stack/logs/ollama_created_*.txt --force --yes`
-- Export GGUFs + llama.cpp env: `./fuze-box/stack/ust.sh ollama export-gguf [--dest DIR] [--host HOST:PORT] [--include REGEX] [--exclude REGEX] [--env-out FILE]`
+- Install/upgrade + stock service: `sudo ./LLM/refinery/stack/ust.sh ollama install`
+- Persistent service reset (:11434): `sudo ./LLM/refinery/stack/ust.sh ollama service-cleanup`
+- Store migration to `/FuZe/models/ollama`: `sudo ./LLM/refinery/stack/ust.sh ollama store-cleanup [--canon PATH --alt PATH]`
+- Remove baked variants: `sudo ./LLM/refinery/stack/ust.sh ollama cleanup-variants --from-created LLM/refinery/stack/logs/ollama_created_*.txt --force --yes`
+- Export GGUFs + llama.cpp env: `./LLM/refinery/stack/ust.sh ollama export-gguf [--dest DIR] [--host HOST:PORT] [--include REGEX] [--exclude REGEX] [--env-out FILE]`
 
 System prep
 - `gpu-prepare`: detects NVIDIA GPU and installs driver + CUDA toolkit when needed via `common/gpu-setup.sh`. No-ops if no NVIDIA GPU is present.
@@ -37,13 +42,13 @@ System prep
 
 Logs and CSV
 - Logs directory: `/var/log/fuze-stack` (override with `LOG_DIR`)
-- Use `migrate-logs` to move old files from `fuze-box/stack/logs` and `fuze-box/logs` and create symlinks.
+- Use `migrate-logs` to move old files from `LLM/refinery/stack/logs` and `LLM/refinery/logs` and create symlinks.
 - CSV header (16 columns): `ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib`
 - `tokens_per_sec` is column 12 across all stacks
 
 ## Ollama Stack
 
-Script: `fuze-box/stack/ollama/benchmark.sh`
+Script: `LLM/refinery/stack/ollama/benchmark.sh`
 
 Fast mode (default)
 - `FAST_MODE=1`: no tag baking; pass options at runtime
@@ -82,7 +87,7 @@ CSV timing
 
 ## vLLM Stack
 
-Script: `fuze-box/stack/vLLM/benchmark.sh`
+Script: `LLM/refinery/stack/vLLM/benchmark.sh`
 
 - Ports: `PORT_A=11435`, `PORT_B=11436`
 - GPU binding: `CUDA_VISIBLE_DEVICES=<GPU_UUID>` per server process
@@ -97,7 +102,7 @@ Install auto‑GPU
 
 ## llama.cpp Stack
 
-Script: `fuze-box/stack/llama.cpp/benchmark.sh`
+Script: `LLM/refinery/stack/llama.cpp/benchmark.sh`
 
 - Ports: `PORT_A=11435`, `PORT_B=11436`
 - Server binary: `LLAMACPP_BIN` (auto‑detects `llama-server`/`server`)
@@ -112,7 +117,7 @@ Install auto‑GPU
 
 ## Triton Stack
 
-Script: `fuze-box/stack/Triton/benchmark.sh`
+Script: `LLM/refinery/stack/Triton/benchmark.sh`
 
 - Endpoints: `TRITON_HTTP_A=127.0.0.1:8000`, `TRITON_HTTP_B=127.0.0.1:8001`
 - Models: `TRITON_MODELS` (pairs `name|alias`)
@@ -122,5 +127,5 @@ Script: `fuze-box/stack/Triton/benchmark.sh`
 ## Notes
 
 - All scripts aim to be idempotent and resilient to missing services.
-- CSVs and summaries are written to `fuze-box/stack/logs`.
+- CSVs and summaries are written to `LLM/refinery/stack/logs` (or `/var/log/fuze-stack`).
 - For GPU binding, the scripts prefer matching GPU name substrings, with a fallback to the first two devices by index where applicable.

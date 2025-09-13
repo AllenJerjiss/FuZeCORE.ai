@@ -141,6 +141,6 @@ for pair in "${TRITON_MODELS[@]}"; do
   fi
 done
 
-echo "Analyze    : ./fuze-box/stack/common/analyze.sh --stack Triton"
+echo "Analyze    : $(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/common/analyze.sh --stack Triton"
 
 ok "DONE. CSV: ${CSV_FILE}"

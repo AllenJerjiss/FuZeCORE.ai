@@ -13,7 +13,7 @@ set -euo pipefail
 if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UST="${ROOT_DIR}/fuze-box/stack/ust.sh"
+UST="${ROOT_DIR}/LLM/refinery/stack/ust.sh"
 
 # Pick a writable LOG_DIR
 TS="$(date +%Y%m%d_%H%M%S)"
@@ -82,11 +82,11 @@ info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
 # Discover stacks if none provided
 if [ ${#STACKS[@]} -eq 0 ]; then
-  for s in ollama llama.cpp vLLM Triton; do [ -d "${ROOT_DIR}/fuze-box/stack/${s}" ] && STACKS+=("$s"); done
+  for s in ollama llama.cpp vLLM Triton; do [ -d "${ROOT_DIR}/LLM/refinery/stack/${s}" ] && STACKS+=("$s"); done
 fi
 
 # Discover env files if no model filter provided
-ALL_ENVS=("${ROOT_DIR}/fuze-box/stack"/*.env)
+ALL_ENVS=("${ROOT_DIR}/LLM/refinery/stack"/*.env)
 ENV_FILES=()
 if [ ${#MODEL_RES[@]} -eq 0 ]; then
   for e in "${ALL_ENVS[@]}"; do [ -f "$e" ] && ENV_FILES+=("$e"); done
@@ -99,7 +99,7 @@ else
     [ "$keep" -eq 1 ] && ENV_FILES+=("$e")
   done
 fi
-if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Add .env under fuze-box/stack or adjust --model"; exit 2; fi
+if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Add .env under LLM/refinery/stack or adjust --model"; exit 2; fi
 
 preflight(){ step_begin "preflight"; rc=0; "$UST" preflight >/dev/null 2>&1 || rc=$?; step_end $rc; }
 preflight
@@ -137,10 +137,9 @@ for ENVF in "${ENV_FILES[@]}"; do
 done
 
 # Collect + summarize
-step_begin "collect"; rc=0; "${ROOT_DIR}/fuze-box/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" || rc=$?; step_end $rc
-step_begin "summary"; rc=0; "${ROOT_DIR}/fuze-box/stack/common/summarize-benchmarks.sh" --csv "${ROOT_DIR}/fuze-box/benchmarks.csv" --top 15 | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt" || rc=$?; step_end $rc
+step_begin "collect"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" || rc=$?; step_end $rc
+step_begin "summary"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/summarize-benchmarks.sh" --csv "${ROOT_DIR}/LLM/refinery/benchmarks.csv" --top 15 | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt" || rc=$?; step_end $rc
 
 ok "Wrapper complete. Summary: $SUMMARY"
 log "  CSVs    : $(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || echo none)"
-log "  Bests   : $(ls -t ${ROOT_DIR}/fuze-box/benchmarks.best*.csv 2>/dev/null | head -n2 | paste -sd' ' - || echo none)"
-
+log "  Bests   : $(ls -t ${ROOT_DIR}/LLM/refinery/benchmarks.best*.csv 2>/dev/null | head -n2 | paste -sd' ' - || echo none)"

@@ -35,7 +35,7 @@ Options:
   --overwrite           Overwrite existing GGUF files (default: skip if exists)
   --dry-run             Print planned actions without exporting
   --env-out FILE        Write LLAMACPP_PATH_<alias>=<path> lines to FILE
-                        (default: fuze-box/stack/llama.cpp/models.env)
+                        (default: LLM/refinery/stack/llama.cpp/models.env)
 USAGE
 }
 
