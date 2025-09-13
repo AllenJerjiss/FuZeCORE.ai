@@ -145,7 +145,14 @@ export_one(){ # model_tag -> status
     mfpath="${mfroot}/${ns}/${name}/${ver}"
   fi
   if [ -f "$mfpath" ]; then
-    digest="$(awk -F'"' '/application\/vnd.ollama.image.model/ {getline; if ($2=="digest") print $4}' "$mfpath" | sed 's/^sha256://;q')"
+    # Extract model-layer digest from manifest (prefer jq)
+    if command -v jq >/dev/null 2>&1; then
+      digest="$(jq -r '.layers[] | select(.mediaType=="application/vnd.ollama.image.model") | .digest' "$mfpath" 2>/dev/null | sed 's/^sha256://;q')"
+    fi
+    if [ -z "${digest:-}" ]; then
+      digest="$(grep -o '"mediaType":"application/vnd.ollama.image.model"[^}]*"digest":"sha256:[0-9a-f]\{64\}"' "$mfpath" 2>/dev/null \
+                 | sed -n 's/.*"digest":"sha256:\([0-9a-f]\{64\}\)".*/\1/p' | head -n1)"
+    fi
     if [ -n "$digest" ]; then
       blob="/FuZe/models/ollama/blobs/sha256-${digest}"
       if [ -f "$blob" ]; then

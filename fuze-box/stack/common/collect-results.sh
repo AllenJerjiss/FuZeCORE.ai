@@ -105,3 +105,8 @@ for s in $STACKS; do
 done
 
 echo "Appended summaries to: $OUT_CSV"
+
+# Ensure ownership if running under sudo
+if [ -n "${SUDO_USER:-}" ] && [ -f "$OUT_CSV" ]; then
+  chown -f "$SUDO_USER":"$SUDO_USER" "$OUT_CSV" 2>/dev/null || true
+fi
