@@ -181,6 +181,11 @@ for S in $STACKS; do
 done
 
 echo
+# Collect summaries into central CSV (fuze-box/benchmarks.csv)
+step_begin "collect"
+rc=0; "${ROOT_DIR}/fuze-box/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "$STACKS" || rc=$?
+step_end $rc
+
 ok "Wrapper complete. Summary: $SUMMARY"
 log "  CSVs    : $(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || echo none)"
 log "  Summary : $(ls -t ${LOG_DIR}/*benchmark.txt 2>/dev/null | head -n1 || echo none)"
