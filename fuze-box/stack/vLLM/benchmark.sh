@@ -212,14 +212,6 @@ for entry in "${MODELS[@]}"; do
   stop_proc "$pid"; pids=("${pids[@]:1}")
 done
 
-{
-  echo "=== Final Summary @ ${HOSTNAME_NOW} ${TS} ==="
-  echo "CSV: ${CSV_FILE}"
-  echo
-  echo "Top-5 runs overall (by tokens/sec) from CSV:"
-  tail -n +2 "$CSV_FILE" | sort -t',' -k12,12gr | head -n5 \
-    | awk -F',' '{printf "  %-2s %-18s %-28s %-14s %6.2f tok/s  (%s %s ngpu=%s)\n",$4,$5,$6,$13,$12,$1,$2,$8}'
-} | tee "${SUMMARY_FILE}"
+echo "Analyze    : ./fuze-box/stack/common/analyze.sh --stack vLLM"
 
 ok "DONE. CSV: ${CSV_FILE}"
-ok "DONE. Summary: ${SUMMARY_FILE}"

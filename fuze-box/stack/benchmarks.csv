@@ -1,0 +1,2 @@
+run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_endpoint,optimal_endpoint,gpu_label,gpu_name,num_gpu,csv_file
+20250913_211343,fuze-bakery,ollama,gemma3:4b-it-fp16,49.44,gemma3:4b-it-fp16,50.80,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,20,/var/log/fuze-stack/ollama_bench_20250913_211343.csv
