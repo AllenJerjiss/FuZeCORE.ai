@@ -72,6 +72,8 @@ INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kep
 
 # Optional alias prefix for variant naming and logs
 ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
+# Optionally bake the best variant tag at the end (even in FAST_MODE)
+PUBLISH_BEST="${PUBLISH_BEST:-0}"
 
 # Binary
 readonly OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
@@ -471,6 +473,8 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       if awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}'; then
         best_ng="$ng"; best_tokps="$tokps"; best_name="${alias_base}+ng${ng}"
       fi
+      # Mark that at least one optimized run succeeded
+      if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then first_ok=1; fi
       # stop early if improvement < EARLY_STOP_DELTA over current best
       if [ "$EXHAUSTIVE" -eq 0 ]; then
         # since list is descending from high->low, break after first working
@@ -491,15 +495,38 @@ tune_and_bench_one(){ # ep baseTag aliasBase
         [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
       fi
       awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
+      # Mark that at least one optimized run succeeded
+      if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then first_ok=1; fi
       if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
         ok "     First working: ${newname} at ${tokps} tok/s"; first_ok=1; break; fi
     fi
   done
 
-  if [ "$first_ok" -eq 1 ]; then
+  if awk -v b="$best_tokps" 'BEGIN{exit !(b>0)}'; then
     ok " Best so far: ${best_name} (ng=${best_ng}) at ${best_tokps} tok/s"
   else
     warn " No optimized variant worked for ${base} on ${ep}"
+  fi
+
+  # Optionally publish the best variant tag (even when FAST_MODE=1)
+  if [ "$PUBLISH_BEST" -eq 1 ] && awk -v b="$best_tokps" 'BEGIN{exit !(b>0)}'; then
+    local pub_name
+    pub_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${best_ng}"
+    info " Publishing best variant tag: ${pub_name} (FROM ${base} num_gpu=${best_ng})"
+    if bake_variant "$pub_name" "$base" "$best_ng"; then
+      wait_variant_visible "$ep" "${pub_name}:latest" 12 || true
+      ok " Published: ${pub_name}:latest"
+      # Re-bench the published tag so CSV contains an explicit row for it
+      local pub_tokps
+      pub_tokps="$(bench_once "$ep" "$base" "${pub_name}:latest" "published" "$best_ng" "$gpu_lbl" || echo 0.00)"
+      if awk -v a="$pub_tokps" 'BEGIN{exit !(a>0)}'; then
+        ok " Published variant performance: ${pub_tokps} tok/s"
+      else
+        warn " Published variant returned ${pub_tokps} tok/s"
+      fi
+    else
+      warn " Failed to publish variant: ${pub_name}"
+    fi
   fi
 }
 

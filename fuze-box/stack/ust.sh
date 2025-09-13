@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STACK_ROOT="${SCRIPT_DIR}"
 
 usage(){
-  echo "Usage: $0 <stack> [command] [args...]"
+  echo "Usage: $0 [@envfile.env] <stack> [command] [args...]"
   echo "Stacks: ollama | vLLM | llama.cpp | Triton"
   echo "Commands per stack:"
   echo "  ollama   : benchmark (default) | install | service-cleanup | store-cleanup | cleanup-variants"
@@ -18,6 +18,23 @@ usage(){
   echo "  llama.cpp: benchmark (default) | install"
   echo "  Triton   : benchmark (default) | install"
 }
+
+## Optional env file(s) loader: any leading args of form @file or *.env
+while [ $# -gt 0 ]; do
+  case "$1" in
+    @*|*.env)
+      envf="${1#@}"
+      if [ -f "$envf" ]; then
+        set -a; . "$envf"; set +a
+        shift
+        continue
+      else
+        echo "Env file not found: $envf" >&2; exit 2
+      fi
+      ;;
+    *) break;;
+  esac
+done
 
 stack="${1:-}" || true
 if [ -z "$stack" ]; then usage; exit 1; fi

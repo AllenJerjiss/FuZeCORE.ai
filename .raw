@@ -1,2 +1,2 @@
 endpoint,base_model,best_variant,num_gpu,tokens_per_sec
-127.0.0.1:11435,gemma3:4b-it-fp16,gemma3:4b-it-fp16,4,50.19
+127.0.0.1:11435,gemma3:4b-it-fp16,gemma3:4b-it-fp16,32,50.09
