@@ -26,6 +26,16 @@ shift $(( $#>0 ? 1 : 0 )) || true
 
 if [ -z "$stack" ]; then usage; exit 1; fi
 
+# Top-level GPU preparation (not tied to a specific stack)
+case "$stack" in
+  gpu|gpu-prepare|gpu-setup)
+    exec "${STACK_ROOT}/common/gpu-setup.sh" "$@"
+    ;;
+  preflight|check|doctor)
+    exec "${STACK_ROOT}/common/preflight.sh" "$@"
+    ;;
+esac
+
 case "$stack" in
   ollama|Ollama)
     case "$cmd" in

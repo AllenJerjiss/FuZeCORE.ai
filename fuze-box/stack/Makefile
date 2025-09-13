@@ -12,13 +12,15 @@ BENCH_NUM_PREDICT ?= 64
 BENCH_NUM_CTX ?= 4096
 TEMPERATURE ?= 0.0
 
-.PHONY: help \
+.PHONY: help gpu-prepare preflight \
         ollama-install ollama-service-cleanup ollama-store-cleanup ollama-cleanup-variants ollama-export-gguf ollama-bench \
         vllm-bench llamacpp-bench triton-bench \
         tail-ollama-csv tail-vllm-csv tail-llamacpp-csv tail-triton-csv
 
 help:
 	@echo "Targets:"
+	@echo "  gpu-prepare             Install NVIDIA driver/CUDA toolkit if GPU detected"
+	@echo "  preflight               Run environment checks for all stacks"
 	@echo "  ollama-install           Install/upgrade Ollama + stock service"
 	@echo "  ollama-service-cleanup   Reset persistent Ollama service on :11434"
 	@echo "  ollama-store-cleanup     Migrate/merge stores into /FuZe/models/ollama (use ARGS=...)"
@@ -76,3 +78,8 @@ tail-llamacpp-csv:
 
 tail-triton-csv:
 	@ls -t $(STACK_DIR)logs/triton_bench_*.csv 2>/dev/null | head -n1 | xargs -r tail -n 40
+gpu-prepare:
+	sudo -E $(UST) gpu-prepare
+
+preflight:
+	$(UST) preflight

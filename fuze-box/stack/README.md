@@ -13,6 +13,8 @@ Examples
 - vLLM bench: `./fuze-box/stack/ust.sh vLLM`
 - llama.cpp bench: `./fuze-box/stack/ust.sh llama.cpp`
 - Triton bench (perf_analyzer): `./fuze-box/stack/ust.sh Triton`
+- GPU prepare (drivers/CUDA): `sudo ./fuze-box/stack/ust.sh gpu-prepare`
+- Preflight (env checks): `./fuze-box/stack/ust.sh preflight`
 
 Ollama management commands
 - Install/upgrade + stock service: `sudo ./fuze-box/stack/ust.sh ollama install`
@@ -20,6 +22,10 @@ Ollama management commands
 - Store migration to `/FuZe/models/ollama`: `sudo ./fuze-box/stack/ust.sh ollama store-cleanup [--canon PATH --alt PATH]`
 - Remove baked variants: `sudo ./fuze-box/stack/ust.sh ollama cleanup-variants --from-created fuze-box/stack/logs/ollama_created_*.txt --force --yes`
 - Export GGUFs + llama.cpp env: `./fuze-box/stack/ust.sh ollama export-gguf [--dest DIR] [--host HOST:PORT] [--include REGEX] [--exclude REGEX] [--env-out FILE]`
+
+System prep
+- `gpu-prepare`: detects NVIDIA GPU and installs driver + CUDA toolkit when needed via `common/gpu-setup.sh`. No-ops if no NVIDIA GPU is present.
+- `preflight`   : runs environment checks for all stacks (GPU/driver/CUDA, binaries, services, ports, model dirs)
 
 ## Common Env Knobs (all stacks)
 

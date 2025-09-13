@@ -8,3 +8,9 @@ ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch
 20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,27,,,46.84,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
 20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,25,,,47.03,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
 20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,23,,,49.28,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
+20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,21,,,49.00,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
+20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,18,,,49.71,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
+20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,14,,,46.29,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
+20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,11,,,49.95,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
+20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,7,,,49.89,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
+20250913_093922,127.0.0.1:11435,ollama-test-a.service,A,gemma3:4b-it-fp16,optimized,gemma3:4b-it-fp16,4,,,50.65,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,GPU-6bef0f05-20d7-81db-4f84-cf9491db6704, 16311
