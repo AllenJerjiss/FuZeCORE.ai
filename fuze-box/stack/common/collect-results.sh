@@ -7,7 +7,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"   # fuze-box
+# Repo fuze-box root (this script lives in fuze-box/stack/common)
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 OUT_CSV="${OUT_CSV:-${ROOT_DIR}/benchmarks.csv}"
@@ -104,4 +105,3 @@ for s in $STACKS; do
 done
 
 echo "Appended summaries to: $OUT_CSV"
-

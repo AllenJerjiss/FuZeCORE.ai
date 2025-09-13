@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"   # fuze-box
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 CSV="${CSV:-${ROOT_DIR}/benchmarks.csv}"
 TOPN="${TOPN:-10}"
