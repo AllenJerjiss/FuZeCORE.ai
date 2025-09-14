@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # summarize-benchmarks.sh — Read LLM/refinery/benchmarks.csv and print best combos
-# Sections:
-#  - Top N overall by optimal_tokps
-#  - Best per (stack, model)
-#  - Best per (stack, model, gpu_label)
-# Also writes a machine-friendly CSV of best per (stack, model): LLM/refinery/benchmarks.best.csv
+# Also: prints latest-run sections and (if available) per-stack raw bench CSVs.
 
 set -euo pipefail
 
@@ -48,10 +44,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ ! -f "$CSV" ]; then
-  echo "No data: $CSV not found" >&2
-  exit 1
-fi
+[ -f "$CSV" ] || { echo "No data: $CSV not found" >&2; exit 1; }
 
 if [ -n "$MD_OUT" ]; then
   mkdir -p "$(dirname "$MD_OUT")" 2>/dev/null || true
@@ -59,93 +52,105 @@ if [ -n "$MD_OUT" ]; then
   exec > >(tee "$MD_OUT")
 fi
 
-if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
+[ "$QUIET" -eq 0 ] && echo "Data: $CSV"
 
-# ----------------------------------------------------------------------
-# Dynamically size the variant column based on the widest variant emitted.
-# This scans the input CSV using the same alias/variant logic as below
-# to compute the maximum variant string length.  If no records are found,
-# a fallback of 40 characters is used.  The resulting width is used to
-# build table borders and header rows, and passed into awk via VAW.
-VAR_WIDTH=$(awk -F',' -v AP="$ALIAS_PREFIX" '
-function aliasify(s, t) {
-  t = s;
-  gsub(/[\/:]+/, "-", t);
-  gsub(/-it-/, "-i-", t); sub(/-it$/, "-i", t);
-  gsub(/-fp16/, "-f16", t); gsub(/-bf16/, "-b16", t);
-  return t;
-}
-function trim_lead_dash(s){ gsub(/^-+/, "", s); return s }
-function variant(base, ng, gl, st,  ab, sfx, sfx2, va) {
-  ab = aliasify(base);
-  sfx = ENVIRON["ALIAS_SUFFIX"];
-  sfx2 = trim_lead_dash(sfx);
-  if (sfx2 != "") va = sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
-  else            va = sprintf("%s%s-%s-%s", AP, st, gl, ab);
-  if (ng + 0 > 0) va = va "+ng" ng;
-  return va;
-}
-NR > 1 {
-  st = $3;
-  gl = $10;
-  va = variant($4, $12 + 0, gl, st);
-  if (length(va) > max_len) max_len = length(va);
-}
-END {
-  print max_len;
-}' "$CSV")
-# Ensure a sensible minimum width
-[ -z "$VAR_WIDTH" ] && VAR_WIDTH=40
-if [ "$VAR_WIDTH" -lt 40 ]; then VAR_WIDTH=40; fi
+# ---------- width helpers (variant, host:endpoint, numeric headers) ----------
+aliasify() { :; } # placeholder for readability in awk blocks
 
-# Determine column widths for numeric fields.  The "gain factor" column header
-# may be longer than the default numeric width (17), so enlarge the column
-# accordingly.  The tok/s and base_t/s columns default to width 8 characters,
-# which is sufficient for their numeric values and headers.
+# Dynamic variant width from the aggregate CSV
+VAR_WIDTH=$(
+  awk -F',' -v AP="$ALIAS_PREFIX" '
+  function aliasify(s, t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
+  function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
+  function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
+    ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx);
+    if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
+    else          va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
+    if (ng+0>0) va=va "+ng" ng;
+    return va
+  }
+  NR>1 { st=$3; gl=$10; va=variant($4, $12+0, gl, st); if (length(va)>mx) mx=length(va) }
+  END { print (mx>0?mx:40) }
+' "$CSV")
+[ "$VAR_WIDTH" -lt 40 ] && VAR_WIDTH=40
+
+# Dynamic host:endpoint width
+HOSTEP_WIDTH=$(
+  awk -F',' '
+  NR>1 { ep=($9!=""?$9:$8); hep=$2 ((ep!="")? ":" ep : ""); if (length(hep)>mx) mx=length(hep) }
+  END { print (mx>0?mx:22) }
+' "$CSV")
+[ "$HOSTEP_WIDTH" -lt 22 ] && HOSTEP_WIDTH=22
+
+# Numeric headers and borders
 GAIN_HEADER="FuZe-refinery gain factor"
+BASE_HEADER="base_tok/s"
+TOK_HEADER="tok/s"
+
+# Floor widths
 GAIN_WIDTH_DEFAULT=17
-GAIN_HEADER_LEN=${#GAIN_HEADER}
-if [ "$GAIN_HEADER_LEN" -gt "$GAIN_WIDTH_DEFAULT" ]; then
-  GAIN_WIDTH="$GAIN_HEADER_LEN"
-else
-  GAIN_WIDTH="$GAIN_WIDTH_DEFAULT"
-fi
+BASE_WIDTH_DEFAULT=8
 
-# Construct table border and header strings with dynamic variant width.
-# The timestamp column is always 19 chars wide plus 2 spaces (21 dashes).
-timestamp_border='---------------------'
-# The variant border is sized to the variant width plus two spaces.
-variant_border=$(printf '%*s' "$((VAR_WIDTH + 2))" '' | tr ' ' '-')
-host_border='----------------------'
-endpoint_border='----------------------'
-tok_border='---------'
-base_border='----------'
-# The gain border length adapts to the gain column width plus two spaces.
-gain_border=$(printf '%*s' "$((GAIN_WIDTH + 2))" '' | tr ' ' '-')
+# choose widths so header fits exactly; rows are right-aligned within same width
+GAIN_WIDTH="${GAIN_WIDTH_DEFAULT}"
+[ "${#GAIN_HEADER}" -gt "$GAIN_WIDTH" ] && GAIN_WIDTH="${#GAIN_HEADER}"
 
-# Border without right-alignment colons (used for Top N section)
-TABLE_BORDER="|${timestamp_border}|${variant_border}|${host_border}|${endpoint_border}|${tok_border}|${base_border}|${gain_border}|"
-# Border with right-alignment colons (used for the grouped sections)
-TABLE_BORDER_RALIGN="||||||||"
+BASE_WIDTH="${BASE_WIDTH_DEFAULT}"
+[ "${#BASE_HEADER}" -gt "$BASE_WIDTH" ] && BASE_WIDTH="${#BASE_HEADER}"
 
-# Header row with dynamic variant and gain widths.  Numeric headers use default widths.
-HEADER_ROW=$(printf "| %-19s | %-${VAR_WIDTH}s | %-20s | %-20s | %8s | %8s | %${GAIN_WIDTH}s |\n" \
-  "timestamp" "variant" "host" "endpoint" "tok/s" "base_tok/s" "$GAIN_HEADER")
+# Borders (dash count = column width + 2 spaces)
+dashpad(){ printf '%*s' "$1" '' | tr ' ' '-'; }
+timestamp_border='---------------------'                  # 19 + 2
+variant_border="$(dashpad $((VAR_WIDTH+2)))"
+hostep_border="$(dashpad $((HOSTEP_WIDTH+2)))"
+tok_border="$(dashpad $((8+2)))"
+base_border="$(dashpad $((BASE_WIDTH+2)))"
+gain_border="$(dashpad $((GAIN_WIDTH+2)))"
 
-# Determine the latest run timestamp from the CSV.  We'll use this to
-# produce a summary of results for the most recent run.  If there are no
-# data rows, this will be empty and the summary section will be skipped.
-LATEST_RUN=$(awk -F',' 'NR>1 { if ($1 > max_ts) max_ts = $1 } END { print max_ts }' "$CSV")
+TABLE_BORDER="|${timestamp_border}|${variant_border}|${hostep_border}|${tok_border}|${base_border}|${gain_border}|"
+TABLE_BORDER_RALIGN="$TABLE_BORDER"  # use uniform dashed border everywhere
 
-# ------------- Top N overall by optimal_tokps -------------------------------
+HEADER_ROW=$(printf \
+  "| %-19s | %-${VAR_WIDTH}s | %-${HOSTEP_WIDTH}s | %8s | %${BASE_WIDTH}s | %${GAIN_WIDTH}s |\n" \
+  "timestamp" "variant" "host:endpoint" "$TOK_HEADER" "$BASE_HEADER" "$GAIN_HEADER")
+
+# Latest run id from aggregate
+LATEST_RUN=$(
+  awk -F',' 'NR>1 { if ($1>mx) mx=$1 } END { print mx }' "$CSV"
+)
+
+# ---------- Reusable awk printer (same formatting everywhere) ----------
+print_rows_awktable(){ # usage: print_rows_awktable <stdin rows CSV schema>
+  awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v HEW="$HOSTEP_WIDTH" -v BAW="$BASE_WIDTH" -v GAINW="$GAIN_WIDTH" '
+    function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
+    function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
+    function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
+      ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx);
+      if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
+      else          va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
+      if (ng+0>0) va=va "+ng" ng; return va
+    }
+    function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+    {
+      ts=$1; host=$2; st=$3; model=$4;
+      base=$5+0; opt=$7+0; ep=($9!=""?$9:$8); gl=$10; ng=$12+0;
+      gain=(base>0? opt/base : 0);
+      va=variant(model, ng, gl, st);
+      hep=host ((ep!="")? ":" ep : "");
+      printf "| %-19s | %-*s | %-*s | %8.2f | %*.2f | %*.2fx |\n",
+        htime(ts), VAW, va, HEW, hep, opt, BAW, base, GAINW, gain
+    }'
+}
+
+# ================= Top N overall =================
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
   echo "Top ${TOPN} overall:"
-  # Pretty table header (stack folded into variant) with dynamic widths
   echo "$TABLE_BORDER"
   echo "$HEADER_ROW"
   echo "$TABLE_BORDER"
-  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
+  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+    NR>1 {
       if (ST!="" && $3 !~ ST) next;
       if (MR!="" && $4 !~ MR) next;
       if (HR!="" && $2 !~ HR) next;
@@ -155,210 +160,128 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
     | sort -t',' -k7,7gr \
     | awk '!seen[$0]++' \
     | head -n "$TOPN" \
-    | awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v GAINW="$GAIN_WIDTH" '
-        function aliasify(s,  t){
-          t=s; gsub(/[\/:]+/,"-",t);
-          gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t);
-          gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t);
-          return t
-        }
-        function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
-          ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx);
-          # embed stack into variant
-          if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
-          else           va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
-          if (ng+0>0) va=va "+ng" ng;
-          return va
-        }
-        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-        {
-          st=$3; ep=($9!=""?$9:"n/a"); ng=($12+0); gl=$10; va=variant($4, ng, gl, st);
-          base=$5+0; opt=$7+0; x=(base>0? opt/base : 0);
-          printf "| %-19s | %-*s | %-20s | %-20s | %8.2f | %8.2f | %*.2fx |
-",
-            htime($1), VAW, va, $2, ep, opt, base, GAINW, x
-        }'
+    | print_rows_awktable
 fi
 
-# ------------- Best per (stack, model) --------------------------------------
-echo
-if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
-  echo "Best per (stack, model):"
-  # Print only a single border line; avoid repeating the header for this section
-  echo "$TABLE_BORDER_RALIGN"
-  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
-    function aliasify(s,  t){
-      t=s; gsub(/[\/:]+/,"-",t);
-      gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t);
-      gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t);
-      return t
-    }
-    NR>1 {
-      if (ST!="" && $3 !~ ST) next;
-      if (MR!="" && $4 !~ MR) next;
-      if (HR!="" && $2 !~ HR) next;
-      if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-      if (!($7+0>0)) next;
-      k=$3"|"$4
-      if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
-    }
-    END{
-      for (k in best){print line[k]}
-    }
-  ' "$CSV" \
-   | awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v GAINW="$GAIN_WIDTH" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
-       function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-       function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
-       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       {
-         ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? opt/base : 0);
-         va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
-       }'
-fi
+emit_best_block(){ # title, key AWK, filter args...
+  local title="$1"; shift
+  echo
+  if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
+    echo "$title"
+    echo "$TABLE_BORDER_RALIGN"
+    awk -F',' "$@" "$CSV" | print_rows_awktable
+  fi
+}
 
-# ------------- Best per (stack, model, gpu_label) ---------------------------
-echo
-if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
-  echo "Best per (stack, model, gpu_label):"
-  # Print only a single border line; avoid repeating the header for this section
-  echo "$TABLE_BORDER_RALIGN"
-  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
-    function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
-    NR>1 {
-      if (ST!="" && $3 !~ ST) next;
-      if (MR!="" && $4 !~ MR) next;
-      if (HR!="" && $2 !~ HR) next;
-      if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-      if (!($7+0>0)) next;
-      k=$3"|"$4"|"$10
-      if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
-    }
-    END{
-      for (k in best){print line[k]}
-    }
-  ' "$CSV" \
-   | awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v GAINW="$GAIN_WIDTH" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
-       function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-       function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
-       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       {
-         ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? $7/$5 : 0);
-         va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
-       }'
-fi
+# =============== Best per (stack, model) ===============
+emit_best_block "Best per (stack, model):" \
+  -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+  function bestout(){ for (k in best) print line[k] }
+  NR>1 {
+    if (ST!="" && $3 !~ ST) next;
+    if (MR!="" && $4 !~ MR) next;
+    if (HR!="" && $2 !~ HR) next;
+    if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
+    if (!($7+0>0)) next;
+    k=$3"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
+  } END{ bestout() }'
 
-# ------------- Best per (host, model) across stacks -------------------------
-echo
-if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
-  echo "Best per (host, model) across stacks:"
-  # Print only a single border line; avoid repeating the header for this section
-  echo "$TABLE_BORDER_RALIGN"
-  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
-    function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
-    NR>1 {
-      if (ST!="" && $3 !~ ST) next;
-      if (MR!="" && $4 !~ MR) next;
-      if (HR!="" && $2 !~ HR) next;
-      if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-      if (!($7+0>0)) next;
-      k=$2"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
-    }
-    END{for (k in best){print line[k]}}
-  ' "$CSV" \
-   | awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v GAINW="$GAIN_WIDTH" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
-       function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-       function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(sfx2!="") va=sprintf("%s%s--%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
-       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       {
-         ts=$1; host=$2; st=$3; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? $7/$5 : 0);
-         va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
-       }'
-fi
+# =============== Best per (stack, model, gpu_label) ===============
+emit_best_block "Best per (stack, model, gpu_label):" \
+  -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+  function bestout(){ for (k in best) print line[k] }
+  NR>1 {
+    if (ST!="" && $3 !~ ST) next;
+    if (MR!="" && $4 !~ MR) next;
+    if (HR!="" && $2 !~ HR) next;
+    if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
+    if (!($7+0>0)) next;
+    k=$3"|"$4"|"$10; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
+  } END{ bestout() }'
 
-# ------------- Global best per model (across hosts & stacks) ----------------
+# =============== Best per (host, model) across stacks ===============
+emit_best_block "Best per (host, model) across stacks:" \
+  -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+  function bestout(){ for (k in best) print line[k] }
+  NR>1 {
+    if (ST!="" && $3 !~ ST) next;
+    if (MR!="" && $4 !~ MR) next;
+    if (HR!="" && $2 !~ HR) next;
+    if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
+    if (!($7+0>0)) next;
+    k=$2"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
+  } END{ bestout() }'
+
+# =============== Global best per model ===============
 if [ "$ONLY_TOP" -eq 0 ]; then
   echo
   echo "Global best per model (across hosts & stacks):"
-  # Print only a single border line; avoid repeating the header for this section
   echo "$TABLE_BORDER_RALIGN"
-  awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" -v AP="$ALIAS_PREFIX" '
+  awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" '
     NR>1 {
       if (MR!="" && $4 !~ MR) next;
       if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
       if (!($7+0>0)) next;
       k=$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
-    }
-    END{for (k in best){print line[k]}}
-  ' "$CSV" \
-   | awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v GAINW="$GAIN_WIDTH" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
-       function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-       function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
-       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       {
-         ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0?opt/base:0);
-         va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
-       }'
+    } END{ for (k in best) print line[k] }
+  ' "$CSV" | print_rows_awktable
 fi
 
-# ------------- Latest run summary -------------------------------------------
-if [ -n "$LATEST_RUN" ] && [ "$QUIET" -eq 0 ]; then
+# =============== Latest run section (from aggregate) ===============
+if [ -n "${LATEST_RUN:-}" ] && [ "$QUIET" -eq 0 ]; then
   echo
   echo "Latest run summary (run_ts=$LATEST_RUN):"
   echo "$TABLE_BORDER_RALIGN"
-  # Filter by latest run_ts, sort by optimal_tokps descending, and take the top N rows.
-  awk -F',' -v RUN="$LATEST_RUN" 'NR>1 && $1 == RUN && ($7+0>0) { print $0 }' "$CSV" \
+  awk -F',' -v RUN="$LATEST_RUN" 'NR>1 && $1==RUN && ($7+0>0)' "$CSV" \
     | sort -t',' -k7,7gr \
     | head -n "$TOPN" \
-    | awk -F',' -v AP="$ALIAS_PREFIX" -v VAW="$VAR_WIDTH" -v GAINW="$GAIN_WIDTH" '
-        function aliasify(s,  t){
-          t=s;
-          gsub(/[\/\:]+/,"-",t);
-          gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t);
-          gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t);
-          return t
-        }
-        function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
-          ab=aliasify(base);
-          sfx=ENVIRON["ALIAS_SUFFIX"];
-          sfx2=trim_lead_dash(sfx);
-          if (sfx2 != "") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
-          else            va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
-          if (ng + 0 > 0) va=va "+ng" ng;
-          return va
-        }
-        function htime(ts){
-          return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s",
-                                          substr(ts,1,4), substr(ts,5,2), substr(ts,7,2),
-                                          substr(ts,10,2), substr(ts,12,2), substr(ts,14,2)) : ts
-        }
-        {
-          ts=$1; st=$3; host=$2;
-          base=$5+0; opt=$7+0;
-          ep=($9!=""?$9:$8);
-          ng=($12+0); gl=$10;
-          x=(base>0? opt/base : 0);
-          va=variant($4, ng, gl, st);
-          printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\
-",
-            htime(ts), va, host, ep, opt, base, x
-        }'
+    | print_rows_awktable
 fi
 
-# ------------- Write best-per-(stack,model) CSV -----------------------------
+# =============== Per-stack latest run (raw bench CSVs) ===============
+# Find per-run bench CSVs for LATEST_RUN in LOG_DIR (if exported) or known defaults.
+find_bench_csvs(){
+  local run="$1"; shift
+  local dirs=()
+  [ -n "${LOG_DIR:-}" ] && dirs+=("$LOG_DIR")
+  dirs+=("/var/log/fuze-stack" "${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack" "$HOME/.fuze/stack/logs")
+  local f; for d in "${dirs[@]}"; do
+    [ -d "$d" ] || continue
+    # prefer exact run match, else newest files
+    while IFS= read -r -d '' f; do echo "$f"; done < <(find "$d" -maxdepth 1 -type f -name "*_bench_${run}.csv" -print0 2>/dev/null)
+  done
+}
+
+if [ -n "${LATEST_RUN:-}" ]; then
+  mapfile -t LATEST_BENCH_CSVS < <(find_bench_csvs "$LATEST_RUN")
+  if [ "${#LATEST_BENCH_CSVS[@]}" -eq 0 ]; then
+    # fallback: take newest bench CSV in any known dir
+    mapfile -t LATEST_BENCH_CSVS < <(
+      for d in "${LOG_DIR:-/var/log/fuze-stack}" "${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack" "$HOME/.fuze/stack/logs"; do
+        [ -d "$d" ] || continue
+        ls -t "$d"/*_bench_*.csv 2>/dev/null || true
+      done | awk 'NR==1,NR==3'  # up to 3 recent CSVs
+    )
+  fi
+
+  if [ "${#LATEST_BENCH_CSVS[@]}" -gt 0 ]; then
+    echo
+    echo "Per-stack latest run (raw bench CSVs):"
+    echo "$TABLE_BORDER_RALIGN"
+    # Each per-stack CSV is expected to share the same schema columns as aggregate
+    for f in "${LATEST_BENCH_CSVS[@]}"; do
+      [ -f "$f" ] || continue
+      # Filter to LATEST_RUN rows if the file is multi-run, else just take top by optimal tok/s
+      awk -F',' -v RUN="$LATEST_RUN" 'NR==1{hdr=$0;next} {if ($1==RUN) print $0}' "$f" \
+        | ( [ -s /dev/stdin ] && cat || awk 'NR>1{print $0}' "$f" ) \
+        | sort -t',' -k7,7gr \
+        | head -n "$TOPN" \
+        | print_rows_awktable
+    done
+  fi
+fi
+
+# ======================= CSV exports (unchanged) ============================
 BEST_CSV="${ROOT_DIR}/benchmarks.best.csv"
 {
   echo "stack,model,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
@@ -373,13 +296,11 @@ BEST_CSV="${ROOT_DIR}/benchmarks.best.csv"
     }
     END{for (k in best){print line[k]}}
   ' "$CSV" \
-  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s
-", $3,$4,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $3,$4,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
 } > "$BEST_CSV"
 echo
-if [ "$NO_PATHS" -eq 0 ]; then echo "Best-per-(stack,model) CSV: $BEST_CSV"; fi
+[ "$NO_PATHS" -eq 0 ] && echo "Best-per-(stack,model) CSV: $BEST_CSV"
 
-# ------------- Also write best-by-(host,model) and global-best-by-model -----
 BEST_BY_HOST_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_host_model.csv"
 {
   echo "host,model,stack,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
@@ -394,10 +315,9 @@ BEST_BY_HOST_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_host_model.csv"
     }
     END{for (k in best){print line[k]}}
   ' "$CSV" \
-  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s
-", $2,$4,$3,$7,$5,$6,$10,$11,$12,$1,$13}'
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $2,$4,$3,$7,$5,$6,$10,$11,$12,$1,$13}'
 } > "$BEST_BY_HOST_MODEL_CSV"
-if [ "$NO_PATHS" -eq 0 ]; then echo "Best-by-(host,model) CSV: $BEST_BY_HOST_MODEL_CSV"; fi
+[ "$NO_PATHS" -eq 0 ] && echo "Best-by-(host,model) CSV: $BEST_BY_HOST_MODEL_CSV"
 
 BEST_GLOBAL_BY_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_model.csv"
 {
@@ -411,7 +331,7 @@ BEST_GLOBAL_BY_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_model.csv"
     }
     END{for (k in best){print line[k]}}
   ' "$CSV" \
-  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s
-", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
 } > "$BEST_GLOBAL_BY_MODEL_CSV"
-if [ "$NO_PATHS" -eq 0 ]; then echo "Best-global-by-model CSV: $BEST_GLOBAL_BY_MODEL_CSV"; fi
+[ "$NO_PATHS" -eq 0 ] && echo "Best-global-by-model CSV: $BEST_GLOBAL_BY_MODEL_CSV"
+
