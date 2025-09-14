@@ -13,7 +13,7 @@ set -euo pipefail
 if [ "$(id -u)" -ne 0 ]; then exec sudo -E "$0" "$@"; fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UST="${ROOT_DIR}/LLM/refinery/stack/ust.sh"
+UST="${ROOT_DIR}/factory/LLM/refinery/stack/ust.sh"
 
 # Pick a writable LOG_DIR
 TS="$(date +%Y%m%d_%H%M%S)"
@@ -80,26 +80,43 @@ export VERBOSE=1 DEBUG_BENCH=1
 
 info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
+# Print locations of best CSVs and where run CSVs will be written
+log "Best-per-(stack,model) CSV: ${ROOT_DIR}/factory/LLM/refinery/benchmarks.best.csv"
+log "Best-by-(host,model) CSV: ${ROOT_DIR}/factory/LLM/refinery/benchmarks.best.by_host_model.csv"
+log "Best-global-by-model CSV: ${ROOT_DIR}/factory/LLM/refinery/benchmarks.best.by_model.csv"
+log "CSVs in : ${LOG_DIR}"
+
 # Discover stacks if none provided
 if [ ${#STACKS[@]} -eq 0 ]; then
-  for s in ollama llama.cpp vLLM Triton; do [ -d "${ROOT_DIR}/LLM/refinery/stack/${s}" ] && STACKS+=("$s"); done
+  for s in ollama llama.cpp vLLM Triton; do [ -d "${ROOT_DIR}/factory/LLM/refinery/stack/${s}" ] && STACKS+=("$s"); done
 fi
 
 # Discover env files if no model filter provided
-ALL_ENVS=("${ROOT_DIR}/LLM/refinery/stack"/*.env)
+# Discover .env files under factory/LLM/refinery/stack/env/*/*
+ENV_ROOT="${ROOT_DIR}/factory/LLM/refinery/stack/env"
 ENV_FILES=()
-if [ ${#MODEL_RES[@]} -eq 0 ]; then
-  for e in "${ALL_ENVS[@]}"; do [ -f "$e" ] && ENV_FILES+=("$e"); done
+if [ -d "$ENV_ROOT" ]; then
+  # readarray/mapfile is bashism; ensure newline-safe
+  while IFS= read -r -d '' f; do ENV_FILES+=("$f"); done < <(find "$ENV_ROOT" -type f -name "*.env" -print0 2>/dev/null)
 else
-  for e in "${ALL_ENVS[@]}"; do
+  # Fallback to legacy location if present
+  shopt -s nullglob
+  for f in "${ROOT_DIR}/factory/LLM/refinery/stack"/*.env; do ENV_FILES+=("$f"); done
+  shopt -u nullglob
+fi
+if [ ${#MODEL_RES[@]} -eq 0 ]; then
+  : # Already discovered via find; nothing to do
+else
+  for e in "${ENV_FILES[@]}"; do
     [ -f "$e" ] || continue
     bn="$(basename "$e")"
     keep=0
     for re in "${MODEL_RES[@]}"; do echo "$bn" | grep -Eq "$re" && { keep=1; break; }; done
-    [ "$keep" -eq 1 ] && ENV_FILES+=("$e")
+    [ "$keep" -eq 1 ] && FILTERED+=("$e")
   done
+  ENV_FILES=("${FILTERED[@]:-}")
 fi
-if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Add .env under LLM/refinery/stack or adjust --model"; exit 2; fi
+if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Add .env files under factory/LLM/refinery/stack/env/* or adjust --model"; exit 2; fi
 
 preflight(){ step_begin "preflight"; rc=0; "$UST" preflight >/dev/null 2>&1 || rc=$?; step_end $rc; }
 preflight
@@ -142,15 +159,38 @@ for ENVF in "${ENV_FILES[@]}"; do
 done
 
 # One-time migration: backfill aggregate CSV from all historical logs if missing/empty
-AGG_CSV="${ROOT_DIR}/LLM/refinery/benchmarks.csv"
+AGG_CSV="${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv"
 if [ ! -s "$AGG_CSV" ] || [ "$(wc -l < "$AGG_CSV" 2>/dev/null || echo 0)" -le 1 ]; then
-  step_begin "migrate-aggregate"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" --all || rc=$?; step_end $rc
+  step_begin "migrate-aggregate"; rc=0; "${ROOT_DIR}/factory/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" --all || rc=$?; step_end $rc
 fi
 
 # Collect latest + summarize
-step_begin "collect"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" || rc=$?; step_end $rc
-step_begin "summary"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/summarize-benchmarks.sh" --csv "${ROOT_DIR}/LLM/refinery/benchmarks.csv" --top 15 | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt" || rc=$?; step_end $rc
+step_begin "collect"; rc=0; "${ROOT_DIR}/factory/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" || rc=$?; step_end $rc
 
+# Print penultimate: Global best per model (without path footers)
+"${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
+  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 15 --only-global --no-paths \
+  | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
+
+# Mark wrapper completion before final per-run analysis (so last lines are numbers)
 ok "Wrapper complete. Summary: $SUMMARY"
-log "  CSVs    : $(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || echo none)"
-log "  Bests   : $(ls -t ${ROOT_DIR}/LLM/refinery/benchmarks.best*.csv 2>/dev/null | head -n2 | paste -sd' ' - || echo none)"
+
+# Final: current analysis numbers for the latest bench CSV
+LATEST_CSV="$(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || true)"
+if [ -n "$LATEST_CSV" ]; then
+  base="$(basename "$LATEST_CSV")"
+  case "$base" in
+    ollama_bench_*) stk="ollama" ;;
+    vllm_bench_*)   stk="vLLM" ;;
+    llamacpp_bench_*) stk="llama.cpp" ;;
+    triton_bench_*) stk="Triton" ;;
+    *) stk="" ;;
+  esac
+  if [ -n "$stk" ]; then
+    "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV"
+  else
+    log "Could not infer stack for latest CSV: $LATEST_CSV"
+  fi
+else
+  log "No bench CSVs found in ${LOG_DIR}"
+fi
