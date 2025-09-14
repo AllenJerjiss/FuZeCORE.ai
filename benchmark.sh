@@ -59,19 +59,28 @@ set -E -o functrace; trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINEN
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]...
+Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [stacks...]
 Runs all stacks on all model env files by default.
+You may also pass stack names positionally at the end (e.g., 'ollama').
 USAGE
 }
 
 STACKS=()
 MODEL_RES=()
+ENV_MODE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --stack) shift; IFS=', ' read -r -a arr <<<"${1:-}"; for x in "${arr[@]}"; do [ -n "$x" ] && STACKS+=("$x"); done; shift||true;;
     --model) MODEL_RES+=("$2"); shift 2;;
+    --env) ENV_MODE="$2"; shift 2;;
     -h|--help) usage; exit 0;;
-    *) warn "Unknown arg: $1"; shift;;
+    *)
+      case "$1" in
+        ollama|Ollama|llama.cpp|llamacpp|llama-cpp|vLLM|VLLM|Triton|triton)
+          STACKS+=("$1"); shift;;
+        *) warn "Unknown arg: $1"; shift;;
+      esac
+      ;;
   esac
 done
 
@@ -91,15 +100,48 @@ if [ ${#STACKS[@]} -eq 0 ]; then
   for s in ollama llama.cpp vLLM Triton; do [ -d "${ROOT_DIR}/factory/LLM/refinery/stack/${s}" ] && STACKS+=("$s"); done
 fi
 
-# Discover env files if no model filter provided
-# Discover .env files under factory/LLM/refinery/stack/env/*/*
-ENV_ROOT="${ROOT_DIR}/factory/LLM/refinery/stack/env"
+# Prepare env files per requested environment and discover .env files
+ENV_BASE="${ROOT_DIR}/factory/LLM/refinery/stack/env"
+EXPL_DIR="${ENV_BASE}/explore"; PRE_DIR="${ENV_BASE}/preprod"; PROD_DIR="${ENV_BASE}/prod"
+mkdir -p "$EXPL_DIR" "$PRE_DIR" "$PROD_DIR"
+
+case "${ENV_MODE:-}" in
+  preprod)
+    step_begin "env-prepare:preprod"; rc=0;
+    GEN_ARGS=("--dest" "$PRE_DIR" "--template" "${ENV_BASE}/templates/FuZeCORE-preprod.env.template")
+    [ ${#MODEL_RES[@]} -gt 0 ] && GEN_ARGS+=("--include" "$(IFS='|'; echo "${MODEL_RES[*]}")") || true
+    "${ENV_BASE}/generate-envs.sh" "${GEN_ARGS[@]}" || rc=$?
+    [ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$PRE_DIR" 2>/dev/null || true
+    step_end $rc
+    ENV_ROOT="$PRE_DIR"
+    ;;
+  explore)
+    step_begin "env-prepare:explore"; rc=0;
+    GEN_ARGS=("--dest" "$EXPL_DIR" "--template" "${ENV_BASE}/templates/FuZeCORE-explore.env.template")
+    [ ${#MODEL_RES[@]} -gt 0 ] && GEN_ARGS+=("--include" "$(IFS='|'; echo "${MODEL_RES[*]}")") || true
+    "${ENV_BASE}/generate-envs.sh" "${GEN_ARGS[@]}" || rc=$?
+    [ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$EXPL_DIR" 2>/dev/null || true
+    step_end $rc
+    ENV_ROOT="$EXPL_DIR"
+    ;;
+  prod)
+    step_begin "env-prepare:prod"; rc=0;
+    shopt -s nullglob
+    for f in "$PRE_DIR"/*.env; do cp -f "$f" "$PROD_DIR/" || rc=$?; done
+    shopt -u nullglob
+    [ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$PROD_DIR" 2>/dev/null || true
+    step_end $rc
+    ENV_ROOT="$PROD_DIR"
+    ;;
+  *)
+    ENV_ROOT="$ENV_BASE"
+    ;;
+esac
+
 ENV_FILES=()
 if [ -d "$ENV_ROOT" ]; then
-  # readarray/mapfile is bashism; ensure newline-safe
   while IFS= read -r -d '' f; do ENV_FILES+=("$f"); done < <(find "$ENV_ROOT" -type f -name "*.env" -print0 2>/dev/null)
 else
-  # Fallback to legacy location if present
   shopt -s nullglob
   for f in "${ROOT_DIR}/factory/LLM/refinery/stack"/*.env; do ENV_FILES+=("$f"); done
   shopt -u nullglob
@@ -107,16 +149,26 @@ fi
 if [ ${#MODEL_RES[@]} -eq 0 ]; then
   : # Already discovered via find; nothing to do
 else
+  FILTERED=()
   for e in "${ENV_FILES[@]}"; do
     [ -f "$e" ] || continue
     bn="$(basename "$e")"
     keep=0
-    for re in "${MODEL_RES[@]}"; do echo "$bn" | grep -Eq "$re" && { keep=1; break; }; done
+    for re in "${MODEL_RES[@]}"; do
+      # Match by filename OR by the embedded INCLUDE_MODELS tag in the env file
+      if echo "$bn" | grep -Eq "$re"; then keep=1; break; fi
+      inc_tag="$(sed -nE "s/^INCLUDE_MODELS='\^([^']+)\$'$/\1/p" "$e" | head -n1)"
+      if [ -n "$inc_tag" ] && echo "$inc_tag" | grep -Eq "$re"; then keep=1; break; fi
+    done
     [ "$keep" -eq 1 ] && FILTERED+=("$e")
   done
-  ENV_FILES=("${FILTERED[@]:-}")
+  if [ ${#FILTERED[@]} -gt 0 ]; then
+    ENV_FILES=("${FILTERED[@]}")
+  else
+    ENV_FILES=()
+  fi
 fi
-if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Add .env files under factory/LLM/refinery/stack/env/* or adjust --model"; exit 2; fi
+if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Use --env explore|preprod|prod or add .env files under factory/LLM/refinery/stack/env/*"; exit 2; fi
 
 preflight(){ step_begin "preflight"; rc=0; "$UST" preflight >/dev/null 2>&1 || rc=$?; step_end $rc; }
 preflight

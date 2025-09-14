@@ -188,11 +188,18 @@ if [ "$WITH_DEBUG" -eq 1 ]; then
         nz=$(jq -r '.tokens_per_sec // 0' "$DDIR"/*metrics.json 2>/dev/null | awk '{if($1+0>0) c++} END{print c+0}')
         z=$(jq -r '.tokens_per_sec // 0' "$DDIR"/*metrics.json 2>/dev/null | awk '{if(!($1+0>0)) c++} END{print c+0}')
         echo "  calls: $((nz+z))   nonzero: $nz   zero: $z"
-        echo
-        echo "  Top by tokens/sec:"
-        jq -r '[(.tokens_per_sec // 0), (.endpoint // ""), (.model // "")] | @tsv' "$DDIR"/*metrics.json 2>/dev/null \
-          | sort -k1,1gr | head -n "$TOPN" \
-          | awk -F'\t' '{printf "    %-21s %-30s %8.2f\n", $2, $3, $1+0}'
+      echo
+      echo "  Top by tokens/sec (uniform columns):"
+      echo "    timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
+      jq -r '[(.tokens_per_sec // 0), (.endpoint // ""), (.model // "")] | @tsv' "$DDIR"/*metrics.json 2>/dev/null \
+        | sort -k1,1gr | head -n "$TOPN" \
+        | awk -F'\t' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$(hostname -s 2>/dev/null || hostname)" '
+            function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+            {
+              tok=$1+0; ep=$2; mt=$3; ma=aliasify(mt);
+              printf "    %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8s %5s %-12s\n",
+                "n/a", ma, mt, STK, HST, ep, "debug", "n/a", "n/a", tok, "n/a", "n/a", "n/a"
+            }'
         if [ "$nz" = "0" ]; then
           echo
           echo "  First few zero t/s calls:"
