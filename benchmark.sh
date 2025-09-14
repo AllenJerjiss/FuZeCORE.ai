@@ -109,7 +109,12 @@ run_stack_env(){ # stack env_file
   local EA=("@${ENVF}")
   case "$S" in
     ollama|Ollama)
-      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" ollama install || rc=$?; step_end $rc
+      # Skip install if ollama is already present unless forced
+      if [ "${FORCE_OLLAMA_INSTALL:-0}" -eq 1 ] || ! command -v ollama >/dev/null 2>&1; then
+        step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" ollama install || rc=$?; step_end $rc
+      else
+        info "${S}:${envbase}:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force."
+      fi
       step_begin "${S}:${envbase}:service-cleanup"; rc=0; "$UST" "${EA[@]}" ollama service-cleanup || rc=$?; step_end $rc
       step_begin "${S}:${envbase}:cleanup-variants"; rc=0; "$UST" "${EA[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" ollama benchmark || rc=$?; step_end $rc
