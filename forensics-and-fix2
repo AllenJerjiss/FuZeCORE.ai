@@ -1,0 +1,23 @@
+# 1) target file
+f="factory/LLM/refinery/stack/common/summarize-benchmarks.sh"
+cp -a "$f" "$f.bak.$(date +%s)"   # backup
+
+# 2) drop the colon alignment markers in borders used after the first table
+#    (make the RALIGN border identical to the normal border)
+perl -0777 -pe 's/TABLE_BORDER_RALIGN="[^"]*?\|[^\n]*?tok_border[^"]*?"/TABLE_BORDER_RALIGN="|${timestamp_border}|${variant_border}|${host_border}|${endpoint_border}|${tok_border}|${base_border}|${gain_border}|"/' -i "$f"
+
+# 3) header: base_t/s -> base_tok/s
+sed -i 's/"base_t\/s"/"base_tok\/s"/' "$f"
+
+# 4) fix awk regex warning: remove the bad escape before colon
+#    (turn `/\:` into `/:` anywhere inside awk regex literals)
+sed -i 's/\/\\:\/\]/\/:\/]/g; s/\[\\/\\:]/[\\/:]/g; s/\\:/:/g' "$f"
+
+# 5) fix the literal "\n" getting printed in the Latest run summary line
+#    (use a real newline in awk printf, not a double-escaped one)
+sed -i 's/%" GAINW ".2fx |\n\\",/%" GAINW ".2fx |\\n",/g; s/\\n",/\
+",/g' "$f"
+
+# 6) sanity: show the header row line so you can confirm the label and no colons
+grep -n 'HEADER_ROW' "$f" && grep -n 'TABLE_BORDER_RALIGN' "$f"
+

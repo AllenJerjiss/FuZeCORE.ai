@@ -126,11 +126,11 @@ gain_border=$(printf '%*s' "$((GAIN_WIDTH + 2))" '' | tr ' ' '-')
 # Border without right-alignment colons (used for Top N section)
 TABLE_BORDER="|${timestamp_border}|${variant_border}|${host_border}|${endpoint_border}|${tok_border}|${base_border}|${gain_border}|"
 # Border with right-alignment colons (used for the grouped sections)
-TABLE_BORDER_RALIGN="||||||||"
+TABLE_BORDER_RALIGN="|${timestamp_border}|${variant_border}|${host_border}|${endpoint_border}|${tok_border}:|${base_border}:|${gain_border}:|"
 
 # Header row with dynamic variant and gain widths.  Numeric headers use default widths.
 HEADER_ROW=$(printf "| %-19s | %-${VAR_WIDTH}s | %-20s | %-20s | %8s | %8s | %${GAIN_WIDTH}s |\n" \
-  "timestamp" "variant" "host" "endpoint" "tok/s" "base_tok/s" "$GAIN_HEADER")
+  "timestamp" "variant" "host" "endpoint" "tok/s" "base_t/s" "$GAIN_HEADER")
 
 # Determine the latest run timestamp from the CSV.  We'll use this to
 # produce a summary of results for the most recent run.  If there are no
@@ -175,8 +175,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
         {
           st=$3; ep=($9!=""?$9:"n/a"); ng=($12+0); gl=$10; va=variant($4, ng, gl, st);
           base=$5+0; opt=$7+0; x=(base>0? opt/base : 0);
-          printf "| %-19s | %-*s | %-20s | %-20s | %8.2f | %8.2f | %*.2fx |
-",
+          printf "| %-19s | %-*s | %-20s | %-20s | %8.2f | %8.2f | %*.2fx |\n",
             htime($1), VAW, va, $2, ep, opt, base, GAINW, x
         }'
 fi
@@ -215,8 +214,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        {
          ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? opt/base : 0);
          va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
+         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
@@ -249,8 +247,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        {
          ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? $7/$5 : 0);
          va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
+         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
@@ -280,8 +277,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        {
          ts=$1; host=$2; st=$3; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? $7/$5 : 0);
          va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
+         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
@@ -308,8 +304,7 @@ if [ "$ONLY_TOP" -eq 0 ]; then
        {
          ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0?opt/base:0);
          va=variant($4, ng, gl, st);
-         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |
-", htime(ts), va, host, ep, opt, base, x
+         printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
@@ -352,8 +347,7 @@ if [ -n "$LATEST_RUN" ] && [ "$QUIET" -eq 0 ]; then
           ng=($12+0); gl=$10;
           x=(base>0? opt/base : 0);
           va=variant($4, ng, gl, st);
-          printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\
-",
+          printf "| %-19s | %-" VAW "s | %-20s | %-20s | %8.2f | %8.2f | %" GAINW ".2fx |\\n",
             htime(ts), va, host, ep, opt, base, x
         }'
 fi
@@ -373,8 +367,7 @@ BEST_CSV="${ROOT_DIR}/benchmarks.best.csv"
     }
     END{for (k in best){print line[k]}}
   ' "$CSV" \
-  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s
-", $3,$4,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $3,$4,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
 } > "$BEST_CSV"
 echo
 if [ "$NO_PATHS" -eq 0 ]; then echo "Best-per-(stack,model) CSV: $BEST_CSV"; fi
@@ -394,8 +387,7 @@ BEST_BY_HOST_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_host_model.csv"
     }
     END{for (k in best){print line[k]}}
   ' "$CSV" \
-  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s
-", $2,$4,$3,$7,$5,$6,$10,$11,$12,$1,$13}'
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $2,$4,$3,$7,$5,$6,$10,$11,$12,$1,$13}'
 } > "$BEST_BY_HOST_MODEL_CSV"
 if [ "$NO_PATHS" -eq 0 ]; then echo "Best-by-(host,model) CSV: $BEST_BY_HOST_MODEL_CSV"; fi
 
@@ -411,7 +403,6 @@ BEST_GLOBAL_BY_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_model.csv"
     }
     END{for (k in best){print line[k]}}
   ' "$CSV" \
-  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s
-", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
 } > "$BEST_GLOBAL_BY_MODEL_CSV"
 if [ "$NO_PATHS" -eq 0 ]; then echo "Best-global-by-model CSV: $BEST_GLOBAL_BY_MODEL_CSV"; fi
