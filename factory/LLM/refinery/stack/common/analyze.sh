@@ -104,9 +104,9 @@ awk -F',' 'NR>1 && $6=="base-as-is" {k=$2"|"$5; if(($12+0)>b[k]) b[k]=$12+0} END
 if [ "$NO_TOP" -eq 0 ]; then
   echo
   echo "Top ${TOPN} by tokens/sec:"
-  echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
-  echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe gain factor |"
-  echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
+  echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
+  echo "| timestamp           | variant                                  | host                                      |   tok/s | base_t/s | FuZe gain factor |"
+  echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
   TOPSEL="$(mktemp)"; tail -n +2 "$TMP_CSV" | sort -t',' -k12,12gr | head -n "$TOPN" >"$TOPSEL"
   awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" -v BM_FILE="$BASEMAP" '
     function aliasify(s,  t){
@@ -128,16 +128,17 @@ if [ "$NO_TOP" -eq 0 ]; then
   {
     key=$2"|"$5; be=bm[key]+0; tok=$12+0;
     gl=$13; va=variant($5, $8, gl, STK);
-    printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %19s |\n",
-      htime($1), va, HST, $2, tok, be, sprintf("%.2fx", (be>0?tok/be:0))
+    he=sprintf("%s/%s", HST, $2);
+    printf "| %-19s | %-40s | %-41s | %8.2f | %8.2f | %19s |\n",
+      htime($1), va, he, tok, be, sprintf("%.2fx", (be>0?tok/be:0))
   }' "$TOPSEL"
 fi
 
 echo
 echo "Best optimized per (endpoint, model):"
-echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
-echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe gain factor |"
-echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
+echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
+echo "| timestamp           | variant                                  | host                                      |   tok/s | base_t/s | FuZe gain factor |"
+echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){
     t=s; gsub(/[\/:]+/,"-",t);
@@ -164,17 +165,18 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
     for (k in best){
       split(k,a,"|"); glv=gl_map[k]; va=variant(a[2], (ng[k]?ng[k]:0), glv, STK);
       be=base[k]+0; mult=(be>0? best[k]/be : 0)
-      printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %19s |\n",
-        htime(ts[k]), va, HST, ep[k], best[k], be, sprintf("%.2fx", (be>0?mult:0))
+      he=sprintf("%s/%s", HST, ep[k]);
+      printf "| %-19s | %-40s | %-41s | %8.2f | %8.2f | %19s |\n",
+        htime(ts[k]), va, he, best[k], be, sprintf("%.2fx", (be>0?mult:0))
     }
   }
 ' "$TMP_CSV"
 
 echo
 echo "Base vs Optimized (per endpoint & model):"
-echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
-echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe gain factor |"
-echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
+echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
+echo "| timestamp           | variant                                  | host                                      |   tok/s | base_t/s | FuZe gain factor |"
+echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){
     t=s; gsub(/[\/:]+/,"-",t);
@@ -202,9 +204,9 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
       be=base[k]+0; op=opt[k]+0; split(k,a,"|"); mult=(be>0? op/be : 0)
       ts=(tso[k] ? tso[k] : tsb[k]);
       glv=gl[k]; va=variant(a[2], (ng[k]?ng[k]:0), glv, STK)
-      ep=a[1];
-      printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %19s |\n",
-        htime(ts), va, HST, ep, (op>0?op:0), be, sprintf("%.2fx", (be>0?mult:0))
+      ep=a[1]; he=sprintf("%s/%s", HST, ep);
+      printf "| %-19s | %-40s | %-41s | %8.2f | %8.2f | %19s |\n",
+        htime(ts), va, he, (op>0?op:0), be, sprintf("%.2fx", (be>0?mult:0))
     }
   }
 ' "$TMP_CSV"
@@ -212,9 +214,9 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
 # New: Best across endpoints per model (baseline vs optimized)
 echo
 echo "Best across endpoints (per model): baseline vs optimized"
-echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
-echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe gain factor |"
-echo "|---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
+echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
+echo "| timestamp           | variant                                  | host                                      |   tok/s | base_t/s | FuZe gain factor |"
+echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){
     t=s; gsub(/[\/:]+/,"-",t);
@@ -240,8 +242,9 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
     for (m in bb){
       be=bb[m]+0; op=oo[m]+0; mult=(be>0? op/be : 0); ab=aliasify(m);
       ts=(tso[m]?tso[m]:tsb[m]); glv=(gl[m]?gl[m]:"n/a"); va=variant(m, (ng[m]?ng[m]:0), glv, STK)
-      printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %19s |\n",
-        htime(ts), va, HST, (ep[m]?ep[m]:"n/a"), (op>0?op:0), be, sprintf("%.2fx", (be>0?mult:0))
+      he=sprintf("%s/%s", HST, (ep[m]?ep[m]:"n/a"));
+      printf "| %-19s | %-40s | %-41s | %8.2f | %8.2f | %19s |\n",
+        htime(ts), va, he, (op>0?op:0), be, sprintf("%.2fx", (be>0?mult:0))
     }
   }
 ' "$TMP_CSV"
@@ -263,17 +266,17 @@ if [ "$WITH_DEBUG" -eq 1 ]; then
         echo "  calls: $((nz+z))   nonzero: $nz   zero: $z"
       echo
       echo "  Top by tokens/sec:"
-      echo "    |---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
-      echo "    | timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe gain factor |"
-      echo "    |---------------------|------------------------------------------|----------------------|----------------------|----------|----------|-------------------|"
+      echo "    |---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
+      echo "    | timestamp           | variant                                  | host                                      |   tok/s | base_t/s | FuZe gain factor |"
+      echo "    |---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
       jq -r '[(.tokens_per_sec // 0), (.endpoint // ""), (.model // "")] | @tsv' "$DDIR"/*metrics.json 2>/dev/null \
         | sort -k1,1gr | head -n "$TOPN" \
         | awk -F'\t' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$(hostname -s 2>/dev/null || hostname)" '
             function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return t }
             {
               tok=$1+0; ep=$2; mt=$3; ma=aliasify(mt);
-              printf "    | %-19s | %-40s | %-20s | %-20s | %8.2f | %8s | %19s |\n",
-                "n/a", (AP STK "-" ma), HST, ep, tok, "n/a", "n/a"
+              printf "    | %-19s | %-40s | %-41s | %8.2f | %8s | %19s |\n",
+                "n/a", (AP STK "-" ma), (HST "/" ep), tok, "n/a", "n/a"
             }'
         if [ "$nz" = "0" ]; then
           echo
