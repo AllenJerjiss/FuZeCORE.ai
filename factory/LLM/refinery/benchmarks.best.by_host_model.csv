@@ -1,8 +1,0 @@
-host,model,stack,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file
-fuze-bakery,llama4:17b-scout-16e-instruct-fp16,ollama,4.90,4.79,llama4:17b-scout-16e-instruct-fp16,nvidia-5090,NVIDIA GeForce RTX 5090,47,20250913_230649,/var/log/fuze-stack/ollama_bench_20250913_230649.csv
-fuze-bakery,deepseek-r1:70b,ollama,8.87,8.86,deepseek-r1:70b,nvidia-5090,NVIDIA GeForce RTX 5090,81,20250913_231232,/var/log/fuze-stack/ollama_bench_20250913_231232.csv
-fuze-bakery,llama4:16x17b,ollama,18.10,18.00,llama4:16x17b,nvidia-5090,NVIDIA GeForce RTX 5090,37,20250913_230354,/var/log/fuze-stack/ollama_bench_20250913_230354.csv
-fuze-bakery,gpt-oss:20b,ollama,144.89,141.82,gpt-oss:20b,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,19,20250913_223443,/var/log/fuze-stack/ollama_bench_20250913_223443.csv
-fuze-factory,gemma3:4b-it-fp16,ollama,50.97,49.23,gemma3:4b-it-fp16,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,28,20250913_211816,/var/log/fuze-stack/ollama_bench_20250913_211816.csv
-fuze-bakery,gemma3:4b-it-fp16,ollama,151.54,143.98,gemma3:4b-it-fp16,nvidia-5090,NVIDIA GeForce RTX 5090,27,20250914_025949,/var/log/fuze-stack/ollama_bench_20250914_025949.csv
-fuze-bakery,gemma3:27b-it-fp16,ollama,5.14,5.07,gemma3:27b-it-fp16,nvidia-5090,NVIDIA GeForce RTX 5090,54,20250913_225938,/var/log/fuze-stack/ollama_bench_20250913_225938.csv

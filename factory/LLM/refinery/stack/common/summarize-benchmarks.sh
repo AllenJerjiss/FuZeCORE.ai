@@ -91,7 +91,8 @@ fi
 # ------------- Best per (stack, model) --------------------------------------
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
-  echo "Best per (stack, model) with baseline (alias names):"
+  echo "Best per (stack, model):"
+  echo "  timestamp           variant                         stack   host                 endpoint             num_gpu  tok/s   base_t/s  x"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
     NR>1 {
@@ -108,20 +109,20 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
     }
   ' "$CSV" \
    | awk -F',' -v AP="$ALIAS_PREFIX" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
-       {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $3,aliasify($4),$2,$7,$5,($5+0>0?$7/$5:0),$10,$11,$1}
-     ' \
-   | sort -t',' -k1,1 -k2,2 \
-   | awk -F',' '{
-        ts=$9; ht=(length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts;
-        printf "  %-19s %-32s %-7s %-21s %8.2f  base=%-8.2f  x=%-6.2f  %-16s\n", ht,$2,$1,$3,$4,$5,$6,$7
-      }'
+       function compact(s){ gsub(/[\/:]+/,"-",s); gsub(/-it(\b|-)/,"-i\1",s); gsub(/-fp16\b/ ,"-f16",s); gsub(/-bf16\b/,"-b16",s); return s }
+       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+       {
+         ts=$1; st=$3; host=$2; base=compact($4); ep=($9!=""?$9:$8); ng=($12+0); gl=$10; sfx=ENVIRON["ALIAS_SUFFIX"]; x=($5+0>0 ? $7/$5 : 0);
+         va=sprintf("%s%s%s-%s", AP, gl, (sfx? sfx: ""), base); if(ng>0) va=va "+ng" ng;
+         printf "  %-19s %-30s %-7s %-20s %-19s %7.2f %8.2f %5.2fx\n", htime(ts), va, st, host, ep, ng, ($7+0), x
+       }'
 fi
 
 # ------------- Best per (stack, model, gpu_label) ---------------------------
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
-  echo "Best per (stack, model, gpu_label) with baseline (alias names):"
+  echo "Best per (stack, model, gpu_label):"
+  echo "  timestamp           variant                         stack   host                 endpoint             num_gpu  tok/s   base_t/s  x"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
     NR>1 {
@@ -138,20 +139,20 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
     }
   ' "$CSV" \
    | awk -F',' -v AP="$ALIAS_PREFIX" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
-       {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $3,aliasify($4),$10,$7,$5,($5+0>0?$7/$5:0),$2,$11,$1}
-     ' \
-   | sort -t',' -k1,1 -k2,2 -k3,3 \
-   | awk -F',' '{
-        ts=$9; ht=(length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts;
-        printf "  %-19s %-32s %-7s %-14s %8.2f  base=%-8.2f  x=%-6.2f  %-21s\n", ht,$2,$1,$3,$4,$5,$6,$7
-      }'
+       function compact(s){ gsub(/[\/:]+/,"-",s); gsub(/-it(\b|-)/,"-i\1",s); gsub(/-fp16\b/ ,"-f16",s); gsub(/-bf16\b/,"-b16",s); return s }
+       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+       {
+         ts=$1; st=$3; host=$2; base=compact($4); ep=($9!=""?$9:$8); ng=($12+0); gl=$10; sfx=ENVIRON["ALIAS_SUFFIX"]; x=($5+0>0 ? $7/$5 : 0);
+         va=sprintf("%s%s%s-%s", AP, gl, (sfx? sfx: ""), base); if(ng>0) va=va "+ng" ng;
+         printf "  %-19s %-30s %-7s %-20s %-19s %7.2f %8.2f %5.2fx\n", htime(ts), va, st, host, ep, ng, ($7+0), x
+       }'
 fi
 
 # ------------- Best per (host, model) across stacks -------------------------
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
-  echo "Best per (host, model) across stacks (with baseline, alias names):"
+  echo "Best per (host, model) across stacks:"
+  echo "  timestamp           variant                         stack   host                 endpoint             num_gpu  tok/s   base_t/s  x"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
     NR>1 {
@@ -165,14 +166,13 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
     END{for (k in best){print line[k]}}
   ' "$CSV" \
    | awk -F',' -v AP="$ALIAS_PREFIX" '
-       function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
-       {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $2,aliasify($4),$3,$7,$5,$6,$10,$11,$1}
-     ' \
-   | sort -t',' -k1,1 -k2,2 -k4,4gr \
-   | awk -F',' '{
-        ts=$9; ht=(length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts;
-        printf "  %-19s %-32s %-21s %-7s %8.2f  base=%-8.2f  x=%-6.2f  %-16s\n", ht,$2,$1,$3,$4,$5,$6,$7
-      }'
+       function compact(s){ gsub(/[\/:]+/,"-",s); gsub(/-it(\b|-)/,"-i\1",s); gsub(/-fp16\b/ ,"-f16",s); gsub(/-bf16\b/,"-b16",s); return s }
+       function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+       {
+         ts=$1; host=$2; st=$3; base=compact($4); ep=($9!=""?$9:$8); ng=($12+0); gl=$10; sfx=ENVIRON["ALIAS_SUFFIX"]; x=($5+0>0 ? $7/$5 : 0);
+         va=sprintf("%s%s%s-%s", AP, gl, (sfx? sfx: ""), base); if(ng>0) va=va "+ng" ng;
+         printf "  %-19s %-30s %-7s %-20s %-19s %7.2f %8.2f %5.2fx\n", htime(ts), va, st, host, ep, ng, ($7+0), x
+       }'
 fi
 
 # ------------- Global best per model (across hosts & stacks) ----------------
