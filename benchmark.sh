@@ -258,13 +258,18 @@ fi
 # Collect latest + summarize
 step_begin "collect"; rc=0; "${ROOT_DIR}/factory/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" >/dev/null || rc=$?; step_end $rc
 
-# Print: Top overall then Global best per model (quiet, no path footers)
+## Reflect env mode in alias suffix for final summaries
+case "${ENV_MODE:-}" in
+  explore) SUMMARY_ALIAS_SUFFIX="-explore" ;;
+  preprod) SUMMARY_ALIAS_SUFFIX="-preprod" ;;
+  prod)    SUMMARY_ALIAS_SUFFIX="-prod" ;;
+  *)       SUMMARY_ALIAS_SUFFIX="${ALIAS_SUFFIX:-}" ;;
+esac
+
+# Print: Top overall (quiet, no path footers). Pass suffix to embed in variants
+ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
 "${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
   --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 5 --only-top --no-paths --quiet \
-  | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
-
-"${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
-  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 15 --only-global --no-paths --quiet \
   | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
 
 # Final: current analysis numbers for the latest bench CSV (last thing printed)
@@ -280,8 +285,10 @@ if [ -n "$LATEST_CSV" ]; then
   esac
   if [ -n "$stk" ]; then
     if [ "$DEBUG_RUN" -eq 1 ]; then
+      ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
       "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-top
     else
+      ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
       "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-debug --no-top
     fi
   else

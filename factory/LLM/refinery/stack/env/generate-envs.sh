@@ -68,6 +68,10 @@ gen_one(){ # template dest
   local count=0 made=0 skip=0
   while IFS= read -r tag; do
     [ -n "$tag" ] || continue
+    # Skip tags that are already our prefixed aliases (avoid LLM-FuZe-LLM-FuZe-* filenames)
+    if echo "$tag" | grep -Eq "^${prefix}"; then continue; fi
+    # Skip benchmark-created variants (any -ngNN token, or GPU-labelled variants)
+    if echo "$tag" | grep -Eq -- '(^|-)ng[0-9]+(:|$)|-nvidia-[a-z0-9]+(super|ti)?-ng[0-9]+(:|$)'; then continue; fi
     if [ -n "$INCLUDE_RE" ] && ! echo "$tag" | grep -Eq "$INCLUDE_RE"; then continue; fi
     count=$((count+1))
     alias=$(aliasify "$tag")
