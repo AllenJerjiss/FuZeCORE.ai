@@ -20,18 +20,22 @@ HOST="${HOST:-127.0.0.1:11434}"
 OVERWRITE=0
 DRY_RUN=0
 MODE="both"   # one of: explore | preprod | both | custom
+PROMOTE=0
+PROMOTE_ALL=0
+PROMOTE_RE=""
 OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--mode explore|preprod|both] [--template FILE] [--dest DIR] [--include REGEX] [--host HOST:PORT] [--overwrite] [--dry-run]
+Usage: $(basename "$0") [--mode explore|preprod|both] [--template FILE] [--dest DIR] [--include REGEX] [--host HOST:PORT] [--overwrite] [--dry-run] [--promote (--all|--model REGEX)]
 Env:
   MODE       (default: both; ignored if TEMPLATE/DEST_DIR provided)
   TEMPLATE   (custom single-run)
   DEST_DIR   (custom single-run)
-  INCLUDE_RE (optional regex to filter models)
+  INCLUDE_RE (optional regex to filter models when generating)
   HOST       (default: ${HOST})
   OLLAMA_BIN (default: ${OLLAMA_BIN})
+  PROMOTE    If set with --promote, copies preprod env(s) to prod (immutable)
 USAGE
 }
 
@@ -44,6 +48,9 @@ while [ $# -gt 0 ]; do
     --host)     HOST="$2"; shift 2;;
     --overwrite) OVERWRITE=1; shift 1;;
     --dry-run)   DRY_RUN=1; shift 1;;
+    --promote)  PROMOTE=1; shift 1;;
+    --all)      PROMOTE_ALL=1; shift 1;;
+    --model)    PROMOTE_RE="$2"; shift 2;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
@@ -95,6 +102,33 @@ if ! command -v "$OLLAMA_BIN" >/dev/null 2>&1; then
 fi
 
 models=$( OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" list 2>/dev/null | awk '($1!="" && $1!="NAME"){print $1}' )
+
+# Promotion-only path (copy preprod envs to prod)
+if [ "$PROMOTE" -eq 1 ]; then
+  SRC_DIR="$DEST_PRE"
+  DST_DIR="${SCRIPT_DIR}/prod"
+  mkdir -p "$DST_DIR"
+  shopt -s nullglob
+  copied=0; total=0
+  for f in "$SRC_DIR"/*.env; do
+    [ -f "$f" ] || continue
+    total=$((total+1))
+    if [ "$PROMOTE_ALL" -eq 1 ]; then
+      cp -f "$f" "$DST_DIR/" && { echo "promoted: $(basename "$f")"; copied=$((copied+1)); }
+      continue
+    fi
+    if [ -n "$PROMOTE_RE" ]; then
+      inc_tag=$(awk -F"'" '/^INCLUDE_MODELS=/{print $2; exit}' "$f" 2>/dev/null | sed -E 's/^\^//; s/\$$//')
+      bn=$(basename "$f")
+      if echo "$bn" | grep -Eq "$PROMOTE_RE" || { [ -n "$inc_tag" ] && echo "$inc_tag" | grep -Eq "$PROMOTE_RE"; }; then
+        cp -f "$f" "$DST_DIR/" && { echo "promoted: $(basename "$f")"; copied=$((copied+1)); }
+      fi
+    fi
+  done
+  shopt -u nullglob
+  echo "Promotion summary: copied=${copied} from=${SRC_DIR} to=${DST_DIR}"
+  exit 0
+fi
 
 # Decide single-run vs multi-mode
 if [ -n "${TEMPLATE}" ] || [ -n "${DEST_DIR}" ]; then

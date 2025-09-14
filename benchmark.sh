@@ -157,7 +157,7 @@ else
     for re in "${MODEL_RES[@]}"; do
       # Match by filename OR by the embedded INCLUDE_MODELS tag in the env file
       if echo "$bn" | grep -Eq "$re"; then keep=1; break; fi
-      inc_tag="$(sed -nE "s/^INCLUDE_MODELS='\^([^']+)\$'$/\1/p" "$e" | head -n1)"
+      inc_tag="$(awk -F"'" '/^INCLUDE_MODELS=/{print $2; exit}' "$e" 2>/dev/null | sed -E 's/^\^//; s/\$$//')"
       if [ -n "$inc_tag" ] && echo "$inc_tag" | grep -Eq "$re"; then keep=1; break; fi
     done
     [ "$keep" -eq 1 ] && FILTERED+=("$e")
