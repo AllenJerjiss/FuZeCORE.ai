@@ -5,6 +5,9 @@
 # - Flags:
 #     --stack "ollama llama.cpp ..."    limit to these stacks (space/comma separated)
 #     --model REGEX                     select env files whose name matches REGEX (repeatable)
+#     --env explore|preprod|prod        choose env generation / pool
+#     --debug                           verbose + debug mode
+#     --force-re-bench                  re-run benchmarks even if already completed for this env content
 #     -h|--help                         usage
 
 set -euo pipefail
@@ -27,6 +30,10 @@ choose_log_dir(){
   LOG_DIR="$ROOT_DIR"
 }
 choose_log_dir
+
+# New: stamps to skip re-benchmark by default
+FORCE_RE_BENCH=0
+STAMP_DIR="${STAMP_DIR:-${ROOT_DIR}/.benchmarks/stamps}"
 
 # Structured logs
 RUN_LOG="${LOG_DIR}/wrapper_${TS}.log"
@@ -59,7 +66,7 @@ set -E -o functrace; trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINEN
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [--debug] [stacks...]
+Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [--debug] [--force-re-bench] [stacks...]
 Runs all stacks on all model env files by default.
 You may also pass stack names positionally at the end (e.g., 'ollama').
 USAGE
@@ -75,6 +82,7 @@ while [ $# -gt 0 ]; do
     --model) MODEL_RES+=("$2"); shift 2;;
     --env) ENV_MODE="$2"; shift 2;;
     --debug) DEBUG_RUN=1; shift 1;;
+    --force-re-bench) FORCE_RE_BENCH=1; shift 1;;
     -h|--help) usage; exit 0;;
     *)
       case "$1" in
@@ -93,6 +101,10 @@ if [ "$DEBUG_RUN" -eq 1 ]; then
 else
   export VERBOSE=0 DEBUG_BENCH=0
 fi
+
+# Ensure stamps dir exists & is writable by invoking user
+mkdir -p "$STAMP_DIR" || true
+[ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$STAMP_DIR" 2>/dev/null || true
 
 info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
@@ -180,66 +192,133 @@ if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Use --env explore
 preflight(){ step_begin "preflight"; rc=0; "$UST" preflight >/dev/null 2>&1 || rc=$?; step_end $rc; }
 preflight
 
+# Hash helper for env files (so edits invalidate stamps automatically)
+env_signature() {
+  local f="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$f" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$f" | awk '{print $1}'
+  else
+    cksum "$f" | awk '{print $1 "-" $2}'
+  fi
+}
+
 run_stack_env(){ # stack env_file
-  local S="$1" ENVF="$2" envbase; envbase="$(basename "$ENVF")"
+  local S="$1" ENVF="$2" envbase sig STAMP_PATH rc
+  envbase="$(basename "$ENVF")"
+  sig="$(env_signature "$ENVF")"
+  STAMP_PATH="${STAMP_DIR}/${S}/${envbase}.${sig}.ok"
   local EA=("@${ENVF}")
+
+  # Skip by default if we've benchmarked this (stack, env-file content)
+  if [ "$FORCE_RE_BENCH" -ne 1 ] && [ -f "$STAMP_PATH" ]; then
+    info "${S}:${envbase}:benchmark — skipped (completed for this env content). Use --force-re-bench to override."
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$STAMP_PATH")" 2>/dev/null || true
+
   case "$S" in
     ollama|Ollama)
-      # Skip install if ollama is already present unless forced
       if [ "${FORCE_OLLAMA_INSTALL:-0}" -eq 1 ] || ! command -v ollama >/dev/null 2>&1; then
-        step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" ollama install || rc=$?; step_end $rc
+        step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" ollama install || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
       else
         info "${S}:${envbase}:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force."
       fi
-      step_begin "${S}:${envbase}:service-cleanup"; rc=0; "$UST" "${EA[@]}" ollama service-cleanup || rc=$?; step_end $rc
-      # Do NOT remove previously generated variants during the wrapper flow.
-      # If explicit cleanup is desired, set VARIANT_CLEANUP=1.
+
+      step_begin "${S}:${envbase}:service-cleanup"; rc=0; "$UST" "${EA[@]}" ollama service-cleanup || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
+
       if [ "${VARIANT_CLEANUP:-0}" -eq 1 ]; then
-        step_begin "${S}:${envbase}:cleanup-variants"; rc=0; "$UST" "${EA[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc
+        step_begin "${S}:${envbase}:cleanup-variants"; rc=0; "$UST" "${EA[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
       else
         info "${S}:${envbase}:cleanup-variants — skipped (preserving existing variants). Set VARIANT_CLEANUP=1 to allow."
       fi
+
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" ollama benchmark || rc=$?; step_end $rc
-      # Optional GGUF cleanup to avoid stale artifacts (set GGUF_CLEAN=1)
+      if [ $rc -ne 0 ]; then
+        err "${S}:${envbase}:benchmark failed — not stamping (will retry on next run)."
+        return $rc
+      fi
+
+      : > "$STAMP_PATH"
+      [ -n "${SUDO_USER:-}" ] && chown "$SUDO_USER":"$SUDO_USER" "$STAMP_PATH" 2>/dev/null || true
+
       if [ "${GGUF_CLEAN:-0}" -eq 1 ]; then
         dest_dir="${GGUF_DEST_DIR:-/FuZe/models/gguf}"
         info "${S}:${envbase}:gguf-clean — removing old *.gguf in ${dest_dir}"
         rm -f "${dest_dir}"/*.gguf 2>/dev/null || true
       fi
-      step_begin "${S}:${envbase}:export-gguf"; rc=0;
-      EXP_ARGS=( )
-      [ "${EXPORT_OVERWRITE:-0}" -eq 1 ] && EXP_ARGS+=("--overwrite") || true
+
+      step_begin "${S}:${envbase}:export-gguf"; rc=0
+      EXP_ARGS=( ); [ "${EXPORT_OVERWRITE:-0}" -eq 1 ] && EXP_ARGS+=("--overwrite") || true
       "$UST" "${EA[@]}" ollama export-gguf ${EXP_ARGS[@]} || rc=$?
-      step_end $rc
+      step_end $rc; [ $rc -ne 0 ] && return $rc
+
       if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
-        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack ollama || rc=$?; step_end $rc
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack ollama || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
       else
         info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
-      fi;;
+      fi
+      ;;
+
     llama.cpp|llamacpp|llama-cpp)
-      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" llama.cpp install || rc=$?; step_end $rc
+      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" llama.cpp install || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
+
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" llama.cpp benchmark || rc=$?; step_end $rc
+      if [ $rc -ne 0 ]; then
+        err "${S}:${envbase}:benchmark failed — not stamping."
+        return $rc
+      fi
+
+      : > "$STAMP_PATH"
+      [ -n "${SUDO_USER:-}" ] && chown "$SUDO_USER":"$SUDO_USER" "$STAMP_PATH" 2>/dev/null || true
+
       if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
-        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack llama.cpp || rc=$?; step_end $rc
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack llama.cpp || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
       else
         info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
-      fi;;
+      fi
+      ;;
+
     vllm|vLLM|VLLM)
-      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" vLLM install || rc=$?; step_end $rc
+      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" vLLM install || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
+
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" vLLM benchmark || rc=$?; step_end $rc
+      if [ $rc -ne 0 ]; then
+        err "${S}:${envbase}:benchmark failed — not stamping."
+        return $rc
+      fi
+
+      : > "$STAMP_PATH"
+      [ -n "${SUDO_USER:-}" ] && chown "$SUDO_USER":"$SUDO_USER" "$STAMP_PATH" 2>/dev/null || true
+
       if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
-        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack vLLM || rc=$?; step_end $rc
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack vLLM || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
       else
         info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
-      fi;;
+      fi
+      ;;
+
     Triton|triton)
-      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" Triton install || rc=$?; step_end $rc
+      step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" Triton install || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
+
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" Triton benchmark || rc=$?; step_end $rc
+      if [ $rc -ne 0 ]; then
+        err "${S}:${envbase}:benchmark failed — not stamping."
+        return $rc
+      fi
+
+      : > "$STAMP_PATH"
+      [ -n "${SUDO_USER:-}" ] && chown "$SUDO_USER":"$SUDO_USER" "$STAMP_PATH" 2>/dev/null || true
+
       if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
-        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack Triton || rc=$?; step_end $rc
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack Triton || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
       else
         info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
-      fi;;
+      fi
+      ;;
+
     *) warn "Unknown stack: $S" ;;
   esac
 }
@@ -277,18 +356,19 @@ LATEST_CSV="$(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || true)"
 if [ -n "$LATEST_CSV" ]; then
   base="$(basename "$LATEST_CSV")"
   case "$base" in
-    ollama_bench_*) stk="ollama" ;;
-    vllm_bench_*)   stk="vLLM" ;;
-    llamacpp_bench_*) stk="llama.cpp" ;;
-    triton_bench_*) stk="Triton" ;;
+    ollama_bench_*)     stk="ollama" ;;
+    vllm_bench_*)       stk="vLLM" ;;
+    llamacpp_bench_*)   stk="llama.cpp" ;;
+    triton_bench_*)     stk="Triton" ;;
     *) stk="" ;;
   esac
   if [ -z "$stk" ]; then
     log "Could not infer stack for latest CSV: $LATEST_CSV"
   fi
-  else
-    log "No bench CSVs found in ${LOG_DIR}"
-  fi
+else
+  log "No bench CSVs found in ${LOG_DIR}"
+fi
 
 # Mark wrapper completion after printing current run analysis
 ok "Wrapper complete. Summary: $SUMMARY"
+
