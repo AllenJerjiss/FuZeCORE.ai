@@ -280,9 +280,9 @@ if [ -n "$LATEST_CSV" ]; then
   esac
   if [ -n "$stk" ]; then
     if [ "$DEBUG_RUN" -eq 1 ]; then
-      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV"
+      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-top
     else
-      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-debug
+      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-debug --no-top
     fi
   else
     log "Could not infer stack for latest CSV: $LATEST_CSV"

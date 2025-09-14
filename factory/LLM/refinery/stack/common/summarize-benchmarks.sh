@@ -78,10 +78,11 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
         function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
         function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
         {
-          ma=aliasify($4); ep=($9!=""?$9:"n/a"); ng=($12!=""?$12:"n/a");
+          ep=($9!=""?$9:"n/a"); ng=($12!=""?$12:"n/a");
+          va=(($12+0)>0 ? aliasify($4)"+ng"$12 : ($6!="" ? aliasify($6) : aliasify($4)));
           x=($5+0>0? $7/$5 : 0);
           printf "  %-19s %-30s %-7s %-20s %-19s %-11s %7.2f %8.2f %5.2fx %-12s\n",
-            htime($1), ma, $3, $2, ep, "optimized", ($12+0), ($7+0), ($5+0), x, $10
+            htime($1), va, $3, $2, ep, "optimized", ($12+0), ($7+0), ($5+0), x, $10
         }'
 fi
 
