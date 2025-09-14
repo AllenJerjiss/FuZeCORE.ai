@@ -21,6 +21,8 @@ MD_OUT="${MD_OUT:-}"
 ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"
 NO_PATHS=0
 ONLY_GLOBAL=0
+QUIET=0
+ONLY_TOP=0
 
 usage(){
   cat <<USAGE
@@ -39,6 +41,8 @@ while [ $# -gt 0 ]; do
     --top) TOPN="$2"; shift 2;;
     --no-paths) NO_PATHS=1; shift 1;;
     --only-global) ONLY_GLOBAL=1; shift 1;;
+    --only-top) ONLY_TOP=1; shift 1;;
+    --quiet) QUIET=1; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
@@ -55,13 +59,13 @@ if [ -n "$MD_OUT" ]; then
   exec > >(tee "$MD_OUT")
 fi
 
-echo "Data: $CSV"
+if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
 
 # ------------- Top N overall by optimal_tokps -------------------------------
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
-  echo "Top ${TOPN} overall (uniform columns):"
-  echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
+  echo "Top ${TOPN} overall:"
+  echo "  timestamp           alias                           stack   host                 endpoint             label        num_gpu  tok/s   base_t/s  x     gpu"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
       if (ST!="" && $3 !~ ST) next;
       if (MR!="" && $4 !~ MR) next;
@@ -74,16 +78,16 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
         function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
         function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
         {
-          ma=aliasify($4); va=($6!=""?aliasify($6):"n/a"); ep=($9!=""?$9:"n/a"); ng=($12!=""?$12:"n/a");
+          ma=aliasify($4); ep=($9!=""?$9:"n/a"); ng=($12!=""?$12:"n/a");
           x=($5+0>0? $7/$5 : 0);
-          printf "  %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8.2f %5.2f %-12s\n",
-            htime($1), ma, $4, $3, $2, ep, "optimized", va, ng, ($7+0), ($5+0), x, $10
+          printf "  %-19s %-30s %-7s %-20s %-19s %-11s %7.2f %8.2f %5.2fx %-12s\n",
+            htime($1), ma, $3, $2, ep, "optimized", ($12+0), ($7+0), ($5+0), x, $10
         }'
 fi
 
 # ------------- Best per (stack, model) --------------------------------------
 echo
-if [ "$ONLY_GLOBAL" -eq 0 ]; then
+if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (stack, model) with baseline (alias names):"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
@@ -113,7 +117,7 @@ fi
 
 # ------------- Best per (stack, model, gpu_label) ---------------------------
 echo
-if [ "$ONLY_GLOBAL" -eq 0 ]; then
+if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (stack, model, gpu_label) with baseline (alias names):"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
@@ -143,7 +147,7 @@ fi
 
 # ------------- Best per (host, model) across stacks -------------------------
 echo
-if [ "$ONLY_GLOBAL" -eq 0 ]; then
+if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (host, model) across stacks (with baseline, alias names):"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }

@@ -256,17 +256,18 @@ if [ ! -s "$AGG_CSV" ] || [ "$(wc -l < "$AGG_CSV" 2>/dev/null || echo 0)" -le 1 
 fi
 
 # Collect latest + summarize
-step_begin "collect"; rc=0; "${ROOT_DIR}/factory/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" || rc=$?; step_end $rc
+step_begin "collect"; rc=0; "${ROOT_DIR}/factory/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" >/dev/null || rc=$?; step_end $rc
 
-# Print penultimate: Global best per model (without path footers)
+# Print: Top overall then Global best per model (quiet, no path footers)
 "${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
-  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 15 --only-global --no-paths \
+  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 5 --only-top --no-paths --quiet \
   | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
 
-# Mark wrapper completion before final per-run analysis (so last lines are numbers)
-ok "Wrapper complete. Summary: $SUMMARY"
+"${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
+  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 15 --only-global --no-paths --quiet \
+  | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
 
-# Final: current analysis numbers for the latest bench CSV
+# Final: current analysis numbers for the latest bench CSV (last thing printed)
 LATEST_CSV="$(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || true)"
 if [ -n "$LATEST_CSV" ]; then
   base="$(basename "$LATEST_CSV")"
@@ -286,6 +287,9 @@ if [ -n "$LATEST_CSV" ]; then
   else
     log "Could not infer stack for latest CSV: $LATEST_CSV"
   fi
-else
-  log "No bench CSVs found in ${LOG_DIR}"
-fi
+  else
+    log "No bench CSVs found in ${LOG_DIR}"
+  fi
+
+# Mark wrapper completion after printing current run analysis
+ok "Wrapper complete. Summary: $SUMMARY"

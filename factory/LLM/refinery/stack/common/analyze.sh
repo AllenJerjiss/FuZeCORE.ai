@@ -98,7 +98,7 @@ BASEMAP="$(mktemp)"
 awk -F',' 'NR>1 && $6=="base-as-is" {k=$2"|"$5; if(($12+0)>b[k]) b[k]=$12+0} END{for(k in b) print k","b[k]}' "$TMP_CSV" >"$BASEMAP"
 
 echo
-echo "Top ${TOPN} by tokens/sec (uniform columns):"
+echo "Top ${TOPN} by tokens/sec:"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 TOPSEL="$(mktemp)"; tail -n +2 "$TMP_CSV" | sort -t',' -k12,12gr | head -n "$TOPN" >"$TOPSEL"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" -v BM_FILE="$BASEMAP" '
@@ -113,7 +113,7 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" -v B
   }' "$TOPSEL"
 
 echo
-echo "Best optimized per (endpoint, model) (uniform columns):"
+echo "Best optimized per (endpoint, model):"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
@@ -135,7 +135,7 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
 ' "$TMP_CSV"
 
 echo
-echo "Base vs Optimized (per endpoint & model) (uniform columns):"
+echo "Base vs Optimized (per endpoint & model):"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
@@ -159,7 +159,7 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
 
 # New: Best across endpoints per model (baseline vs optimized)
 echo
-echo "Best across endpoints (per model): baseline vs optimized (uniform columns)"
+echo "Best across endpoints (per model): baseline vs optimized"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
@@ -196,7 +196,7 @@ if [ "$WITH_DEBUG" -eq 1 ]; then
         z=$(jq -r '.tokens_per_sec // 0' "$DDIR"/*metrics.json 2>/dev/null | awk '{if(!($1+0>0)) c++} END{print c+0}')
         echo "  calls: $((nz+z))   nonzero: $nz   zero: $z"
       echo
-      echo "  Top by tokens/sec (uniform columns):"
+      echo "  Top by tokens/sec:"
       echo "    timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
       jq -r '[(.tokens_per_sec // 0), (.endpoint // ""), (.model // "")] | @tsv' "$DDIR"/*metrics.json 2>/dev/null \
         | sort -k1,1gr | head -n "$TOPN" \

@@ -47,6 +47,8 @@ case "$stack" in
     exec "${STACK_ROOT}/common/preflight.sh" "$@" ;;
   logs|log-migrate|migrate-logs)
     exec "${STACK_ROOT}/common/migrate-logs.sh" "$@" ;;
+  clean|cleanup|clean-bench)
+    exec "${STACK_ROOT}/common/clean-bench.sh" "$@" ;;
   analyze|analysis|summary)
     exec "${STACK_ROOT}/common/analyze.sh" "$@" ;;
 esac
