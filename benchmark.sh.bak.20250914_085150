@@ -31,16 +31,14 @@ choose_log_dir(){
 }
 choose_log_dir
 
-# Stamps to skip re-benchmark by default (keyed by stack + env file content hash)
+# New: stamps to skip re-benchmark by default
 FORCE_RE_BENCH=0
 STAMP_DIR="${STAMP_DIR:-${ROOT_DIR}/.benchmarks/stamps}"
-# Toggle strictness of service-cleanup (0=tolerant (warn & continue), 1=strict (abort))
-STRICT_SERVICE_CLEANUP="${STRICT_SERVICE_CLEANUP:-0}"
 
 # Structured logs
 RUN_LOG="${LOG_DIR}/wrapper_${TS}.log"
 TRACE_LOG="${LOG_DIR}/wrapper_${TS}.trace"
-SUMMARY="${LOG_DIR}/wrapper_${TS}.summary}"
+SUMMARY="${LOG_DIR}/wrapper_${TS}.summary"
 
 # UI helpers
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
@@ -229,14 +227,7 @@ run_stack_env(){ # stack env_file
         info "${S}:${envbase}:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force."
       fi
 
-      step_begin "${S}:${envbase}:service-cleanup"; rc=0; "$UST" "${EA[@]}" ollama service-cleanup || rc=$?; step_end $rc
-      if [ $rc -ne 0 ]; then
-        if [ "${STRICT_SERVICE_CLEANUP}" -eq 1 ]; then
-          return $rc
-        else
-          warn "${S}:${envbase}:service-cleanup failed (rc=$rc) — continuing"
-        fi
-      fi
+      step_begin "${S}:${envbase}:service-cleanup"; rc=0; "$UST" "${EA[@]}" ollama service-cleanup || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
 
       if [ "${VARIANT_CLEANUP:-0}" -eq 1 ]; then
         step_begin "${S}:${envbase}:cleanup-variants"; rc=0; "$UST" "${EA[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc; [ $rc -ne 0 ] && return $rc
