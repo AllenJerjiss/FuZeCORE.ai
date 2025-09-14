@@ -1,0 +1,18 @@
+uname -a:
+Linux fuze-bakery 6.8.0-79-generic #79-Ubuntu SMP PREEMPT_DYNAMIC Tue Aug 12 14:42:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+
+hostnamectl (if available):
+/usr/bin/hostnamectl
+ Static hostname: fuze-bakery
+       Icon name: computer-desktop
+         Chassis: desktop 🖥️
+      Machine ID: 4515737710b341578dcb4bddd23f2d00
+         Boot ID: f933a85cda5245ffa8dc036d660498be
+Operating System: Ubuntu 24.04.3 LTS
+          Kernel: Linux 6.8.0-79-generic
+    Architecture: x86-64
+ Hardware Vendor: Gigabyte Technology Co., Ltd.
+  Hardware Model: TRX50 AERO D
+Firmware Version: FA3b
+   Firmware Date: Mon 2025-09-01
+    Firmware Age: 1w 6d

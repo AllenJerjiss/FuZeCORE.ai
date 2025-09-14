@@ -1,0 +1,10 @@
+[1mdiff --git a/factory/LLM/refinery/benchmarks.csv b/factory/LLM/refinery/benchmarks.csv[m
+[1mindex 26836f1..1edd5f1 100644[m
+[1m--- a/factory/LLM/refinery/benchmarks.csv[m
+[1m+++ b/factory/LLM/refinery/benchmarks.csv[m
+[36m@@ -17,4 +17,4 @@[m [mrun_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_en[m
+ 20250914_050254,fuze-bakery,ollama,gemma3:4b-it-fp16,138.97,gemma3:4b-it-fp16,147.93,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_050254.csv[m
+ 20250914_050639,fuze-bakery,ollama,gemma3:4b-it-fp16,143.68,gemma3:4b-it-fp16,148.26,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_050639.csv[m
+ 20250914_051123,fuze-bakery,ollama,gemma3:4b-it-fp16,140.51,gemma3:4b-it-fp16,146.37,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_051123.csv[m
+[31m-20250914_060530,fuze-bakery,ollama,gemma3:4b-it-fp16,143.79,gemma3:4b-it-fp16,151.46,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,34,/var/log/fuze-stack/ollama_bench_20250914_060530.csv[m
+[32m+[m[32m20250914_053840,fuze-bakery,ollama,gemma3:4b-it-fp16,132.08,gemma3:4b-it-fp16,142.77,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_053840.csv[m
