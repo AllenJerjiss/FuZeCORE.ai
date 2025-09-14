@@ -89,23 +89,39 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
           st=$3; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; va=variant($4, ng, gl, st);
           ts=htime($1); he=$2 "/" ep;
           tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
+          # extra metrics (placeholders for now)
+          em="null";
           n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain;
+          CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
           if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
           if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
+          if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
+          if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
         }
         END{
           # header labels
           h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
+          h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
           if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
           if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
+          if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
+          if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
           # top border
-          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
+          printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+            dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+            dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
           # header row
-          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-          # underline row (no alignment markers)
-          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
+          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+            TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6,
+            CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
+          # underline row
+          printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+            dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+            dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
           for(i=1;i<=n;i++){
-            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
+            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+              TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i],
+              CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
           }
         }'
 fi
@@ -144,19 +160,31 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
          ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
          va=variant($4, ng, gl, st); he=host "/" ep;
          tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain;
+         em="null";
+         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
          if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
          if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
+         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
+         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
        }
        END{
          h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
+         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
          if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
+         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
+         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
+         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
          for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
+           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
          }
        }'
 fi
@@ -190,19 +218,31 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
          ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
          va=variant($4, ng, gl, st); he=host "/" ep;
          tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain;
+         em="null";
+         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
          if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
          if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
+         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
+         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
        }
        END{
          h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
+         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
          if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
+         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
+         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
+         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
          for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
+           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
          }
        }'
 fi
@@ -233,19 +273,31 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
          ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
          va=variant($4, ng, gl, st); he=host "/" ep;
          tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain;
+         em="null";
+         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
          if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
          if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
+         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
+         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
        }
        END{
          h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
+         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
          if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
+         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
+         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
+         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
          for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
+           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
          }
        }'
 fi
@@ -274,19 +326,31 @@ if [ "$ONLY_TOP" -eq 0 ]; then
          ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
          va=variant($4, ng, gl, st); he=host "/" ep;
          tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain;
+         em="null";
+         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
          if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
          if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
+         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
+         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
        }
        END{
          h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
+         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
          if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
+         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
+         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
+         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
+         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
+           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
+           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
          for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
+           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
+             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
          }
        }'
 fi
