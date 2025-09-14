@@ -13,10 +13,11 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 OUT_CSV="${OUT_CSV:-${ROOT_DIR}/benchmarks.csv}"
 STACKS="${STACKS:-ollama vLLM llama.cpp Triton}"
+SCAN_ALL=0
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--log-dir DIR] [--out PATH] [--stacks "ollama vLLM llama.cpp Triton"]
+Usage: $(basename "$0") [--log-dir DIR] [--out PATH] [--stacks "ollama vLLM llama.cpp Triton"] [--all]
 Env:
   LOG_DIR, OUT_CSV, STACKS
 USAGE
@@ -27,6 +28,7 @@ while [ $# -gt 0 ]; do
     --log-dir) LOG_DIR="$2"; shift 2;;
     --out)     OUT_CSV="$2"; shift 2;;
     --stacks)  STACKS="$2"; shift 2;;
+    --all)     SCAN_ALL=1; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
@@ -41,6 +43,10 @@ fi
 
 pick_latest(){ # pattern -> path or empty
   ls -t "$LOG_DIR"/$1 2>/dev/null | head -n1 || true
+}
+
+pick_all(){ # pattern -> list (newline) or empty
+  ls -t "$LOG_DIR"/$1 2>/dev/null || true
 }
 
 summarize_csv(){ # stack csv_path
@@ -94,13 +100,29 @@ summarize_csv(){ # stack csv_path
 for s in $STACKS; do
   case "$s" in
     ollama|Ollama)
-      csv="$(pick_latest 'ollama_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "ollama" "$csv" ;;
+      if [ "$SCAN_ALL" -eq 1 ]; then
+        while IFS= read -r csv; do [ -n "$csv" ] && summarize_csv "ollama" "$csv"; done < <(pick_all 'ollama_bench_*.csv')
+      else
+        csv="$(pick_latest 'ollama_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "ollama" "$csv"
+      fi ;;
     vllm|vLLM|VLLM)
-      csv="$(pick_latest 'vllm_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "vLLM" "$csv" ;;
+      if [ "$SCAN_ALL" -eq 1 ]; then
+        while IFS= read -r csv; do [ -n "$csv" ] && summarize_csv "vLLM" "$csv"; done < <(pick_all 'vllm_bench_*.csv')
+      else
+        csv="$(pick_latest 'vllm_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "vLLM" "$csv"
+      fi ;;
     llama.cpp|llamacpp|llama-cpp)
-      csv="$(pick_latest 'llamacpp_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "llama.cpp" "$csv" ;;
+      if [ "$SCAN_ALL" -eq 1 ]; then
+        while IFS= read -r csv; do [ -n "$csv" ] && summarize_csv "llama.cpp" "$csv"; done < <(pick_all 'llamacpp_bench_*.csv')
+      else
+        csv="$(pick_latest 'llamacpp_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "llama.cpp" "$csv"
+      fi ;;
     triton|Triton)
-      csv="$(pick_latest 'triton_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "Triton" "$csv" ;;
+      if [ "$SCAN_ALL" -eq 1 ]; then
+        while IFS= read -r csv; do [ -n "$csv" ] && summarize_csv "Triton" "$csv"; done < <(pick_all 'triton_bench_*.csv')
+      else
+        csv="$(pick_latest 'triton_bench_*.csv')" ; [ -n "$csv" ] && summarize_csv "Triton" "$csv"
+      fi ;;
   esac
 done
 

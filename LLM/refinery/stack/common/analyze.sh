@@ -11,6 +11,8 @@
 set -euo pipefail
 
 LOG_DIR_DEFAULT="${LOG_DIR:-/var/log/fuze-stack}"
+# Alias prefix (should match benchmark scripts); can be blank
+ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
 STACK=""
 CSV=""
 MODEL_RE=""
@@ -91,13 +93,21 @@ if [ -n "$MODEL_RE" ]; then
 fi
 
 echo
-echo "Top ${TOPN} by tokens/sec:"
+echo "Top ${TOPN} by tokens/sec (alias names):"
 tail -n +2 "$TMP_CSV" | sort -t',' -k12,12gr | head -n "$TOPN" \
-  | awk -F',' '{printf "  %-21s %-26s %-12s %-36s %8.2f  (%s %s)\n", $2,$5,$6,$7,$12,$13,$14}'
+  | awk -F',' -v AP="$ALIAS_PREFIX" '
+    function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+    {
+      ab=aliasify($5);
+      # Variant alias: prefer +ng when optimized; else aliasified tag
+      if($6=="optimized" && ($8+0)>0){ va=ab "+ng" $8 } else { va=aliasify($7) }
+      printf "  %-21s %-32s %-12s %-36s %8.2f  (%s %s)\n", $2,ab,$6,va,$12,$13,$14
+    }'
 
 echo
-echo "Best optimized per (endpoint, base_model):"
-awk -F',' '
+echo "Best optimized per (endpoint, model):"
+awk -F',' -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR>1 && $6=="optimized" && $12+0>0 {
     k=$2"|"$5
     if ($12+0>best[k]) {best[k]=$12+0; tag[k]=$7; ng[k]=$8}
@@ -105,26 +115,48 @@ awk -F',' '
   END{
     if (length(best)==0){print "  (none)"; exit}
     for (k in best){
-      split(k,a,"|")
-      printf "  %-21s %-26s ng=%-4s %8.2f  %s\n", a[1],a[2],ng[k],best[k],tag[k]
+      split(k,a,"|"); ab=aliasify(a[2]); va=(ng[k]>0?ab "+ng" ng[k]:aliasify(tag[k]));
+      printf "  %-21s %-32s ng=%-4s %8.2f  %s\n", a[1],ab,ng[k],best[k],va
     }
   }
 ' "$TMP_CSV"
 
 echo
 echo "Base vs Optimized (per endpoint & model):"
-awk -F',' '
+awk -F',' -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR==1{next}
   {
     key=$2"|"$5
     if ($6=="base-as-is"){base[key]=$12+0}
-    else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=$7} }
+    else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=($8+0>0?aliasify($5) "+ng" $8:aliasify($7))} }
   }
   END{
-    printf "  %-21s %-26s %10s %10s %8s %s\n","endpoint","model","base_t/s","opt_t/s","x","best_variant"
+    printf "  %-21s %-32s %10s %10s %8s %s\n","endpoint","model","base_t/s","opt_t/s","x","best_variant"
     for (k in base){
       be=base[k]+0; op=opt[k]+0; split(k,a,"|"); mult=(be>0? op/be : 0)
-      printf "  %-21s %-26s %10.2f %10.2f %8.2fx %s\n", a[1],a[2],be,op,(be>0?mult:0),optname[k]
+      printf "  %-21s %-32s %10.2f %10.2f %8.2fx %s\n", a[1],aliasify(a[2]),be,op,(be>0?mult:0),(optname[k] ? optname[k] : "-")
+    }
+  }
+' "$TMP_CSV"
+
+# New: Best across endpoints per model (baseline vs optimized)
+echo
+echo "Best across endpoints (per model): baseline vs optimized"
+awk -F',' -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+  NR>1 {
+    k=$5
+    if($6=="base-as-is" && $12+0>bb[k]){ bb[k]=$12+0 }
+    if(($6=="optimized"||$6=="published") && $12+0>oo[k]){ oo[k]=$12+0; ng[k]=$8 }
+  }
+  END{
+    # header
+    printf "  %-32s %10s %10s %8s %s\n","model","base_t/s","opt_t/s","x","variant"
+    for (m in bb){
+      be=bb[m]+0; op=oo[m]+0; mult=(be>0? op/be : 0); ab=aliasify(m);
+      v=(ng[m]>0?ab "+ng" ng[m]: (op>0?ab:"-"));
+      printf "  %-32s %10.2f %10.2f %8.2fx %s\n", ab, be, op, (be>0?mult:0), v
     }
   }
 ' "$TMP_CSV"

@@ -18,6 +18,7 @@ MODEL_RE="${MODEL_RE:-}"
 GPU_RE="${GPU_RE:-}"
 HOST_RE="${HOST_RE:-}"
 MD_OUT="${MD_OUT:-}"
+ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
 
 usage(){
   cat <<USAGE
@@ -54,23 +55,25 @@ echo "Data: $CSV"
 
 # ------------- Top N overall by optimal_tokps -------------------------------
 echo
-echo "Top ${TOPN} overall (by optimal_tokps):"
-awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+echo "Top ${TOPN} overall (by optimal_tokps, alias names):"
+awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR>1 {
     if (ST!="" && $3 !~ ST) next;
     if (MR!="" && $4 !~ MR) next;
     if (HR!="" && $2 !~ HR) next;
     if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-    if ($7+0>0) printf "%s,%s,%s,%.2f,%s,%s,%s\n", $3,$4,$2,$7,$10,$11,$1;
+    if ($7+0>0) printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $3,aliasify($4),$2,$7,$5,($5+0>0?$7/$5:0),$10,$11,$1;
   }
 ' "$CSV" \
   | sort -t',' -k4,4gr | head -n "$TOPN" \
-  | awk -F',' '{printf "  %-7s %-26s %-21s %8.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7}'
+  | awk -F',' '{printf "  %-7s %-32s %-21s %8.2f  base=%-8.2f  x=%-6.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
 
 # ------------- Best per (stack, model) --------------------------------------
 echo
-echo "Best per (stack, model):"
-awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+echo "Best per (stack, model) with baseline (alias names):"
+awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR>1 {
     if (ST!="" && $3 !~ ST) next;
     if (MR!="" && $4 !~ MR) next;
@@ -84,14 +87,18 @@ awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
     for (k in best){print line[k]}
   }
 ' "$CSV" \
- | awk -F',' '{printf "%s,%s,%s,%.2f,%s,%s,%s\n", $3,$4,$2,$7,$10,$11,$1}' \
+ | awk -F',' -v AP="$ALIAS_PREFIX" '
+     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+     {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $3,aliasify($4),$2,$7,$5,($5+0>0?$7/$5:0),$10,$11,$1}
+   ' \
  | sort -t',' -k1,1 -k2,2 \
- | awk -F',' '{printf "  %-7s %-26s %-21s %8.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7}'
+ | awk -F',' '{printf "  %-7s %-32s %-21s %8.2f  base=%-8.2f  x=%-6.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
 
 # ------------- Best per (stack, model, gpu_label) ---------------------------
 echo
-echo "Best per (stack, model, gpu_label):"
-awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+echo "Best per (stack, model, gpu_label) with baseline (alias names):"
+awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR>1 {
     if (ST!="" && $3 !~ ST) next;
     if (MR!="" && $4 !~ MR) next;
@@ -105,14 +112,18 @@ awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
     for (k in best){print line[k]}
   }
 ' "$CSV" \
- | awk -F',' '{printf "%s,%s,%s,%.2f,%s,%s,%s\n", $3,$4,$10,$7,$2,$11,$1}' \
+ | awk -F',' -v AP="$ALIAS_PREFIX" '
+     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+     {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $3,aliasify($4),$10,$7,$5,($5+0>0?$7/$5:0),$2,$11,$1}
+   ' \
  | sort -t',' -k1,1 -k2,2 -k3,3 \
- | awk -F',' '{printf "  %-7s %-26s %-14s %8.2f  %-21s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7}'
+ | awk -F',' '{printf "  %-7s %-32s %-14s %8.2f  base=%-8.2f  x=%-6.2f  %-21s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
 
 # ------------- Best per (host, model) across stacks -------------------------
 echo
-echo "Best per (host, model) across stacks:"
-awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+echo "Best per (host, model) across stacks (with baseline, alias names):"
+awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR>1 {
     if (ST!="" && $3 !~ ST) next;
     if (MR!="" && $4 !~ MR) next;
@@ -123,14 +134,18 @@ awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
   }
   END{for (k in best){print line[k]}}
 ' "$CSV" \
- | awk -F',' '{printf "%s,%s,%s,%.2f,%s,%s,%s\n", $2,$4,$3,$7,$10,$11,$1}' \
+ | awk -F',' -v AP="$ALIAS_PREFIX" '
+     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+     {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $2,aliasify($4),$3,$7,$5,($5+0>0?$7/$5:0),$10,$11,$1}
+   ' \
  | sort -t',' -k1,1 -k2,2 -k4,4gr \
- | awk -F',' '{printf "  %-21s %-26s %-7s %8.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7}'
+ | awk -F',' '{printf "  %-21s %-32s %-7s %8.2f  base=%-8.2f  x=%-6.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
 
 # ------------- Global best per model (across hosts & stacks) ----------------
 echo
-echo "Global best per model (across hosts & stacks):"
-awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" '
+echo "Global best per model (across hosts & stacks, alias names):"
+awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" -v AP="$ALIAS_PREFIX" '
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   NR>1 {
     if (MR!="" && $4 !~ MR) next;
     if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
@@ -139,9 +154,12 @@ awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" '
   }
   END{for (k in best){print line[k]}}
 ' "$CSV" \
- | awk -F',' '{printf "%s,%s,%s,%.2f,%s,%s,%s\n", $4,$3,$2,$7,$10,$11,$1}' \
+ | awk -F',' -v AP="$ALIAS_PREFIX" '
+     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+     {printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", aliasify($4),$3,$2,$7,$5,($5+0>0?$7/$5:0),$10,$11,$1}
+   ' \
  | sort -t',' -k1,1 -k4,4gr \
- | awk -F',' '{printf "  %-26s %-7s %-21s %8.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7}'
+ | awk -F',' '{printf "  %-32s %-7s %-21s %8.2f  base=%-8.2f  x=%-6.2f  %-16s %-18s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
 
 # ------------- Write best-per-(stack,model) CSV -----------------------------
 BEST_CSV="${ROOT_DIR}/benchmarks.best.csv"

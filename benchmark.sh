@@ -136,7 +136,13 @@ for ENVF in "${ENV_FILES[@]}"; do
   for S in "${STACKS[@]}"; do run_stack_env "$S" "$ENVF"; done
 done
 
-# Collect + summarize
+# One-time migration: backfill aggregate CSV from all historical logs if missing/empty
+AGG_CSV="${ROOT_DIR}/LLM/refinery/benchmarks.csv"
+if [ ! -s "$AGG_CSV" ] || [ "$(wc -l < "$AGG_CSV" 2>/dev/null || echo 0)" -le 1 ]; then
+  step_begin "migrate-aggregate"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" --all || rc=$?; step_end $rc
+fi
+
+# Collect latest + summarize
 step_begin "collect"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/collect-results.sh" --log-dir "$LOG_DIR" --stacks "${STACKS[*]}" || rc=$?; step_end $rc
 step_begin "summary"; rc=0; "${ROOT_DIR}/LLM/refinery/stack/common/summarize-benchmarks.sh" --csv "${ROOT_DIR}/LLM/refinery/benchmarks.csv" --top 15 | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt" || rc=$?; step_end $rc
 

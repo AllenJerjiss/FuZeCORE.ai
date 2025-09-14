@@ -13,3 +13,35 @@ run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_en
 20250913_230354,fuze-bakery,ollama,llama4:16x17b,18.00,llama4:16x17b,18.10,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,37,/var/log/fuze-stack/ollama_bench_20250913_230354.csv
 20250913_230649,fuze-bakery,ollama,llama4:17b-scout-16e-instruct-fp16,4.79,llama4:17b-scout-16e-instruct-fp16,4.90,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,47,/var/log/fuze-stack/ollama_bench_20250913_230649.csv
 20250913_234531,fuze-bakery,ollama,gemma3:4b-it-fp16,141.66,gemma3:4b-it-fp16,150.60,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,30,/var/log/fuze-stack/ollama_bench_20250913_234531.csv
+20250913_234531,fuze-bakery,ollama,gemma3:4b-it-fp16,141.66,gemma3:4b-it-fp16,150.60,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,30,/var/log/fuze-stack/ollama_bench_20250913_234531.csv
+20250913_231232,fuze-bakery,ollama,deepseek-r1:70b,8.86,deepseek-r1:70b,8.87,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,81,/var/log/fuze-stack/ollama_bench_20250913_231232.csv
+20250913_230649,fuze-bakery,ollama,llama4:17b-scout-16e-instruct-fp16,4.79,llama4:17b-scout-16e-instruct-fp16,4.90,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,47,/var/log/fuze-stack/ollama_bench_20250913_230649.csv
+20250913_230354,fuze-bakery,ollama,llama4:16x17b,18.00,llama4:16x17b,18.10,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,37,/var/log/fuze-stack/ollama_bench_20250913_230354.csv
+20250913_225938,fuze-bakery,ollama,gemma3:27b-it-fp16,5.07,gemma3:27b-it-fp16,5.14,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,54,/var/log/fuze-stack/ollama_bench_20250913_225938.csv
+20250913_225704,fuze-bakery,ollama,gemma3:4b-it-fp16,138.47,gemma3:4b-it-fp16,144.53,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,21,/var/log/fuze-stack/ollama_bench_20250913_225704.csv
+20250913_223932,fuze-bakery,ollama,llama4:17b-scout-16e-instruct-fp16,4.60,llama4:17b-scout-16e-instruct-fp16,4.71,127.0.0.1:11435,127.0.0.1:11435,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,45,/var/log/fuze-stack/ollama_bench_20250913_223932.csv
+20250913_223642,fuze-bakery,ollama,llama4:16x17b,15.16,llama4:16x17b,15.45,127.0.0.1:11435,127.0.0.1:11435,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,30,/var/log/fuze-stack/ollama_bench_20250913_223642.csv
+20250913_223443,fuze-bakery,ollama,gpt-oss:20b,141.82,gpt-oss:20b,144.89,127.0.0.1:11435,127.0.0.1:11435,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,19,/var/log/fuze-stack/ollama_bench_20250913_223443.csv
+20250913_223118,fuze-bakery,ollama,gemma3:27b-it-fp16,3.95,gemma3:27b-it-fp16,3.99,127.0.0.1:11435,127.0.0.1:11435,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,63,/var/log/fuze-stack/ollama_bench_20250913_223118.csv
+20250913_222851,fuze-bakery,ollama,gemma3:4b-it-fp16,92.75,gemma3:4b-it-fp16,97.03,127.0.0.1:11435,127.0.0.1:11435,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,6,/var/log/fuze-stack/ollama_bench_20250913_222851.csv
+20250913_221858,fuze-bakery,ollama,gemma3:4b-it-fp16,48.89,gemma3:4b-it-fp16,50.05,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,28,/var/log/fuze-stack/ollama_bench_20250913_221858.csv
+20250913_221341,fuze-bakery,ollama,gemma3:4b-it-fp16,49.13,gemma3:4b-it-fp16,50.57,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,25,/var/log/fuze-stack/ollama_bench_20250913_221341.csv
+20250913_215857,fuze-bakery,ollama,gemma3:4b-it-fp16,49.37,gemma3:4b-it-fp16,50.57,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,27,/var/log/fuze-stack/ollama_bench_20250913_215857.csv
+20250913_214725,fuze-bakery,ollama,gemma3:27b-it-fp16,3.10,gemma3:27b-it-fp16,3.12,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,19,/var/log/fuze-stack/ollama_bench_20250913_214725.csv
+20250913_211816,fuze-bakery,ollama,gemma3:4b-it-fp16,49.23,gemma3:4b-it-fp16,50.97,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,28,/var/log/fuze-stack/ollama_bench_20250913_211816.csv
+20250913_211343,fuze-bakery,ollama,gemma3:4b-it-fp16,49.44,gemma3:4b-it-fp16,50.80,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,20,/var/log/fuze-stack/ollama_bench_20250913_211343.csv
+20250913_205202,fuze-bakery,ollama,gemma3:4b-it-fp16,49.71,gemma3:4b-it-fp16,50.85,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,20,/var/log/fuze-stack/ollama_bench_20250913_205202.csv
+20250913_203059,fuze-bakery,ollama,gemma3:4b-it-fp16,49.19,gemma3:4b-it-fp16,50.28,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,18,/var/log/fuze-stack/ollama_bench_20250913_203059.csv
+20250913_201834,fuze-bakery,ollama,gemma3:4b-it-fp16,49.11,gemma3:4b-it-fp16,51.12,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,4,/var/log/fuze-stack/ollama_bench_20250913_201834.csv
+20250913_200815,fuze-bakery,ollama,gemma3:4b-it-fp16,50.06,gemma3:4b-it-fp16,50.88,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,6,/var/log/fuze-stack/ollama_bench_20250913_200815.csv
+20250913_194801,fuze-bakery,ollama,gemma3:4b-it-fp16,49.09,gemma3:4b-it-fp16,50.14,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,13,/var/log/fuze-stack/ollama_bench_20250913_194801.csv
+20250913_180745,fuze-bakery,ollama,deepseek-r1:70b,4.12,deepseek-r1:70b,4.09,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,81,/var/log/fuze-stack/ollama_bench_20250913_180745.csv
+20250913_180258,fuze-bakery,ollama,gpt-oss:20b,80.98,gpt-oss:20b,82.14,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,4,/var/log/fuze-stack/ollama_bench_20250913_180258.csv
+20250913_175207,fuze-bakery,ollama,gemma3:4b-it-fp16,48.75,gemma3:4b-it-fp16,50.09,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,32,/var/log/fuze-stack/ollama_bench_20250913_175207.csv
+20250913_174836,fuze-bakery,ollama,gemma3:4b-it-fp16,49.09,gemma3:4b-it-fp16,50.16,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,6,/var/log/fuze-stack/ollama_bench_20250913_174836.csv
+20250913_173834,fuze-bakery,ollama,gemma3:4b-it-fp16,49.18,gemma3:4b-it-fp16,50.19,127.0.0.1:11435,127.0.0.1:11435,nvidia-5060ti,NVIDIA GeForce RTX 5060 Ti,4,/var/log/fuze-stack/ollama_bench_20250913_173834.csv
+20250913_173349,fuze-bakery,ollama,gemma3:4b-it-fp16,0.00,,0.00,,,,,,/var/log/fuze-stack/ollama_bench_20250913_173349.csv
+20250913_173045,fuze-bakery,ollama,gemma3:4b-it-fp16,0.00,,0.00,,,,,,/var/log/fuze-stack/ollama_bench_20250913_173045.csv
+20250913_172752,fuze-bakery,ollama,gemma3:4b-it-fp16,0.00,,0.00,,,,,,/var/log/fuze-stack/ollama_bench_20250913_172752.csv
+20250913_165927,fuze-bakery,ollama,gemma3:4b-it-fp16,0.00,,0.00,,,,,,/var/log/fuze-stack/ollama_bench_20250913_165927.csv
+20250913_161643,fuze-bakery,ollama,gemma3:4b-it-fp16,0.00,,0.00,,,,,,/var/log/fuze-stack/ollama_bench_20250913_161643.csv
