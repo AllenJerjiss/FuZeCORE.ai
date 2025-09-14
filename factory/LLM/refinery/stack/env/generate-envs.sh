@@ -11,8 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="${TEMPLATE:-}"            # if empty, we'll choose by --mode
 DEST_DIR="${DEST_DIR:-}"            # if empty, we'll choose by --mode
 # Predefined templates and dests for modes
-TPL_EXP="${SCRIPT_DIR}/templates/FuZeCORE-explore.env.template"
-TPL_PRE="${SCRIPT_DIR}/templates/FuZeCORE-preprod.env.template"
+TPL_EXP="${SCRIPT_DIR}/templates/LLM-FuZe-explore.env.template"
+TPL_PRE="${SCRIPT_DIR}/templates/LLM-FuZe-preprod.env.template"
 DEST_EXP="${SCRIPT_DIR}/explore"
 DEST_PRE="${SCRIPT_DIR}/preprod"
 INCLUDE_RE="${INCLUDE_RE:-}"   # optional regex to filter models

@@ -1,0 +1,4 @@
+run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_endpoint,optimal_endpoint,gpu_label,gpu_name,num_gpu,csv_file
+20250914_033827,fuze-bakery,ollama,gemma3:4b-it-fp16,138.63,gemma3:4b-it-fp16,150.87,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,27,/var/log/fuze-stack/ollama_bench_20250914_033827.csv
+20250914_033716,fuze-bakery,ollama,gemma3:4b-it-fp16,134.75,gemma3:4b-it-fp16,149.53,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,34,/var/log/fuze-stack/ollama_bench_20250914_033716.csv
+20250914_033827,fuze-bakery,ollama,gemma3:4b-it-fp16,138.63,gemma3:4b-it-fp16,150.87,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,27,/var/log/fuze-stack/ollama_bench_20250914_033827.csv

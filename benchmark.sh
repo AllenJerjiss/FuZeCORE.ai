@@ -115,7 +115,7 @@ mkdir -p "$EXPL_DIR" "$PRE_DIR" "$PROD_DIR"
 case "${ENV_MODE:-}" in
   preprod)
     step_begin "env-prepare:preprod"; rc=0;
-    GEN_ARGS=("--dest" "$PRE_DIR" "--template" "${ENV_BASE}/templates/FuZeCORE-preprod.env.template")
+    GEN_ARGS=("--dest" "$PRE_DIR" "--template" "${ENV_BASE}/templates/LLM-FuZe-preprod.env.template")
     [ ${#MODEL_RES[@]} -gt 0 ] && GEN_ARGS+=("--include" "$(IFS='|'; echo "${MODEL_RES[*]}")") || true
     "${ENV_BASE}/generate-envs.sh" "${GEN_ARGS[@]}" || rc=$?
     [ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$PRE_DIR" 2>/dev/null || true
@@ -124,7 +124,7 @@ case "${ENV_MODE:-}" in
     ;;
   explore)
     step_begin "env-prepare:explore"; rc=0;
-    GEN_ARGS=("--dest" "$EXPL_DIR" "--template" "${ENV_BASE}/templates/FuZeCORE-explore.env.template")
+    GEN_ARGS=("--dest" "$EXPL_DIR" "--template" "${ENV_BASE}/templates/LLM-FuZe-explore.env.template")
     [ ${#MODEL_RES[@]} -gt 0 ] && GEN_ARGS+=("--include" "$(IFS='|'; echo "${MODEL_RES[*]}")") || true
     "${ENV_BASE}/generate-envs.sh" "${GEN_ARGS[@]}" || rc=$?
     [ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$EXPL_DIR" 2>/dev/null || true

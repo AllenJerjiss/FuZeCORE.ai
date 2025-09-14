@@ -1,0 +1,2 @@
+model,stack,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file
+gemma3:4b-it-fp16,ollama,fuze-bakery,150.87,138.63,gemma3:4b-it-fp16,nvidia-5090,NVIDIA GeForce RTX 5090,27,20250914_033827,/var/log/fuze-stack/ollama_bench_20250914_033827.csv

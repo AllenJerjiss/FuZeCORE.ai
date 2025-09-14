@@ -22,7 +22,7 @@ Examples (always run with sudo -E)
 - Run everything (all stacks, all envs): `./benchmark.sh`
 - Only Gemma profiles on Ollama + llama.cpp: `./benchmark.sh --stack "ollama llama.cpp" --model gemma`
 - Positional stacks: `./benchmark.sh --env explore --model '^gemma3:4b-it-fp16$' ollama`
-- Per-stack, with env file: `sudo -E ./factory/LLM/refinery/stack/ust.sh @factory/LLM/refinery/stack/env/explore/FuZeCORE-gemma3-4b-it-fp16.env ollama`
+- Per-stack, with env file: `sudo -E ./factory/LLM/refinery/stack/ust.sh @factory/LLM/refinery/stack/env/explore/LLM-FuZe-gemma3-4b-it-fp16.env ollama`
 - Ollama fast bench: `sudo -E FAST_MODE=1 EXHAUSTIVE=0 BENCH_NUM_PREDICT=64 ./factory/LLM/refinery/stack/ust.sh ollama`
 - vLLM bench: `sudo -E ./factory/LLM/refinery/stack/ust.sh vLLM`
 - llama.cpp bench: `sudo -E ./factory/LLM/refinery/stack/ust.sh llama.cpp`
@@ -74,7 +74,7 @@ Tag baking mode
 Discovery and filters
 - Pulls base models from persistent daemon `:11434`
 - Filters: `INCLUDE_MODELS` (regex), `EXCLUDE_MODELS` (regex)
-- Alias prefix: set `ALIAS_PREFIX` (default `FuZeCORE-`) to prefix model aliases and variant names, e.g., `gemma3:4b-it-fp16 (alias FuZeCORE-gemma3-4b-it-fp16)`
+- Alias prefix: set `ALIAS_PREFIX` (default `LLM-FuZe-`) to prefix model aliases and variant names, e.g., `gemma3:4b-it-fp16 (alias LLM-FuZe-gemma3-4b-it-fp16)`
 
 Service handling
 - Test units: `ollama-test-a.service` (`:11435`), `ollama-test-b.service` (`:11436`)
@@ -137,8 +137,8 @@ Script: `factory/LLM/refinery/stack/Triton/benchmark.sh`
 ## Templates and Env Generation
 
 - Templates:
-  - Explore (aggressive): `factory/LLM/refinery/stack/env/templates/FuZeCORE-explore.env.template`
-  - Preprod (conservative): `factory/LLM/refinery/stack/env/templates/FuZeCORE-preprod.env.template`
+  - Explore (aggressive): `factory/LLM/refinery/stack/env/templates/LLM-FuZe-explore.env.template`
+  - Preprod (conservative): `factory/LLM/refinery/stack/env/templates/LLM-FuZe-preprod.env.template`
 - Generator: `factory/LLM/refinery/stack/env/generate-envs.sh`
   - `--mode explore|preprod|both` (default: both)
   - `--include REGEX`, `--host HOST:PORT`, `--overwrite`, `--dry-run`

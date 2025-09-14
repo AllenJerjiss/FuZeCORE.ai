@@ -20,8 +20,8 @@ Stack scripts live under `factory/LLM/refinery/stack/`:
 - Per-stack benchmarks: `factory/LLM/refinery/stack/{ollama,vLLM,llama.cpp,Triton}/benchmark.sh`
 
 Env templates & generator
-- Explore (aggressive): `factory/LLM/refinery/stack/env/templates/FuZeCORE-explore.env.template`
-- Preprod (conservative): `factory/LLM/refinery/stack/env/templates/FuZeCORE-preprod.env.template`
+- Explore (aggressive): `factory/LLM/refinery/stack/env/templates/LLM-FuZe-explore.env.template`
+- Preprod (conservative): `factory/LLM/refinery/stack/env/templates/LLM-FuZe-preprod.env.template`
 - Generator: `factory/LLM/refinery/stack/env/generate-envs.sh`
   - `--mode explore|preprod|both` (default: both)
   - `--promote --all` or `--promote --model REGEX` to copy preprod envs to prod (immutable)
