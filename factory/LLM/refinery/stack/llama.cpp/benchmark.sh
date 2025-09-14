@@ -57,6 +57,12 @@ MODELS=(
   "llama4:128x17b|llama4-128x17b|llama*128*17b*.*gguf"
 )
 
+# Optional single-model override: set LLAMACPP_MODEL to an alias tag like 'gemma3:4b-it-fp16'
+if [ -n "${LLAMACPP_MODEL:-}" ]; then
+  ab_override="$(echo "$LLAMACPP_MODEL" | sed -E 's#[/:]+#-#g')"
+  MODELS=( "${LLAMACPP_MODEL}|${ab_override}|*${ab_override}*.gguf" )
+fi
+
 # Sweep of NGL (n-gpu-layers). “-1” means auto/offload all layers.
 # Feel free to trim this for faster runs.
 NGL_CANDIDATES=${NGL_CANDIDATES:-"-1 64 48 32 24 16 0"}
@@ -154,8 +160,10 @@ wait_api(){
 find_model_file(){
   local alias_base="$1" pattern="$2"
   # allow explicit override via env LLAMACPP_PATH_<alias_base with non-alnum -> underscores>
-  local key="LLAMACPP_PATH_$(echo "$alias_base" | tr -c '[:alnum:]' '_')"
-  local v="${!key:-}"
+  local key1 key2 v
+  key1="LLAMACPP_PATH_$(echo "$alias_base" | tr -c '[:alnum:]' '_' | sed -E 's/_+$//')"
+  key2="${key1}_"  # backward-compat with older env files that had trailing underscore
+  v="${!key1:-${!key2:-}}"
   if [ -n "$v" ] && [ -f "$v" ]; then echo "$v"; return 0; fi
   shopt -s nullglob
   local matches=("${MODEL_DIR}"/$pattern)

@@ -77,7 +77,7 @@ ERR_DIR="${ERR_DIR:-${LOG_DIR}/export_errors_${TS}}"
 mkdir -p "$ERR_DIR"
 
 base_alias(){ echo "$1" | sed -E 's#[/:]+#-#g'; }
-env_key(){ echo "$1" | tr -c '[:alnum:]' '_' ; }
+env_key(){ printf %s "$1" | tr -c '[:alnum:]' '_' | sed -E 's/_+$//'; }
 
 list_models(){
   OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" list 2>/dev/null | awk 'NR>1 && $1!=""{print $1}'
