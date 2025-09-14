@@ -199,20 +199,40 @@ run_stack_env(){ # stack env_file
         info "${S}:${envbase}:gguf-clean — removing old *.gguf in ${dest_dir}"
         rm -f "${dest_dir}"/*.gguf 2>/dev/null || true
       fi
-      step_begin "${S}:${envbase}:export-gguf"; rc=0; "$UST" "${EA[@]}" ollama export-gguf --overwrite || rc=$?; step_end $rc
-      step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack ollama || rc=$?; step_end $rc;;
+      step_begin "${S}:${envbase}:export-gguf"; rc=0;
+      EXP_ARGS=( )
+      [ "${EXPORT_OVERWRITE:-0}" -eq 1 ] && EXP_ARGS+=("--overwrite") || true
+      "$UST" "${EA[@]}" ollama export-gguf ${EXP_ARGS[@]} || rc=$?
+      step_end $rc
+      if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack ollama || rc=$?; step_end $rc
+      else
+        info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
+      fi;;
     llama.cpp|llamacpp|llama-cpp)
       step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" llama.cpp install || rc=$?; step_end $rc
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" llama.cpp benchmark || rc=$?; step_end $rc
-      step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack llama.cpp || rc=$?; step_end $rc;;
+      if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack llama.cpp || rc=$?; step_end $rc
+      else
+        info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
+      fi;;
     vllm|vLLM|VLLM)
       step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" vLLM install || rc=$?; step_end $rc
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" vLLM benchmark || rc=$?; step_end $rc
-      step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack vLLM || rc=$?; step_end $rc;;
+      if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack vLLM || rc=$?; step_end $rc
+      else
+        info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
+      fi;;
     Triton|triton)
       step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" Triton install || rc=$?; step_end $rc
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" Triton benchmark || rc=$?; step_end $rc
-      step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack Triton || rc=$?; step_end $rc;;
+      if [ "${SKIP_INLINE_ANALYZE:-1}" -eq 0 ]; then
+        step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack Triton || rc=$?; step_end $rc
+      else
+        info "${S}:${envbase}:analyze — skipped (shown in final wrapper step)"
+      fi;;
     *) warn "Unknown stack: $S" ;;
   esac
 }

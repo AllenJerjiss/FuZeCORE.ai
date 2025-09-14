@@ -14,6 +14,10 @@ INCLUDE_RE="${INCLUDE_RE:-}"
 EXCLUDE_RE="${EXCLUDE_RE:-}"
 SKIP_VARIANTS="${SKIP_VARIANTS:-1}"
 OVERWRITE="${OVERWRITE:-0}"
+# Validate existing GGUFs and skip re-export if they look good
+VALIDATE_EXISTING="${VALIDATE_EXISTING:-1}"
+# Force re-export even if an existing GGUF validates ok
+FORCE_REEXPORT="${FORCE_REEXPORT:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 ENV_OUT="${ENV_OUT:-}"
 LOG_DIR="${LOG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/logs}"
@@ -79,6 +83,17 @@ list_models(){
   OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" list 2>/dev/null | awk 'NR>1 && $1!=""{print $1}'
 }
 
+gguf_valid(){ # path -> return 0 if looks valid
+  local f="$1"; local sz magic
+  [ -f "$f" ] || return 1
+  sz="$(stat -c '%s' "$f" 2>/dev/null || echo 0)"
+  # Require at least 1MB to avoid tiny/partial files
+  [ "${sz:-0}" -ge 1048576 ] || return 1
+  magic="$(head -c 4 "$f" 2>/dev/null || true)"
+  [ "$magic" = "GGUF" ] || return 1
+  return 0
+}
+
 should_keep(){
   local name="$1"
   if [ -n "$INCLUDE_RE" ] && ! echo "$name" | grep -Eq "$INCLUDE_RE"; then return 1; fi
@@ -97,11 +112,20 @@ export_one(){ # model_tag -> status
   local tag="$1" alias out tmp dest rc size
   alias="$(base_alias "$tag")"
   dest="${DEST_DIR}/${alias}.gguf"
-  if [ -e "$dest" ] && [ "$OVERWRITE" -ne 1 ]; then
-    echo "SKIP existing: $dest"
-    size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
-    echo "$tag,$dest,$size,$HOST,exists" >> "$CSV_OUT"
-    return 0
+  if [ -e "$dest" ]; then
+    if [ "$VALIDATE_EXISTING" -eq 1 ] && gguf_valid "$dest" && [ "$FORCE_REEXPORT" -ne 1 ]; then
+      echo "OK   existing(valid): $dest — skip re-export"
+      size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
+      echo "$tag,$dest,$size,$HOST,exists(valid)" >> "$CSV_OUT"
+      return 0
+    fi
+    if [ "$OVERWRITE" -ne 1 ] && [ "$FORCE_REEXPORT" -ne 1 ]; then
+      echo "SKIP existing: $dest"
+      size="$(stat -c '%s' "$dest" 2>/dev/null || echo 0)"
+      echo "$tag,$dest,$size,$HOST,exists" >> "$CSV_OUT"
+      return 0
+    fi
+    # else: OVERWRITE=1 or FORCE_REEXPORT=1 => continue to export
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "DRY export: $tag -> $dest"
