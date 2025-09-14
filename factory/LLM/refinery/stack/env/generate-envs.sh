@@ -7,20 +7,28 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATE="${TEMPLATE:-${SCRIPT_DIR}/templates/FuZeCORE-bench.env.template}"
-DEST_DIR="${DEST_DIR:-${SCRIPT_DIR}/explore}"
+# Default single-run template/dest (used when --template/--dest provided)
+TEMPLATE="${TEMPLATE:-}"            # if empty, we'll choose by --mode
+DEST_DIR="${DEST_DIR:-}"            # if empty, we'll choose by --mode
+# Predefined templates and dests for modes
+TPL_EXP="${SCRIPT_DIR}/templates/FuZeCORE-explore.env.template"
+TPL_PRE="${SCRIPT_DIR}/templates/FuZeCORE-preprod.env.template"
+DEST_EXP="${SCRIPT_DIR}/explore"
+DEST_PRE="${SCRIPT_DIR}/preprod"
 INCLUDE_RE="${INCLUDE_RE:-}"   # optional regex to filter models
 HOST="${HOST:-127.0.0.1:11434}"
 OVERWRITE=0
 DRY_RUN=0
+MODE="both"   # one of: explore | preprod | both | custom
 OLLAMA_BIN="${OLLAMA_BIN:-/usr/local/bin/ollama}"
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--template FILE] [--dest DIR] [--include REGEX] [--host HOST:PORT] [--overwrite] [--dry-run]
+Usage: $(basename "$0") [--mode explore|preprod|both] [--template FILE] [--dest DIR] [--include REGEX] [--host HOST:PORT] [--overwrite] [--dry-run]
 Env:
-  TEMPLATE   (default: ${TEMPLATE})
-  DEST_DIR   (default: ${DEST_DIR})
+  MODE       (default: both; ignored if TEMPLATE/DEST_DIR provided)
+  TEMPLATE   (custom single-run)
+  DEST_DIR   (custom single-run)
   INCLUDE_RE (optional regex to filter models)
   HOST       (default: ${HOST})
   OLLAMA_BIN (default: ${OLLAMA_BIN})
@@ -31,6 +39,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --template) TEMPLATE="$2"; shift 2;;
     --dest)     DEST_DIR="$2"; shift 2;;
+    --mode)     MODE="$2"; shift 2;;
     --include)  INCLUDE_RE="$2"; shift 2;;
     --host)     HOST="$2"; shift 2;;
     --overwrite) OVERWRITE=1; shift 1;;
@@ -40,8 +49,38 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -f "$TEMPLATE" ] || { echo "Template not found: $TEMPLATE" >&2; exit 2; }
-mkdir -p "$DEST_DIR"
+gen_one(){ # template dest
+  local tpl="$1" dest="$2";
+  [ -f "$tpl" ] || { echo "Template not found: $tpl" >&2; return 2; }
+  mkdir -p "$dest"
+  # Extract ALIAS_PREFIX from the template (fallback FuZeCORE-)
+  local prefix
+  prefix=$(sed -nE "s/^ALIAS_PREFIX=\"?([^\"]*)\"?.*/\1/p" "$tpl" | tail -n1)
+  [ -n "$prefix" ] || prefix="FuZeCORE-"
+
+  local count=0 made=0 skip=0
+  while IFS= read -r tag; do
+    [ -n "$tag" ] || continue
+    if [ -n "$INCLUDE_RE" ] && ! echo "$tag" | grep -Eq "$INCLUDE_RE"; then continue; fi
+    count=$((count+1))
+    alias=$(aliasify "$tag")
+    out="$dest/${prefix}${alias}.env"
+    if [ -f "$out" ] && [ "$OVERWRITE" -ne 1 ]; then
+      echo "skip (exists): $(basename "$out")"
+      skip=$((skip+1))
+      continue
+    fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "plan write : $(basename "$out")  (MODEL_TAG=$tag)"
+      continue
+    fi
+    sed -E "s/__MODEL_TAG__/${tag//\//\\/}/g" "$tpl" > "$out" || { echo "write failed: $out" >&2; return 1; }
+    echo "wrote       : $(basename "$out")"
+    made=$((made+1))
+  done <<< "$models"
+
+  echo "Summary: models=${count} written=${made} skipped=${skip} dest=${dest} template=$(basename "$tpl")"
+}
 
 need(){ command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1" >&2; exit 2; }; }
 need awk; need sed; need tr
@@ -49,42 +88,24 @@ need awk; need sed; need tr
 # Helper: aliasify a model tag (llama4:16x17b -> llama4-16x17b)
 aliasify(){ echo "$1" | sed -E 's#[/:]+#-#g'; }
 
-# Extract ALIAS_PREFIX from the template (fallback FuZeCORE-)
-TPL_PREFIX=$(sed -nE "s/^ALIAS_PREFIX=\"?([^\"]*)\"?.*/\1/p" "$TEMPLATE" | tail -n1)
-[ -n "$TPL_PREFIX" ] || TPL_PREFIX="FuZeCORE-"
-
 # Discover models from persistent daemon
 if ! command -v "$OLLAMA_BIN" >/dev/null 2>&1; then
   echo "ollama binary not found: $OLLAMA_BIN" >&2
   exit 2
 fi
 
-models=$(
-  OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" list 2>/dev/null \
-    | awk '($1!="" && $1!="NAME"){print $1}'
-)
+models=$( OLLAMA_HOST="http://${HOST}" "$OLLAMA_BIN" list 2>/dev/null | awk '($1!="" && $1!="NAME"){print $1}' )
 
-count=0; made=0; skip=0
-while IFS= read -r tag; do
-  [ -n "$tag" ] || continue
-  if [ -n "$INCLUDE_RE" ] && ! echo "$tag" | grep -Eq "$INCLUDE_RE"; then continue; fi
-  count=$((count+1))
-  alias=$(aliasify "$tag")
-  out="$DEST_DIR/${TPL_PREFIX}${alias}.env"
-  if [ -f "$out" ] && [ "$OVERWRITE" -ne 1 ]; then
-    echo "skip (exists): $(basename "$out")"
-    skip=$((skip+1))
-    continue
-  fi
-  if [ "$DRY_RUN" -eq 1 ]; then
-    echo "plan write : $(basename "$out")  (MODEL_TAG=$tag)"
-    continue
-  fi
-  # Render template: substitute __MODEL_TAG__ placeholders
-  sed -E "s/__MODEL_TAG__/${tag//\//\\/}/g" "$TEMPLATE" > "$out" || { echo "write failed: $out" >&2; exit 1; }
-  echo "wrote       : $(basename "$out")"
-  made=$((made+1))
-done <<< "$models"
-
-echo "Summary: models=${count} written=${made} skipped=${skip} dest=${DEST_DIR}"
-
+# Decide single-run vs multi-mode
+if [ -n "${TEMPLATE}" ] || [ -n "${DEST_DIR}" ]; then
+  # custom single-run
+  [ -n "$TEMPLATE" ] || { echo "TEMPLATE not specified; use --template or rely on --mode" >&2; exit 2; }
+  [ -n "$DEST_DIR" ] || { echo "DEST_DIR not specified; use --dest or rely on --mode" >&2; exit 2; }
+  gen_one "$TEMPLATE" "$DEST_DIR"
+else
+  case "$MODE" in
+    explore) gen_one "$TPL_EXP" "$DEST_EXP" ;;
+    preprod) gen_one "$TPL_PRE" "$DEST_PRE" ;;
+    both|*)  gen_one "$TPL_EXP" "$DEST_EXP"; echo; gen_one "$TPL_PRE" "$DEST_PRE" ;;
+  esac
+fi
