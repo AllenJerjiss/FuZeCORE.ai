@@ -72,8 +72,9 @@ GC_AFTER_RUN="${GC_AFTER_RUN:-1}"                  # 1=final pass GC
 EXCLUDE_MODELS="${EXCLUDE_MODELS:-}"
 INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kept
 
-# Optional alias prefix for variant naming and logs
+# Optional alias prefix/suffix for variant naming and logs
 ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
+ALIAS_SUFFIX="${ALIAS_SUFFIX:-}"
 # Optionally bake the best variant tag at the end (even in FAST_MODE)
 PUBLISH_BEST="${PUBLISH_BEST:-0}"
 # Optional warm-up before benchmarking published tag
@@ -344,11 +345,13 @@ discover_models(){
     if [ -n "$INCLUDE_MODELS" ] && ! echo "$tag" | grep -Eq "$INCLUDE_MODELS"; then
       continue
     fi
-    # Build alias and apply optional prefix
-    local alias alias_pref
+    # Build alias and apply optional prefix/suffix
+    local alias alias_full
     alias="$(base_alias "$tag")"
-    if [ -n "$ALIAS_PREFIX" ]; then alias_pref="${ALIAS_PREFIX}${alias}"; else alias_pref="$alias"; fi
-    out+=("$tag|${alias_pref}")
+    alias_full="${alias}"
+    if [ -n "$ALIAS_PREFIX" ]; then alias_full="${ALIAS_PREFIX}${alias_full}"; fi
+    if [ -n "$ALIAS_SUFFIX" ]; then alias_full="${alias_full}${ALIAS_SUFFIX}"; fi
+    out+=("$tag|${alias_full}")
   done <<<"$names"
 
   if [ "${#out[@]}" -eq 0 ]; then

@@ -114,14 +114,33 @@ if [ "$PROMOTE" -eq 1 ]; then
     [ -f "$f" ] || continue
     total=$((total+1))
     if [ "$PROMOTE_ALL" -eq 1 ]; then
-      cp -f "$f" "$DST_DIR/" && { echo "promoted: $(basename "$f")"; copied=$((copied+1)); }
+      out="$DST_DIR/$(basename "$f")"
+      cp -f "$f" "$out" && {
+        # Ensure ALIAS_SUFFIX is set to -prod in promoted envs
+        if grep -q '^ALIAS_SUFFIX=' "$out" 2>/dev/null; then
+          sed -i -E "s/^ALIAS_SUFFIX=.*/ALIAS_SUFFIX=-prod/" "$out"
+        else
+          echo 'ALIAS_SUFFIX=-prod' >> "$out"
+        fi
+        echo "promoted: $(basename "$f")"
+        copied=$((copied+1))
+      }
       continue
     fi
     if [ -n "$PROMOTE_RE" ]; then
       inc_tag=$(awk -F"'" '/^INCLUDE_MODELS=/{print $2; exit}' "$f" 2>/dev/null | sed -E 's/^\^//; s/\$$//')
       bn=$(basename "$f")
       if echo "$bn" | grep -Eq "$PROMOTE_RE" || { [ -n "$inc_tag" ] && echo "$inc_tag" | grep -Eq "$PROMOTE_RE"; }; then
-        cp -f "$f" "$DST_DIR/" && { echo "promoted: $(basename "$f")"; copied=$((copied+1)); }
+        out="$DST_DIR/$(basename "$f")"
+        cp -f "$f" "$out" && {
+          if grep -q '^ALIAS_SUFFIX=' "$out" 2>/dev/null; then
+            sed -i -E "s/^ALIAS_SUFFIX=.*/ALIAS_SUFFIX=-prod/" "$out"
+          else
+            echo 'ALIAS_SUFFIX=-prod' >> "$out"
+          fi
+          echo "promoted: $(basename "$f")"
+          copied=$((copied+1))
+        }
       fi
     fi
   done
