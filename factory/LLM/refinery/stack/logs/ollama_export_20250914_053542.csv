@@ -1,0 +1,2 @@
+model_tag,gguf_path,size_bytes,host,status
+gemma3:4b-it-fp16,/FuZe/models/gguf/gemma3-4b-it-fp16.gguf,8617184768,127.0.0.1:11434,exists(valid)

@@ -19,9 +19,9 @@ GPU_RE="${GPU_RE:-}"
 HOST_RE="${HOST_RE:-}"
 MD_OUT="${MD_OUT:-}"
 ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"
-NO_PATHS=1
+NO_PATHS=0
 ONLY_GLOBAL=0
-QUIET=1
+QUIET=0
 ONLY_TOP=0
 
 usage(){
@@ -62,9 +62,13 @@ fi
 if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
 
 # ------------- Top N overall by optimal_tokps -------------------------------
-#
+echo
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
   echo "Top ${TOPN} overall:"
+  # Pretty table header (stack folded into variant)
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|---------|----------|------------------|"
+  echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe-refinery gain factor |"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|---------|----------|------------------|"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
       if (ST!="" && $3 !~ ST) next;
       if (MR!="" && $4 !~ MR) next;
@@ -76,59 +80,37 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
     | awk '!seen[$0]++' \
     | head -n "$TOPN" \
     | awk -F',' -v AP="$ALIAS_PREFIX" '
-        function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
+        function aliasify(s,  t){
+          t=s; gsub(/[\/:]+/,"-",t);
+          gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t);
+          gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t);
+          return t
+        }
         function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
         function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
           ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx);
-          if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
-          if (ng+0>0) va=va "+ng" ng; return va }
-        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-        function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-        function dline(w, r){ return rep(w, "-") }
-        {
-          st=$3; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; va=variant($4, ng, gl, st);
-          ts=htime($1); he=$2 "/" ep;
-          tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-          # extra metrics (placeholders for now)
-          em="null";
-          n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain;
-          CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
-          if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
-          if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
-          if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
-          if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
+          # embed stack into variant
+          if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
+          else           va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
+          if (ng+0>0) va=va "+ng" ng;
+          return va
         }
-        END{
-          # header labels
-          h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
-          h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
-          if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
-          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-          if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
-          if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
-          # top border
-          printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-            dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-            dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-          # header row
-          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-            TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6,
-            CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
-          # underline row
-          printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-            dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-            dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-          for(i=1;i<=n;i++){
-            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-              TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i],
-              CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
-          }
+        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+        {
+          st=$3; ep=($9!=""?$9:"n/a"); ng=($12+0); gl=$10; va=variant($4, ng, gl, st);
+          base=$5+0; opt=$7+0; x=(base>0? opt/base : 0);
+          printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %17.2fx |\n",
+            htime($1), va, $2, ep, opt, base, x
         }'
 fi
 
 # ------------- Best per (stack, model) --------------------------------------
+echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (stack, model):"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
+  echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe-refinery gain factor |"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){
       t=s; gsub(/[\/:]+/,"-",t);
@@ -154,44 +136,20 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-       function dline(w, r){ return rep(w, "-") }
        {
-         ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
-         va=variant($4, ng, gl, st); he=host "/" ep;
-         tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         em="null";
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
-         if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
-         if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
-         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
-         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
-       }
-       END{
-         h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
-         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
-         if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
-         if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
-         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
-         }
+         ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? opt/base : 0);
+         va=variant($4, ng, gl, st);
+         printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %17.2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
 # ------------- Best per (stack, model, gpu_label) ---------------------------
+echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (stack, model, gpu_label):"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
+  echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe-refinery gain factor |"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
     NR>1 {
@@ -212,44 +170,20 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-       function dline(w, r){ return rep(w, "-") }
        {
-         ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
-         va=variant($4, ng, gl, st); he=host "/" ep;
-         tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         em="null";
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
-         if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
-         if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
-         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
-         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
-       }
-       END{
-         h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
-         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
-         if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
-         if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
-         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
-         }
+         ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? $7/$5 : 0);
+         va=variant($4, ng, gl, st);
+         printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %17.2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
 # ------------- Best per (host, model) across stacks -------------------------
+echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (host, model) across stacks:"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
+  echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe-refinery gain factor |"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t); gsub(/-fp16/,"-f16",t); gsub(/-bf16/,"-b16",t); return t }
     NR>1 {
@@ -267,38 +201,10 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(sfx2!="") va=sprintf("%s%s--%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-       function dline(w, r){ return rep(w, "-") (r? ":":"") }
        {
-         ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
-         va=variant($4, ng, gl, st); he=host "/" ep;
-         tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         em="null";
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
-         if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
-         if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
-         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
-         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
-       }
-       END{
-         h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
-         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
-         if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
-         if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
-         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
-         }
+         ts=$1; host=$2; st=$3; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0 ? $7/$5 : 0);
+         va=variant($4, ng, gl, st);
+         printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %17.2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
@@ -306,6 +212,9 @@ fi
 if [ "$ONLY_TOP" -eq 0 ]; then
   echo
   echo "Global best per model (across hosts & stacks):"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
+  echo "| timestamp           | variant                                  | host                 | endpoint             |   tok/s | base_t/s | FuZe-refinery gain factor |"
+  echo "|---------------------|------------------------------------------|----------------------|----------------------|--------:|--------:|-----------------:|"
   awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" -v AP="$ALIAS_PREFIX" '
     NR>1 {
       if (MR!="" && $4 !~ MR) next;
@@ -320,93 +229,64 @@ if [ "$ONLY_TOP" -eq 0 ]; then
        function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
-       function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-       function dline(w, r){ return rep(w, "-") (r? ":":"") }
        {
-         ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
-         va=variant($4, ng, gl, st); he=host "/" ep;
-         tok=sprintf("%.2f", $7+0); base=sprintf("%.2f", $5+0); gain=sprintf("%.2fx", ($5+0>0?($7+0)/($5+0):0));
-         em="null";
-         n++; TS[n]=ts; VA[n]=va; HE[n]=he; TK[n]=tok; BA[n]=base; GA[n]=gain; CU[n]=em; RU[n]=em; FRS[n]=em; FRT[n]=em; GP[n]=em; GV[n]=em;
-         if(length(ts)>TW) TW=length(ts); if(length(va)>VW) VW=length(va); if(length(he)>HW) HW=length(he);
-         if(length(tok)>KW) KW=length(tok); if(length(base)>BW) BW=length(base); if(length(gain)>GW) GW=length(gain);
-         if(length(em)>CUW) CUW=length(em); if(length(em)>RUW) RUW=length(em); if(length(em)>FRSW) FRSW=length(em);
-         if(length(em)>FRTW) FRTW=length(em); if(length(em)>GPW) GPW=length(em); if(length(em)>GVRW) GVRW=length(em);
-       }
-       END{
-         h1="timestamp"; h2="variant"; h3="host"; h4="tok/s"; h5="base_t/s"; h6="FuZe gain factor";
-         h7="CPU utilization"; h8="RAM utilization"; h9="FuZe-RAM speed"; h10="FuZe-RAM temp"; h11="GPU max power utilization"; h12="GPU VRAM utilization";
-         if(length(h1)>TW) TW=length(h1); if(length(h2)>VW) VW=length(h2); if(length(h3)>HW) HW=length(h3);
-         if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
-         if(length(h7)>CUW) CUW=length(h7); if(length(h8)>RUW) RUW=length(h8); if(length(h9)>FRSW) FRSW=length(h9);
-         if(length(h10)>FRTW) FRTW=length(h10); if(length(h11)>GPW) GPW=length(h11); if(length(h12)>GVRW) GVRW=length(h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-           TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6, CUW,h7, RUW,h8, FRSW,h9, FRTW,h10, GPW,h11, GVRW,h12);
-         printf("|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-           dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0),
-           dline(CUW+2,0), dline(RUW+2,0), dline(FRSW+2,0), dline(FRTW+2,0), dline(GPW+2,0), dline(GVRW+2,0));
-         for(i=1;i<=n;i++){
-           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |\n",
-             TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i], CUW,CU[i], RUW,RU[i], FRSW,FRS[i], FRTW,FRT[i], GPW,GP[i], GVRW,GV[i]);
-         }
+         ts=$1; st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; base=$5+0; opt=$7+0; x=(base>0?opt/base:0);
+         va=variant($4, ng, gl, st);
+         printf "| %-19s | %-40s | %-20s | %-20s | %8.2f | %8.2f | %17.2fx |\n", htime(ts), va, host, ep, opt, base, x
        }'
 fi
 
 # ------------- Write best-per-(stack,model) CSV -----------------------------
-if [ "$ONLY_TOP" -eq 0 ]; then
-  BEST_CSV="${ROOT_DIR}/benchmarks.best.csv"
-  {
-    echo "stack,model,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
-    awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
-      NR>1 {
-        if (ST!="" && $3 !~ ST) next;
-        if (MR!="" && $4 !~ MR) next;
-        if (HR!="" && $2 !~ HR) next;
-        if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-        if (!($7+0>0)) next;
-        k=$3"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0; base[k]=$5}
-      }
-      END{for (k in best){print line[k]}}
-    ' "$CSV" \
-    | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $3,$4,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
-  } > "$BEST_CSV"
-  if [ "$NO_PATHS" -eq 0 ]; then echo "Best-per-(stack,model) CSV: $BEST_CSV"; fi
+BEST_CSV="${ROOT_DIR}/benchmarks.best.csv"
+{
+  echo "stack,model,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
+  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+    NR>1 {
+      if (ST!="" && $3 !~ ST) next;
+      if (MR!="" && $4 !~ MR) next;
+      if (HR!="" && $2 !~ HR) next;
+      if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
+      if (!($7+0>0)) next;
+      k=$3"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0; base[k]=$5}
+    }
+    END{for (k in best){print line[k]}}
+  ' "$CSV" \
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $3,$4,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
+} > "$BEST_CSV"
+echo
+if [ "$NO_PATHS" -eq 0 ]; then echo "Best-per-(stack,model) CSV: $BEST_CSV"; fi
 
-  # ------------- Also write best-by-(host,model) and global-best-by-model -----
-  BEST_BY_HOST_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_host_model.csv"
-  {
-    echo "host,model,stack,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
-    awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
-      NR>1 {
-        if (ST!="" && $3 !~ ST) next;
-        if (MR!="" && $4 !~ MR) next;
-        if (HR!="" && $2 !~ HR) next;
-        if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-        if (!($7+0>0)) next;
-        k=$2"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
-      }
-      END{for (k in best){print line[k]}}
-    ' "$CSV" \
-    | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $2,$4,$3,$7,$5,$6,$10,$11,$12,$1,$13}'
-  } > "$BEST_BY_HOST_MODEL_CSV"
-  if [ "$NO_PATHS" -eq 0 ]; then echo "Best-by-(host,model) CSV: $BEST_BY_HOST_MODEL_CSV"; fi
+# ------------- Also write best-by-(host,model) and global-best-by-model -----
+BEST_BY_HOST_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_host_model.csv"
+{
+  echo "host,model,stack,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
+  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" '
+    NR>1 {
+      if (ST!="" && $3 !~ ST) next;
+      if (MR!="" && $4 !~ MR) next;
+      if (HR!="" && $2 !~ HR) next;
+      if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
+      if (!($7+0>0)) next;
+      k=$2"|"$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
+    }
+    END{for (k in best){print line[k]}}
+  ' "$CSV" \
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $2,$4,$3,$7,$5,$6,$10,$11,$12,$1,$13}'
+} > "$BEST_BY_HOST_MODEL_CSV"
+if [ "$NO_PATHS" -eq 0 ]; then echo "Best-by-(host,model) CSV: $BEST_BY_HOST_MODEL_CSV"; fi
 
-  BEST_GLOBAL_BY_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_model.csv"
-  {
-    echo "model,stack,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
-    awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" '
-      NR>1 {
-        if (MR!="" && $4 !~ MR) next;
-        if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-        if (!($7+0>0)) next;
-        k=$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
-      }
-      END{for (k in best){print line[k]}}
-    ' "$CSV" \
-    | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
-  } > "$BEST_GLOBAL_BY_MODEL_CSV"
-  if [ "$NO_PATHS" -eq 0 ]; then echo "Best-global-by-model CSV: $BEST_GLOBAL_BY_MODEL_CSV"; fi
-fi
+BEST_GLOBAL_BY_MODEL_CSV="${ROOT_DIR}/benchmarks.best.by_model.csv"
+{
+  echo "model,stack,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file"
+  awk -F',' -v MR="$MODEL_RE" -v GR="$GPU_RE" '
+    NR>1 {
+      if (MR!="" && $4 !~ MR) next;
+      if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
+      if (!($7+0>0)) next;
+      k=$4; if ($7+0>best[k]) {best[k]=$7+0; line[k]=$0}
+    }
+    END{for (k in best){print line[k]}}
+  ' "$CSV" \
+  | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
+} > "$BEST_GLOBAL_BY_MODEL_CSV"
+if [ "$NO_PATHS" -eq 0 ]; then echo "Best-global-by-model CSV: $BEST_GLOBAL_BY_MODEL_CSV"; fi
