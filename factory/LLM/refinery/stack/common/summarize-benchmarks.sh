@@ -19,9 +19,9 @@ GPU_RE="${GPU_RE:-}"
 HOST_RE="${HOST_RE:-}"
 MD_OUT="${MD_OUT:-}"
 ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"
-NO_PATHS=0
+NO_PATHS=1
 ONLY_GLOBAL=0
-QUIET=0
+QUIET=1
 ONLY_TOP=0
 
 usage(){
@@ -62,7 +62,7 @@ fi
 if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
 
 # ------------- Top N overall by optimal_tokps -------------------------------
-echo
+#
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
   echo "Top ${TOPN} overall:"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
@@ -84,7 +84,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
           if (ng+0>0) va=va "+ng" ng; return va }
         function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
         function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-        function dline(w, r){ return rep(w, "-") (r? ":":"") }
+        function dline(w, r){ return rep(w, "-") }
         {
           st=$3; ep=($9!=""?$9:$8); ng=($12+0); gl=$10; va=variant($4, ng, gl, st);
           ts=htime($1); he=$2 "/" ep;
@@ -102,8 +102,8 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
           printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
           # header row
           printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-          # underline (right-align marks for numeric columns)
-          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,1), dline(BW+2,1), dline(GW+2,1));
+          # underline row (no alignment markers)
+          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
           for(i=1;i<=n;i++){
             printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
           }
@@ -111,7 +111,6 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
 fi
 
 # ------------- Best per (stack, model) --------------------------------------
-echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (stack, model):"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
@@ -140,7 +139,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
        function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-       function dline(w, r){ return rep(w, "-") (r? ":":"") }
+       function dline(w, r){ return rep(w, "-") }
        {
          ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
          va=variant($4, ng, gl, st); he=host "/" ep;
@@ -155,7 +154,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,1), dline(BW+2,1), dline(GW+2,1));
+         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          for(i=1;i<=n;i++){
            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
          }
@@ -163,7 +162,6 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
 fi
 
 # ------------- Best per (stack, model, gpu_label) ---------------------------
-echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (stack, model, gpu_label):"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
@@ -187,7 +185,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
        function variant(base, ng, gl, st,  ab, sfx, sfx2, va){ ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx); if(sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab); else va=sprintf("%s%s-%s-%s", AP, st, gl, ab); if(ng+0>0) va=va "+ng" ng; return va }
        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
        function rep(n, c,  s){ s=""; for(i=0;i<n;i++) s=s c; return s }
-       function dline(w, r){ return rep(w, "-") (r? ":":"") }
+       function dline(w, r){ return rep(w, "-") }
        {
          ts=htime($1); st=$3; host=$2; ep=($9!=""?$9:$8); ng=($12+0); gl=$10;
          va=variant($4, ng, gl, st); he=host "/" ep;
@@ -202,7 +200,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,1), dline(BW+2,1), dline(GW+2,1));
+         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          for(i=1;i<=n;i++){
            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
          }
@@ -210,7 +208,6 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
 fi
 
 # ------------- Best per (host, model) across stacks -------------------------
-echo
 if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
   echo "Best per (host, model) across stacks:"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
@@ -246,7 +243,7 @@ if [ "$ONLY_GLOBAL" -eq 0 ] && [ "$ONLY_TOP" -eq 0 ]; then
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,1), dline(BW+2,1), dline(GW+2,1));
+         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          for(i=1;i<=n;i++){
            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
          }
@@ -287,7 +284,7 @@ if [ "$ONLY_TOP" -eq 0 ]; then
          if(length(h4)>KW) KW=length(h4); if(length(h5)>BW) BW=length(h5); if(length(h6)>GW) GW=length(h6);
          printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,h1, VW,h2, HW,h3, KW,h4, BW,h5, GW,h6);
-         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,1), dline(BW+2,1), dline(GW+2,1));
+         printf("|%s|%s|%s|%s|%s|%s|\n", dline(TW+2,0), dline(VW+2,0), dline(HW+2,0), dline(KW+2,0), dline(BW+2,0), dline(GW+2,0));
          for(i=1;i<=n;i++){
            printf("| %-*s | %-*s | %-*s | %*s | %*s | %*s |\n", TW,TS[i], VW,VA[i], HW,HE[i], KW,TK[i], BW,BA[i], GW,GA[i]);
          }

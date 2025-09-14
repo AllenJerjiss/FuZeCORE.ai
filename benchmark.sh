@@ -269,7 +269,7 @@ esac
 # Print: Top overall (quiet, no path footers). Pass suffix to embed in variants
 ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
 "${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
-  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" --top 5 --only-top --no-paths --quiet \
+  --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" \
   | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
 
 # Final: current analysis numbers for the latest bench CSV (last thing printed)
@@ -283,15 +283,7 @@ if [ -n "$LATEST_CSV" ]; then
     triton_bench_*) stk="Triton" ;;
     *) stk="" ;;
   esac
-  if [ -n "$stk" ]; then
-    if [ "$DEBUG_RUN" -eq 1 ]; then
-      ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
-      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-top
-    else
-      ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
-      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-debug --no-top
-    fi
-  else
+  if [ -z "$stk" ]; then
     log "Could not infer stack for latest CSV: $LATEST_CSV"
   fi
   else

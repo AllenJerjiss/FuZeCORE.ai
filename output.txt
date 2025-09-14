@@ -1,0 +1,195 @@
+[1m==[0m Wrapper start @ 20250914_051017 (logs: /var/log/fuze-stack)
+Best-per-(stack,model) CSV: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/benchmarks.best.csv
+Best-by-(host,model) CSV: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/benchmarks.best.by_host_model.csv
+Best-global-by-model CSV: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/benchmarks.best.by_model.csv
+CSVs in : /var/log/fuze-stack
+[1m==[0m [preflight]
+[32m✔[0m [preflight] done (0s)
+[1m==[0m ENV: LLM-FuZe-gemma3-4b-it-fp16.env
+[1m==[0m ollama:LLM-FuZe-gemma3-4b-it-fp16.env:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force.
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:service-cleanup]
+--- listeners ---
+PORT 11434:
+p83678 collama Lollama tIPv4 n127.0.0.1:11434
+PORT 11435:
+p2278753 collama Lollama tIPv4 n127.0.0.1:11435
+PORT 11436:
+p2279074 collama Lollama tIPv4 n127.0.0.1:11436
+--- ping :11434 ---
+OK /api/tags
+NAME                                    ID              SIZE      MODIFIED     
+llama3.1:8b-text-fp16                   722fd1ff1fda    16 GB     8 hours ago     
+kronos483/MedEmbed-large-v0.1:latest    bae5584e161f    670 MB    11 hours ago    
+gemma3:4b-it-fp16                       c4da438ae756    8.6 GB    21 hours ago    
+gemma3:27b-it-fp16                      b7d58e2e179e    54 GB     21 hours ago    
+gpt-oss:20b                             aa4295ac10c3    13 GB     21 hours ago    
+llama4:17b-scout-16e-instruct-fp16      f390ec6c1a81    217 GB    37 hours ago    
+deepseek-r1:671b-q4_K_M                 58e944f7074d    404 GB    38 hours ago    
+deepseek-r1:70b                         d37b54d01a76    42 GB     38 hours ago    
+llama4:16x17b                           bf31604e25c2    67 GB     3 days ago      
+llama4:128x17b                          b4832b93e292    244 GB    3 days ago      
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:service-cleanup] done (2s)
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:cleanup-variants]
+== Host 127.0.0.1:11434 ==
+  Nothing matched.
+
+Summary: candidates=0, removed=0 (FORCE=1)
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:cleanup-variants] done (0s)
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:benchmark]
+== One-at-a-time auto-tune + bench (POSIX) ==
+Persistent : 127.0.0.1:11434
+CSV        : /var/log/fuze-stack/ollama_bench_20250914_051019.csv
+Analyze    : /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/common/analyze.sh --stack ollama
+[1m==[0m Preparing directories and services
+GPU: NVIDIA GeForce RTX 5090, GPU-f869acd6-5d4a-7fb5-6be9-f88e5bd9459d, 32607 MiB
+GPU: NVIDIA GeForce RTX 3090 Ti, GPU-b8530596-c700-dd8d-4312-2b4fb42129fc, 24564 MiB
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-a.service → /etc/systemd/system/ollama-test-a.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-b.service → /etc/systemd/system/ollama-test-b.service.
+[1m==[0m TEST A OLLAMA_MODELS: /FuZe/models/ollama
+[1m==[0m TEST B OLLAMA_MODELS: /FuZe/models/ollama
+[1m==[0m Waiting for APIs
+[1m==[0m ollama version: ollama version is 0.11.10
+[1m==[0m Discovering base models from persistent daemon (:11434)
+[1m==[0m Models     : gemma3:4b-it-fp16|LLM-FuZe-gemma3-4b-i-f16-explore 
+=== Tuning on 127.0.0.1:11435 — base: gemma3:4b-it-fp16 (alias LLM-FuZe-gemma3-4b-i-f16-explore) ===
+[1m==[0m  Using AUTO_NG (layers.model=35) -> ng: 35 34 32 30 28 27 25 23 21 20 18 16 14 13 11 9 7 6 4
+[33m![0m      Breaking after 5 non-improving trials (best=150.79 tok/s)
+[32m✔[0m  Best so far: LLM-FuZe-gemma3-4b-i-f16-explore+ng20 (ng=20) at 150.79 tok/s
+[1m==[0m  Publishing best variant tag: LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5090-ng20 (FROM gemma3:4b-it-fp16 num_gpu=20)
+[32m✔[0m  Published: LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5090-ng20:latest
+[32m✔[0m  Published variant performance: 28.53 tok/s
+=== Tuning on 127.0.0.1:11436 — base: gemma3:4b-it-fp16 (alias LLM-FuZe-gemma3-4b-i-f16-explore) ===
+[1m==[0m  Using AUTO_NG (layers.model=35) -> ng: 35 34 32 30 28 27 25 23 21 20 18 16 14 13 11 9 7 6 4
+[33m![0m      Breaking after 5 non-improving trials (best=96.32 tok/s)
+[32m✔[0m  Best so far: LLM-FuZe-gemma3-4b-i-f16-explore+ng30 (ng=30) at 96.32 tok/s
+[1m==[0m  Publishing best variant tag: LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng30 (FROM gemma3:4b-it-fp16 num_gpu=30)
+[32m✔[0m  Published: LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng30:latest
+[32m✔[0m  Published variant performance: 37.67 tok/s
+[32m✔[0m Done.
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:benchmark] done (62s)
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:export-gguf]
+OK   existing(valid): /FuZe/models/gguf/llama3.1-8b-text-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gemma3-4b-it-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gemma3-27b-it-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gpt-oss-20b.gguf — skip re-export
+
+Summary: found=12 kept=4 exported=4 failed=0
+CSV: /var/log/fuze-stack/ollama_export_20250914_051121.csv
+llama.cpp env mappings: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/llama.cpp/models.env
+Errors (if any): /var/log/fuze-stack/export_errors_20250914_051121
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:export-gguf] done (0s)
+[1m==[0m ollama:LLM-FuZe-gemma3-4b-it-fp16.env:analyze — skipped (shown in final wrapper step)
+[1m==[0m ENV: LLM-FuZe-gemma3-4b-it-fp16.env
+[1m==[0m ollama:LLM-FuZe-gemma3-4b-it-fp16.env:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force.
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:service-cleanup]
+--- listeners ---
+PORT 11434:
+p83678 collama Lollama tIPv4 n127.0.0.1:11434
+PORT 11435:
+p2282170 collama Lollama tIPv4 n127.0.0.1:11435
+PORT 11436:
+p2282490 collama Lollama tIPv4 n127.0.0.1:11436
+--- ping :11434 ---
+OK /api/tags
+NAME                                                          ID              SIZE      MODIFIED       
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng30:latest    17ec5fa7c0f1    8.6 GB    20 seconds ago    
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5090-ng20:latest      1bdecb27f46a    8.6 GB    49 seconds ago    
+llama3.1:8b-text-fp16                                         722fd1ff1fda    16 GB     9 hours ago       
+kronos483/MedEmbed-large-v0.1:latest                          bae5584e161f    670 MB    11 hours ago      
+gemma3:4b-it-fp16                                             c4da438ae756    8.6 GB    21 hours ago      
+gemma3:27b-it-fp16                                            b7d58e2e179e    54 GB     21 hours ago      
+gpt-oss:20b                                                   aa4295ac10c3    13 GB     21 hours ago      
+llama4:17b-scout-16e-instruct-fp16                            f390ec6c1a81    217 GB    37 hours ago      
+deepseek-r1:671b-q4_K_M                                       58e944f7074d    404 GB    38 hours ago      
+deepseek-r1:70b                                               d37b54d01a76    42 GB     38 hours ago      
+llama4:16x17b                                                 bf31604e25c2    67 GB     3 days ago        
+llama4:128x17b                                                b4832b93e292    244 GB    3 days ago        
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:service-cleanup] done (2s)
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:cleanup-variants]
+== Host 127.0.0.1:11434 ==
+  Candidates to remove (2):
+    LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng30:latest
+    LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5090-ng20:latest
+  - removed: LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng30:latest
+  - removed: LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5090-ng20:latest
+  Removed on 127.0.0.1:11434: 2/2
+
+Summary: candidates=2, removed=2 (FORCE=1)
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:cleanup-variants] done (0s)
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:benchmark]
+== One-at-a-time auto-tune + bench (POSIX) ==
+Persistent : 127.0.0.1:11434
+CSV        : /var/log/fuze-stack/ollama_bench_20250914_051123.csv
+Analyze    : /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/common/analyze.sh --stack ollama
+[1m==[0m Preparing directories and services
+GPU: NVIDIA GeForce RTX 5090, GPU-f869acd6-5d4a-7fb5-6be9-f88e5bd9459d, 32607 MiB
+GPU: NVIDIA GeForce RTX 3090 Ti, GPU-b8530596-c700-dd8d-4312-2b4fb42129fc, 24564 MiB
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-a.service → /etc/systemd/system/ollama-test-a.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-b.service → /etc/systemd/system/ollama-test-b.service.
+[1m==[0m TEST A OLLAMA_MODELS: /FuZe/models/ollama
+[1m==[0m TEST B OLLAMA_MODELS: /FuZe/models/ollama
+[1m==[0m Waiting for APIs
+[1m==[0m ollama version: ollama version is 0.11.10
+[1m==[0m Discovering base models from persistent daemon (:11434)
+[1m==[0m Models     : gemma3:4b-it-fp16|LLM-FuZe-gemma3-4b-i-f16-preprod 
+=== Tuning on 127.0.0.1:11435 — base: gemma3:4b-it-fp16 (alias LLM-FuZe-gemma3-4b-i-f16-preprod) ===
+[1m==[0m  Using AUTO_NG (layers.model=35) -> ng: 35 32 27 21 18 14 11 7 4
+[32m✔[0m      First working: ng=35 at 146.37 tok/s
+[32m✔[0m  Best so far: LLM-FuZe-gemma3-4b-i-f16-preprod+ng35 (ng=35) at 146.37 tok/s
+=== Tuning on 127.0.0.1:11436 — base: gemma3:4b-it-fp16 (alias LLM-FuZe-gemma3-4b-i-f16-preprod) ===
+[1m==[0m  Using AUTO_NG (layers.model=35) -> ng: 35 32 27 21 18 14 11 7 4
+[32m✔[0m      First working: ng=35 at 96.20 tok/s
+[32m✔[0m  Best so far: LLM-FuZe-gemma3-4b-i-f16-preprod+ng35 (ng=35) at 96.20 tok/s
+[1m==[0m GC summary: nothing created.
+[32m✔[0m Done.
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:benchmark] done (13s)
+[1m==[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:export-gguf]
+OK   existing(valid): /FuZe/models/gguf/llama3.1-8b-text-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gemma3-4b-it-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gemma3-27b-it-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gpt-oss-20b.gguf — skip re-export
+
+Summary: found=10 kept=4 exported=4 failed=0
+CSV: /var/log/fuze-stack/ollama_export_20250914_051136.csv
+llama.cpp env mappings: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/llama.cpp/models.env
+Errors (if any): /var/log/fuze-stack/export_errors_20250914_051136
+[32m✔[0m [ollama:LLM-FuZe-gemma3-4b-it-fp16.env:export-gguf] done (0s)
+[1m==[0m ollama:LLM-FuZe-gemma3-4b-it-fp16.env:analyze — skipped (shown in final wrapper step)
+[1m==[0m [collect]
+[32m✔[0m [collect] done (0s)
+Top 10 overall:
+|---------------------|--------------------------------------------------|-----------------------------|--------|----------|------------------|
+| timestamp           | variant                                          | host                        |  tok/s | base_t/s | FuZe gain factor |
+|---------------------|--------------------------------------------------|-----------------------------|--------|----------|------------------|
+| 2025-09-14 04:47:23 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng6  | fuze-bakery/127.0.0.1:11435 | 151.41 |   135.05 |            1.12x |
+| 2025-09-14 03:38:27 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng27 | fuze-bakery/127.0.0.1:11435 | 150.87 |   138.63 |            1.09x |
+| 2025-09-14 04:04:58 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng16 | fuze-bakery/127.0.0.1:11435 | 150.42 |   141.78 |            1.06x |
+| 2025-09-14 04:13:25 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng30 | fuze-bakery/127.0.0.1:11435 | 150.18 |   140.39 |            1.07x |
+| 2025-09-14 03:37:16 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng34 | fuze-bakery/127.0.0.1:11435 | 149.53 |   134.75 |            1.11x |
+| 2025-09-14 04:41:54 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng28 | fuze-bakery/127.0.0.1:11435 | 149.25 |   137.06 |            1.09x |
+| 2025-09-14 04:53:23 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng34 | fuze-bakery/127.0.0.1:11435 | 149.19 |   137.81 |            1.08x |
+| 2025-09-14 04:54:17 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng35 | fuze-bakery/127.0.0.1:11435 | 148.70 |   136.37 |            1.09x |
+| 2025-09-14 05:06:39 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng35 | fuze-bakery/127.0.0.1:11435 | 148.26 |   143.68 |            1.03x |
+| 2025-09-14 04:43:25 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng28 | fuze-bakery/127.0.0.1:11435 | 148.25 |   131.73 |            1.13x |
+Best per (stack, model):
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| timestamp           | variant                                         | host                        |  tok/s | base_t/s | FuZe gain factor |
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| 2025-09-14 04:47:23 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng6 | fuze-bakery/127.0.0.1:11435 | 151.41 |   135.05 |            1.12x |
+Best per (stack, model, gpu_label):
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| timestamp           | variant                                         | host                        |  tok/s | base_t/s | FuZe gain factor |
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| 2025-09-14 04:47:23 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng6 | fuze-bakery/127.0.0.1:11435 | 151.41 |   135.05 |            1.12x |
+Best per (host, model) across stacks:
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| timestamp           | variant                                         | host                        |  tok/s | base_t/s | FuZe gain factor |
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| 2025-09-14 04:47:23 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng6 | fuze-bakery/127.0.0.1:11435 | 151.41 |   135.05 |            1.12x |
+
+Global best per model (across hosts & stacks):
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| timestamp           | variant                                         | host                        |  tok/s | base_t/s | FuZe gain factor |
+|---------------------|-------------------------------------------------|-----------------------------|--------|----------|------------------|
+| 2025-09-14 04:47:23 | LLM-FuZe-ollama-nvidia-5090-gemma3-4b-i-f16+ng6 | fuze-bakery/127.0.0.1:11435 | 151.41 |   135.05 |            1.12x |
+[32m✔[0m Wrapper complete. Summary: /var/log/fuze-stack/wrapper_20250914_051017.summary
