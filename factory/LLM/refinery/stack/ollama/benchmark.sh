@@ -73,7 +73,7 @@ EXCLUDE_MODELS="${EXCLUDE_MODELS:-}"
 INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kept
 
 # Optional alias prefix/suffix for variant naming and logs
-ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
+ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"
 ALIAS_SUFFIX="${ALIAS_SUFFIX:-}"
 # Optionally bake the best variant tag at the end (even in FAST_MODE)
 PUBLISH_BEST="${PUBLISH_BEST:-0}"
@@ -324,8 +324,16 @@ wait_variant_visible(){ # ep variant secs
   return 1
 }
 
-base_alias(){ # "llama4:16x17b" -> "llama4-16x17b"
-  echo "$1" | sed -E 's#[/:]+#-#g'
+base_alias(){ # "llama4:16x17b" -> "llama4-16x17b" with compact suffixes
+  local s
+  s="$(echo "$1" | sed -E 's#[/:]+#-#g')"
+  # Compact common tokens: it->i, fp16->f16, bf16->b16
+  s="${s//-it-/-i-}"
+  s="${s%-it}"; s="${s%-i}"; # no-op cleanup if ends with -it, we transform below
+  s="${s//-it/-i}"
+  s="${s//-fp16/-f16}"
+  s="${s//-bf16/-b16}"
+  echo "$s"
 }
 
 discover_models(){

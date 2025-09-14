@@ -12,7 +12,7 @@ set -euo pipefail
 
 LOG_DIR_DEFAULT="${LOG_DIR:-/var/log/fuze-stack}"
 # Alias prefix (should match benchmark scripts); can be blank
-ALIAS_PREFIX="${ALIAS_PREFIX:-FuZeCORE-}"
+ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"
 STACK=""
 CSV=""
 MODEL_RE=""
@@ -102,7 +102,7 @@ echo "Top ${TOPN} by tokens/sec (uniform columns):"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 TOPSEL="$(mktemp)"; tail -n +2 "$TMP_CSV" | sort -t',' -k12,12gr | head -n "$TOPN" >"$TOPSEL"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" -v BM_FILE="$BASEMAP" '
-  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   BEGIN{ while((getline l < BM_FILE)>0){ split(l,a,","); bm[a[1]]=a[2]+0 } }
   {
@@ -116,7 +116,7 @@ echo
 echo "Best optimized per (endpoint, model) (uniform columns):"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
-  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR>1 {
     k=$2"|"$5
@@ -138,7 +138,7 @@ echo
 echo "Base vs Optimized (per endpoint & model) (uniform columns):"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
-  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR==1{next}
   {
@@ -162,7 +162,7 @@ echo
 echo "Best across endpoints (per model): baseline vs optimized (uniform columns)"
 echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
-  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+  function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); gsub(/-it(\b|-)/,"-i\1",t); gsub(/-fp16\b/ ,"-f16",t); gsub(/-bf16\b/,"-b16",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR>1 {
     k=$5

@@ -59,7 +59,7 @@ set -E -o functrace; trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINEN
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [stacks...]
+Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [--debug] [stacks...]
 Runs all stacks on all model env files by default.
 You may also pass stack names positionally at the end (e.g., 'ollama').
 USAGE
@@ -68,11 +68,13 @@ USAGE
 STACKS=()
 MODEL_RES=()
 ENV_MODE=""
+DEBUG_RUN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --stack) shift; IFS=', ' read -r -a arr <<<"${1:-}"; for x in "${arr[@]}"; do [ -n "$x" ] && STACKS+=("$x"); done; shift||true;;
     --model) MODEL_RES+=("$2"); shift 2;;
     --env) ENV_MODE="$2"; shift 2;;
+    --debug) DEBUG_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
     *)
       case "$1" in
@@ -85,7 +87,12 @@ while [ $# -gt 0 ]; do
 done
 
 [ -x "$UST" ] || { err "ust.sh not found: $UST"; exit 2; }
-export VERBOSE=1 DEBUG_BENCH=1
+# Default to quiet, only enable verbose+debug when --debug is provided
+if [ "$DEBUG_RUN" -eq 1 ]; then
+  export VERBOSE=1 DEBUG_BENCH=1
+else
+  export VERBOSE=0 DEBUG_BENCH=0
+fi
 
 info "Wrapper start @ ${TS} (logs: ${LOG_DIR})"
 
@@ -271,7 +278,11 @@ if [ -n "$LATEST_CSV" ]; then
     *) stk="" ;;
   esac
   if [ -n "$stk" ]; then
-    "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV"
+    if [ "$DEBUG_RUN" -eq 1 ]; then
+      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV"
+    else
+      "${ROOT_DIR}/factory/LLM/refinery/stack/common/analyze.sh" --stack "$stk" --csv "$LATEST_CSV" --no-debug
+    fi
   else
     log "Could not infer stack for latest CSV: $LATEST_CSV"
   fi
