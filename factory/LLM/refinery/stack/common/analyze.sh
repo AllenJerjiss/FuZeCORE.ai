@@ -77,6 +77,7 @@ if [ -z "$CSV" ] || [ ! -f "$CSV" ]; then
 fi
 
 log "CSV     : $CSV"
+HOST_SHORT="$(hostname -s 2>/dev/null || hostname)"
 
 if [ -n "$MODEL_RE" ]; then
   log "Model RE: $MODEL_RE"
@@ -93,20 +94,23 @@ if [ -n "$MODEL_RE" ]; then
 fi
 
 echo
-echo "Top ${TOPN} by tokens/sec (alias names):"
+echo "Top ${TOPN} by tokens/sec (uniform columns):"
+echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
 tail -n +2 "$TMP_CSV" | sort -t',' -k12,12gr | head -n "$TOPN" \
-  | awk -F',' -v AP="$ALIAS_PREFIX" '
+  | awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
     function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
     function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+    function nz(v){ return (v==""?"n/a":v) }
     {
-      ab=aliasify($5);
-      if($6=="optimized" && ($8+0)>0){ va=ab "+ng" $8 } else { va=aliasify($7) }
-      printf "  %-19s %-32s %-21s %-12s %-36s %8.2f  %-16s\n", htime($1),ab,$2,$6,va,$12,$13
+      ab=aliasify($5); va=(($6=="optimized" && ($8+0)>0)? ab "+ng" $8 : aliasify($7));
+      printf "  %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8s %5s %-12s\n",
+        htime($1), ab, $5, STK, HST, $2, $6, va, (length($8)?$8:"n/a"), ($12+0), "n/a", "n/a", $13
     }'
 
 echo
-echo "Best optimized per (endpoint, model):"
-awk -F',' -v AP="$ALIAS_PREFIX" '
+echo "Best optimized per (endpoint, model) (uniform columns):"
+echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
+awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR>1 && $6=="optimized" && $12+0>0 {
@@ -117,36 +121,40 @@ awk -F',' -v AP="$ALIAS_PREFIX" '
     if (length(best)==0){print "  (none)"; exit}
     for (k in best){
       split(k,a,"|"); ab=aliasify(a[2]); va=(ng[k]>0?ab "+ng" ng[k]:aliasify(tag[k]));
-      printf "  %-19s %-32s %-21s ng=%-4s %8.2f  %s\n", htime(ts[k]),ab,a[1],ng[k],best[k],va
+      printf "  %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8s %5s %-12s\n",
+        htime(ts[k]), ab, a[2], STK, HST, a[1], "optimized", va, (ng[k]?ng[k]:"n/a"), best[k], "n/a", "n/a", "n/a"
     }
   }
 ' "$TMP_CSV"
 
 echo
-echo "Base vs Optimized (per endpoint & model):"
-awk -F',' -v AP="$ALIAS_PREFIX" '
+echo "Base vs Optimized (per endpoint & model) (uniform columns):"
+echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
+awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR==1{next}
   {
     key=$2"|"$5
     if ($6=="base-as-is"){base[key]=$12+0; tsb[key]=$1}
-    else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=($8+0>0?aliasify($5) "+ng" $8:aliasify($7)); tso[key]=$1} }
+    else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=($8+0>0?aliasify($5) "+ng" $8:aliasify($7)); ng[key]=$8; tso[key]=$1} }
   }
   END{
-    printf "  %-19s %-21s %-32s %10s %10s %8s %s\n","timestamp","endpoint","model","base_t/s","opt_t/s","x","best_variant"
     for (k in base){
       be=base[k]+0; op=opt[k]+0; split(k,a,"|"); mult=(be>0? op/be : 0)
       ts=(tso[k] ? tso[k] : tsb[k]);
-      printf "  %-19s %-21s %-32s %10.2f %10.2f %8.2fx %s\n", htime(ts), a[1],aliasify(a[2]),be,op,(be>0?mult:0),(optname[k] ? optname[k] : "-")
+      ab=aliasify(a[2]); va=(optname[k]?optname[k]:"n/a"); ngv=(ng[k]?ng[k]:"n/a");
+      printf "  %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8.2f %5.2fx %-12s\n",
+        htime(ts), ab, a[2], STK, HST, a[1], "optimized", va, ngv, (op>0?op:0), (be>0?be:0), (be>0?mult:0), "n/a"
     }
   }
 ' "$TMP_CSV"
 
 # New: Best across endpoints per model (baseline vs optimized)
 echo
-echo "Best across endpoints (per model): baseline vs optimized"
-awk -F',' -v AP="$ALIAS_PREFIX" '
+echo "Best across endpoints (per model): baseline vs optimized (uniform columns)"
+echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
+awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR>1 {
@@ -155,12 +163,12 @@ awk -F',' -v AP="$ALIAS_PREFIX" '
     if(($6=="optimized"||$6=="published") && $12+0>oo[k]){ oo[k]=$12+0; ng[k]=$8; tso[k]=$1 }
   }
   END{
-    printf "  %-19s %-32s %10s %10s %8s %s\n","timestamp","model","base_t/s","opt_t/s","x","variant"
     for (m in bb){
       be=bb[m]+0; op=oo[m]+0; mult=(be>0? op/be : 0); ab=aliasify(m);
       v=(ng[m]>0?ab "+ng" ng[m]: (op>0?ab:"-"));
       ts=(tso[m]?tso[m]:tsb[m]);
-      printf "  %-19s %-32s %10.2f %10.2f %8.2fx %s\n", htime(ts), ab, be, op, (be>0?mult:0), v
+      printf "  %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8.2f %5.2fx %-12s\n",
+        htime(ts), ab, m, STK, HST, "n/a", "optimized", v, (ng[m]?ng[m]:"n/a"), (op>0?op:0), (be>0?be:0), (be>0?mult:0), "n/a"
     }
   }
 ' "$TMP_CSV"

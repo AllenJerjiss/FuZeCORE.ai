@@ -60,22 +60,25 @@ echo "Data: $CSV"
 # ------------- Top N overall by optimal_tokps -------------------------------
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
-  echo "Top ${TOPN} overall (by optimal_tokps, alias names):"
-  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" -v AP="$ALIAS_PREFIX" '
-    function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
-    NR>1 {
+  echo "Top ${TOPN} overall (uniform columns):"
+  echo "  timestamp           model_alias                     model_tag                  stack   host                 endpoint             label        variant_alias                        num_gpu  tok/s   base_t/s  x     gpu_label"
+  awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
       if (ST!="" && $3 !~ ST) next;
       if (MR!="" && $4 !~ MR) next;
       if (HR!="" && $2 !~ HR) next;
       if (GR!="" && ($10 !~ GR && $11 !~ GR)) next;
-      if ($7+0>0) printf "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n", $3,aliasify($4),$2,$7,$5,($5+0>0?$7/$5:0),$10,$11,$1;
-    }
-  ' "$CSV" \
-    | sort -t',' -k4,4gr | head -n "$TOPN" \
-    | awk -F',' '{
-        ts=$9; ht=(length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts;
-        printf "  %-19s %-32s %-7s %-21s %8.2f  base=%-8.2f  x=%-6.2f  %-16s\n", ht,$2,$1,$3,$4,$5,$6,$7
-      }'
+      if ($7+0>0) print $0;
+    }' "$CSV" \
+    | sort -t',' -k7,7gr | head -n "$TOPN" \
+    | awk -F',' -v AP="$ALIAS_PREFIX" '
+        function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+        function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+        {
+          ma=aliasify($4); va=($6!=""?aliasify($6):"n/a"); ep=($9!=""?$9:"n/a"); ng=($12!=""?$12:"n/a");
+          x=($5+0>0? $7/$5 : 0);
+          printf "  %-19s %-30s %-26s %-7s %-20s %-19s %-11s %-34s %-7s %7.2f %8.2f %5.2f %-12s\n",
+            htime($1), ma, $4, $3, $2, ep, "optimized", va, ng, ($7+0), ($5+0), x, $10
+        }'
 fi
 
 # ------------- Best per (stack, model) --------------------------------------

@@ -133,9 +133,21 @@ run_stack_env(){ # stack env_file
         info "${S}:${envbase}:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force."
       fi
       step_begin "${S}:${envbase}:service-cleanup"; rc=0; "$UST" "${EA[@]}" ollama service-cleanup || rc=$?; step_end $rc
-      step_begin "${S}:${envbase}:cleanup-variants"; rc=0; "$UST" "${EA[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc
+      # Do NOT remove previously generated variants during the wrapper flow.
+      # If explicit cleanup is desired, set VARIANT_CLEANUP=1.
+      if [ "${VARIANT_CLEANUP:-0}" -eq 1 ]; then
+        step_begin "${S}:${envbase}:cleanup-variants"; rc=0; "$UST" "${EA[@]}" ollama cleanup-variants --force --yes || rc=$?; step_end $rc
+      else
+        info "${S}:${envbase}:cleanup-variants — skipped (preserving existing variants). Set VARIANT_CLEANUP=1 to allow."
+      fi
       step_begin "${S}:${envbase}:benchmark"; rc=0; "$UST" "${EA[@]}" ollama benchmark || rc=$?; step_end $rc
-      step_begin "${S}:${envbase}:export-gguf"; rc=0; "$UST" "${EA[@]}" ollama export-gguf || rc=$?; step_end $rc
+      # Optional GGUF cleanup to avoid stale artifacts (set GGUF_CLEAN=1)
+      if [ "${GGUF_CLEAN:-0}" -eq 1 ]; then
+        dest_dir="${GGUF_DEST_DIR:-/FuZe/models/gguf}"
+        info "${S}:${envbase}:gguf-clean — removing old *.gguf in ${dest_dir}"
+        rm -f "${dest_dir}"/*.gguf 2>/dev/null || true
+      fi
+      step_begin "${S}:${envbase}:export-gguf"; rc=0; "$UST" "${EA[@]}" ollama export-gguf --overwrite || rc=$?; step_end $rc
       step_begin "${S}:${envbase}:analyze"; rc=0; "$UST" "${EA[@]}" analyze --stack ollama || rc=$?; step_end $rc;;
     llama.cpp|llamacpp|llama-cpp)
       step_begin "${S}:${envbase}:install"; rc=0; "$UST" "${EA[@]}" llama.cpp install || rc=$?; step_end $rc
