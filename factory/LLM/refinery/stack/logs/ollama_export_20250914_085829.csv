@@ -1,0 +1,5 @@
+model_tag,gguf_path,size_bytes,host,status
+llama3.1:8b-text-fp16,/FuZe/models/gguf/llama3.1-8b-text-fp16.gguf,16068891168,127.0.0.1:11434,exists(valid)
+gemma3:4b-it-fp16,/FuZe/models/gguf/gemma3-4b-it-fp16.gguf,8617184768,127.0.0.1:11434,exists(valid)
+gemma3:27b-it-fp16,/FuZe/models/gguf/gemma3-27b-it-fp16.gguf,54883474528,127.0.0.1:11434,exists(valid)
+gpt-oss:20b,/FuZe/models/gguf/gpt-oss-20b.gguf,13780154624,127.0.0.1:11434,exists(valid)
