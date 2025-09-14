@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+# forensics_and_fix.sh — Collect a forensic snapshot of a FuZeCORE.ai checkout and
+# produce a cleaned benchmark summary with dynamic column widths.  The script
+# expects to be run from the root of your repository (or accepts an explicit
+# path) and does not modify any tracked files.  It will create a timestamped
+# bundle under `.forensics/` containing git status, reflogs, recent history,
+# diffs versus the previous remote `origin/main` tip, raw and cleaned
+# benchmark summaries, plus a compressed archive ready for sharing.
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: $(basename "$0") [repo-root]
+
+If no argument is given the current working directory is used.  The script
+assumes this directory is a git repository containing the FuZeCORE.ai
+project and the benchmark summarizer at
+factory/LLM/refinery/stack/common/summarize-benchmarks.sh.  It creates a
+subdirectory in `.forensics/` named with the current timestamp to hold
+everything collected.
+
+Artifacts generated:
+  .forensics/<timestamp>/git/
+    status.txt          – `git status` and recent log summaries
+    reflogs.txt         – recent reflogs for HEAD and origin/main
+    integration_state.txt – indicators of merge/rebase in progress
+    path_logs.txt       – recent history of the summarizer, common scripts,
+                          benchmarks.csv, and models.env
+    baseline.txt        – commit identifier used as the diff baseline
+  .forensics/<timestamp>/diffs/
+    *_diff              – diffs between the baseline and current files of
+                          interest (benchmarks.csv, summarizer, models.env,
+                          and the common script directory)
+  .forensics/<timestamp>/outputs/
+    summary_raw.txt     – raw output of the summarizer
+    summary_fixed.txt   – cleaned summary with one header per section and
+                          columns sized from the actual data (variant width
+                          adjusts to the longest variant in the printed data)
+    summarizer.stderr.txt – any stderr emitted by the summarizer
+  .forensics/<timestamp>.tgz – tarball of the above for convenient sharing
+
+Example:
+  ./forensics_and_fix.sh
+
+USAGE
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+# Derive the repository root.  Default to the current directory if not provided.
+REPO_ROOT="${1:-$(pwd)}"
+if ! git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "error: '$REPO_ROOT' is not a git repository" >&2
+  exit 1
+fi
+
+# Set up bundle directory under .forensics with timestamp.
+timestamp=$(date +%Y%m%d_%H%M%S)
+BUNDLE_DIR="$REPO_ROOT/.forensics/$timestamp"
+mkdir -p "$BUNDLE_DIR"/git "$BUNDLE_DIR"/diffs "$BUNDLE_DIR"/files "$BUNDLE_DIR"/outputs
+
+# Helper to run git commands in the repo root.
+git_repo() {
+  git -C "$REPO_ROOT" "$@"
+}
+
+echo "Collecting git status and logs…"
+
+# Save git status and recent history.
+{
+  echo "== git status -sb =="
+  git_repo status -sb
+  echo
+  echo "== branch -vv =="
+  git_repo branch -vv
+  echo
+  echo "== remote -v =="
+  git_repo remote -v
+  echo
+  echo "== last 50 commits on this branch =="
+  git_repo log --oneline --graph --decorate -n 50
+} > "$BUNDLE_DIR/git/status.txt"
+
+# Save recent reflogs for HEAD and origin/main.
+{
+  echo "== reflog HEAD (last 30) =="
+  git_repo reflog -n 30 --date=iso
+  echo
+  if git_repo show-ref -q refs/remotes/origin/main; then
+    echo "== reflog origin/main (last 30) =="
+    git_repo reflog show origin/main -n 30 --date=iso
+  fi
+} > "$BUNDLE_DIR/git/reflogs.txt"
+
+# Record whether a merge or rebase is in progress.
+{
+  echo "rebase-apply: $( [ -d "$REPO_ROOT/.git/rebase-apply" ] && echo yes || echo no )"
+  echo "rebase-merge: $( [ -d "$REPO_ROOT/.git/rebase-merge" ] && echo yes || echo no )"
+  echo "MERGE_HEAD:   $( [ -f "$REPO_ROOT/.git/MERGE_HEAD" ] && echo yes || echo no )"
+  echo
+  echo "Unmerged files:"
+  git_repo diff --name-only --diff-filter=U || true
+} > "$BUNDLE_DIR/git/integration_state.txt"
+
+# Determine baseline commit for diffs.  Prefer the previous origin/main tip if available.
+BASELINE=""
+if git_repo rev-parse -q --verify origin/main@{1} >/dev/null 2>&1; then
+  BASELINE="origin/main@{1}"
+else
+  # fall back to merge-base of HEAD and origin/main
+  if git_repo rev-parse -q --verify origin/main >/dev/null 2>&1; then
+    BASELINE=$(git_repo merge-base HEAD origin/main)
+  else
+    # as a last resort, use the upstream of the current branch
+    BASELINE=$(git_repo merge-base HEAD @{u} 2>/dev/null || true)
+  fi
+fi
+echo "${BASELINE:-<none>}" > "$BUNDLE_DIR/git/baseline.txt"
+
+# Copy files of interest into bundle/files for later inspection.
+FILES_TO_COPY=(
+  "factory/LLM/refinery/benchmarks.csv"
+  "factory/LLM/refinery/stack/llama.cpp/models.env"
+  "factory/LLM/refinery/stack/common/summarize-benchmarks.sh"
+)
+for f in "${FILES_TO_COPY[@]}"; do
+  src="$REPO_ROOT/$f"
+  if [[ -f "$src" ]]; then
+    mkdir -p "$BUNDLE_DIR/files/$(dirname "$f")"
+    cp "$src" "$BUNDLE_DIR/files/$f"
+  fi
+done
+
+# Archive the entire common script directory (to allow deeper inspection later).
+COMMON_DIR="factory/LLM/refinery/stack/common"
+if [[ -d "$REPO_ROOT/$COMMON_DIR" ]]; then
+  tar -C "$REPO_ROOT" -czf "$BUNDLE_DIR/files/common-dir.tar.gz" "$COMMON_DIR"
+fi
+
+# Create diffs versus baseline for files of interest.
+if [[ -n "$BASELINE" ]]; then
+  for f in "${FILES_TO_COPY[@]}" "$COMMON_DIR"; do
+    src="$REPO_ROOT/$f"
+    if [[ -e "$src" ]]; then
+      out="$BUNDLE_DIR/diffs/$(echo "$f" | tr '/' '_').diff"
+      git_repo diff -U3 --color=never "$BASELINE"..HEAD -- "$f" > "$out" || true
+    fi
+  done
+fi
+
+# Save recent history for key paths.
+{
+  echo "== summarize-benchmarks.sh recent changes =="
+  git_repo log --oneline -n 20 -- "factory/LLM/refinery/stack/common/summarize-benchmarks.sh"
+  echo
+  echo "== common/ scripts recent changes =="
+  git_repo log --oneline -n 20 -- "factory/LLM/refinery/stack/common"
+  echo
+  echo "== CSV recent changes =="
+  git_repo log --oneline -n 10 -- "factory/LLM/refinery/benchmarks.csv"
+  echo
+  echo "== models.env recent changes =="
+  git_repo log --oneline -n 10 -- "factory/LLM/refinery/stack/llama.cpp/models.env"
+} > "$BUNDLE_DIR/git/path_logs.txt"
+
+echo "Running benchmark summarizer…"
+
+SUMMARY_SCRIPT="$REPO_ROOT/factory/LLM/refinery/stack/common/summarize-benchmarks.sh"
+if [[ ! -x "$SUMMARY_SCRIPT" ]]; then
+  echo "error: summarizer script not found or not executable at $SUMMARY_SCRIPT" >&2
+  exit 1
+fi
+
+# Run the summarizer and capture its stdout and stderr.
+RAW_OUT="$BUNDLE_DIR/outputs/summary_raw.txt"
+ERR_OUT="$BUNDLE_DIR/outputs/summarizer.stderr.txt"
+"$SUMMARY_SCRIPT" > "$RAW_OUT" 2> "$ERR_OUT" || true
+
+echo "Cleaning up the summary for human consumption…"
+
+# Use Python to postprocess the raw summary.  The embedded Python reads the raw
+# summary, detects each section (e.g. 'Top N overall:', 'Best per …'),
+# extracts only the data rows (lines starting with '| <digit>'), and then
+# rebuilds a table with a single header per section.  Column widths are
+# computed from the actual data, so the variant column grows to fit the
+# longest printed variant in that section.  Numeric columns are right
+# aligned; all others are left aligned.
+python3 - "$RAW_OUT" "$BUNDLE_DIR/outputs/summary_fixed.txt" <<'PY'
+import sys
+import re
+
+raw_path, out_path = sys.argv[1:3]
+with open(raw_path) as f:
+    lines = [line.rstrip('\n') for line in f]
+
+out_lines = []
+header_re = re.compile(r'^\s*[A-Za-z].*:')
+
+# Emit the data line if present at top
+for line in lines:
+    if line.startswith('Data:'):
+        out_lines.append(line)
+        out_lines.append('')
+        break
+
+# Gather section headers with their start indices
+sections = []
+for idx, line in enumerate(lines):
+    if header_re.match(line):
+        sections.append((idx, line))
+sections.append((len(lines), None))
+
+# Process each section
+for i in range(len(sections)-1):
+    start, header = sections[i]
+    end, _ = sections[i+1]
+    out_lines.append(header)
+    # Collect data rows: lines in this section that start with a '|' and a digit
+    data_rows = []
+    for line in lines[start+1:end]:
+        if re.match(r'^\|\s*[0-9]', line):
+            cells = [c.strip() for c in line.strip('|').split('|')]
+            if len(cells) == 7:
+                data_rows.append(cells)
+    if not data_rows:
+        continue
+    headers = [
+        'timestamp',
+        'variant',
+        'host',
+        'endpoint',
+        'tok/s',
+        'base_t/s',
+        'FuZe-refinery gain factor',
+    ]
+    ncols = len(headers)
+    widths = [len(h) for h in headers]
+    for row in data_rows:
+        for c in range(ncols):
+            if len(row[c]) > widths[c]:
+                widths[c] = len(row[c])
+    border = '|' + '|'.join(['-' * (w + 2) for w in widths]) + '|'
+    header_line = '|' + '|'.join([' ' + headers[c].ljust(widths[c]) + ' ' for c in range(ncols)]) + '|'
+    out_lines.append(border)
+    out_lines.append(header_line)
+    out_lines.append(border)
+    for row in data_rows:
+        parts = []
+        for c in range(ncols):
+            cell = row[c]
+            if c >= 4:  # numeric columns right align
+                parts.append(' ' + cell.rjust(widths[c]) + ' ')
+            else:
+                parts.append(' ' + cell.ljust(widths[c]) + ' ')
+        out_lines.append('|' + '|'.join(parts) + '|')
+    out_lines.append('')
+
+# Append any lines referring to CSV outputs
+for line in lines:
+    if '.csv' in line and not line.startswith('|'):
+        out_lines.append(line)
+
+with open(out_path, 'w') as out:
+    out.write('\n'.join(out_lines))
+PY
+
+# Create a tarball of the bundle for easy distribution.
+tarball="$BUNDLE_DIR.tgz"
+tar -C "$BUNDLE_DIR" -czf "$tarball" .
+
+echo "Forensics bundle created at: $BUNDLE_DIR"
+echo "Archive: $tarball"

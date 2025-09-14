@@ -1,0 +1,63 @@
+== git status -sb ==
+## main...origin/main [ahead 1]
+?? .forensics/20250914_065644/
+?? forensics-and-fix
+
+== branch -vv ==
+* main 057f684 [origin/main: ahead 1] saving state
+
+== remote -v ==
+origin	git@github.com:AllenJerjiss/FuZeCORE.ai.git (fetch)
+origin	git@github.com:AllenJerjiss/FuZeCORE.ai.git (push)
+
+== last 50 commits on this branch ==
+* 057f684 (HEAD -> main) saving state
+* f2741b9 (origin/main, origin/HEAD) forensics and fix
+* 9ded65f saving local main
+* f125cb3 saving local main
+* 179865e saving sate
+* d51bdb5 (origin/preprod) llama.cpp: normalize env keys; support LLAMACPP_MODEL override; backward-compat for legacy trailing underscore env names
+* 969313f saving state
+* 91fe324 fixing summary report
+* 6fa816e saving state
+* 992fc0c saving state
+* c6f5c99 saving work
+* 94c9961 saving state
+* adc4fd4 saving state
+* 9702762 saving state
+* b5dd179 saving state
+* c2e4296 saving state
+* 37c1875 Enforce branch-specific --env mapping on main as well
+* 10ec72b repo-wide: add .gitattributes to keep generated artifacts out during merges on branches created from main
+* 90fe899 WIP: add generated explore env file to repo for reproducibility
+* 90c6a52 Alias styling: default prefix 'LLM-FuZe-' and compact tokens (-it -> -i, -fp16 -> -f16, -bf16 -> -b16)
+* 364e86c Alias clarity: append env to alias via ALIAS_SUFFIX
+* 90062c3 GGUF export: validate existing files and skip re-export; wrapper no longer forces --overwrite
+* e1dd4fe Refinery overhaul: env modes + templates, uniform summaries, generator promotion, and safer wrapper flow
+* 3955af8 saving state
+* d488972 saving state
+* ee78d11 generated exploratory envs
+* 7e50989 saving state
+* 656ac4b saving state
+* 48857ba saving state
+* fd8fa7a saving state
+* 8b1de54 saving state
+* 4e15ff0 saving state
+* 10ba5c2 saving state
+* a6a2d76 saving state
+* dd26605 data: one-off rename host fuze-bakery -> fuze-factory in refinery CSV aggregates
+* 04ca801 ollama bench: add FAST_MODE safety guards (ZERO_TOKPS_BREAK, NO_IMPROVE_LIMIT) and minor doc cleanups; finalize refinery path cleanup
+* 2a01937 saving state
+* 0b00bd0 saving state
+* 21127db refactoring current benchmarking work into refinery
+* 905858c rename wrapper to top-level benchmark.sh; auto-discover envs and stacks; only --stack/--model flags; keep structured logging; call collect+summary; fixes to collector/summarizer paths and exporter jq-fallback
+* 8b5c0d6 saving state
+* 32b7e32 fix: collector/summarizer write/read root to fuze-box (not fuze-box/stack); resolve missing data for summary step
+* aec4d0e align stacks: remove inline summaries from vLLM/llama.cpp/Triton; rely on common/analyze.sh; keep CSV schema and debug capture
+* 7d2c517 saving state
+* c3a1dd1 saving state
+* c32f3f5 collect: add common/collect-results.sh to maintain fuze-box/benchmarks.csv; call at end of wrapper; robust log-dir selection and non-fatal step flow
+* f129a4a wrapper: prevent ERR trap from aborting; capture rc with '|| rc=0' for each step; keep logging but continue
+* c3caa1e saving state
+* 173825c ust: auto-escalate with sudo -E preserving env and args; no need to preface with sudo
+* 154f810 wrapper: add structured debug by default (tee stdout/stderr to wrapper_<ts>.log; xtrace to wrapper_<ts>.trace with PS4 timestamps; error trap); keep verbose envs

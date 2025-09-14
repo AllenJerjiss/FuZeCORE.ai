@@ -1,0 +1,5 @@
+rebase-apply: no
+rebase-merge: no
+MERGE_HEAD:   no
+
+Unmerged files:

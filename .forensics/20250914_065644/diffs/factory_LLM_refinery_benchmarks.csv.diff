@@ -1,0 +1,9 @@
+diff --git a/factory/LLM/refinery/benchmarks.csv b/factory/LLM/refinery/benchmarks.csv
+index 1edd5f1..37de8a7 100644
+--- a/factory/LLM/refinery/benchmarks.csv
++++ b/factory/LLM/refinery/benchmarks.csv
+@@ -18,3 +18,4 @@ run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_en
+ 20250914_050639,fuze-bakery,ollama,gemma3:4b-it-fp16,143.68,gemma3:4b-it-fp16,148.26,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_050639.csv
+ 20250914_051123,fuze-bakery,ollama,gemma3:4b-it-fp16,140.51,gemma3:4b-it-fp16,146.37,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_051123.csv
+ 20250914_053840,fuze-bakery,ollama,gemma3:4b-it-fp16,132.08,gemma3:4b-it-fp16,142.77,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_053840.csv
++20250914_062122,fuze-bakery,ollama,gemma3:4b-it-fp16,136.36,gemma3:4b-it-fp16,150.74,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,35,/var/log/fuze-stack/ollama_bench_20250914_062122.csv
