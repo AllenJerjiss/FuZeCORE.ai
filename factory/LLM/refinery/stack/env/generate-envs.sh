@@ -60,10 +60,10 @@ gen_one(){ # template dest
   local tpl="$1" dest="$2";
   [ -f "$tpl" ] || { echo "Template not found: $tpl" >&2; return 2; }
   mkdir -p "$dest"
-  # Extract ALIAS_PREFIX from the template (fallback FuZeCORE-)
+  # Extract ALIAS_PREFIX from the template (fallback LLM-FuZe-)
   local prefix
   prefix=$(sed -nE "s/^ALIAS_PREFIX=\"?([^\"]*)\"?.*/\1/p" "$tpl" | tail -n1)
-  [ -n "$prefix" ] || prefix="FuZeCORE-"
+  [ -n "$prefix" ] || prefix="LLM-FuZe-"
 
   local count=0 made=0 skip=0
   while IFS= read -r tag; do

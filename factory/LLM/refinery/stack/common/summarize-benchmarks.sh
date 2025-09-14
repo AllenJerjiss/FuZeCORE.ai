@@ -65,7 +65,7 @@ if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
 echo
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
   echo "Top ${TOPN} overall:"
-  echo "  timestamp           alias                           stack   host                 endpoint             label        num_gpu  tok/s   base_t/s  x     gpu"
+  echo "  timestamp           variant                         stack   host                 endpoint             num_gpu  tok/s   base_t/s  x"
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
       if (ST!="" && $3 !~ ST) next;
       if (MR!="" && $4 !~ MR) next;
@@ -75,14 +75,16 @@ if [ "$ONLY_GLOBAL" -eq 0 ]; then
     }' "$CSV" \
     | sort -t',' -k7,7gr | head -n "$TOPN" \
     | awk -F',' -v AP="$ALIAS_PREFIX" '
-        function aliasify(s,  t){ t=s; gsub(/[\/:]+/,"-",t); return (AP t) }
+        function compact(s){ gsub(/[\/:]+/,"-",s); gsub(/-it(\b|-)/,"-i\1",s); gsub(/-fp16\b/ ,"-f16",s); gsub(/-bf16\b/,"-b16",s); return s }
         function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
         {
-          ep=($9!=""?$9:"n/a"); ng=($12!=""?$12:"n/a");
-          va=(($12+0)>0 ? aliasify($4)"+ng"$12 : ($6!="" ? aliasify($6) : aliasify($4)));
+          ep=($9!=""?$9:"n/a"); ng=($12+0);
+          gl=$10; sfx=ENVIRON["ALIAS_SUFFIX"]; base=compact($4);
+          va=sprintf("%s%s%s-%s", AP, gl, (sfx? sfx: ""), base);
+          if (ng>0) va=va "+ng" ng;
           x=($5+0>0? $7/$5 : 0);
-          printf "  %-19s %-30s %-7s %-20s %-19s %-11s %7.2f %8.2f %5.2fx %-12s\n",
-            htime($1), va, $3, $2, ep, "optimized", ($12+0), ($7+0), ($5+0), x, $10
+          printf "  %-19s %-30s %-7s %-20s %7.2f %8.2f %5.2f\n",
+            htime($1), va, $3, $2, ng, ($7+0), ($5+0), x
         }'
 fi
 
