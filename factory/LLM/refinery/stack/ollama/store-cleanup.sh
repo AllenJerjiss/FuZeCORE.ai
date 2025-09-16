@@ -3,6 +3,8 @@
 # Same-FS: rename/merge with dedupe, progress, USR1 status.
 # Diff-FS: rsync missing files with --remove-source-files, then prune.
 # Idempotent & safe to re-run.
+# 
+# Multi-GPU support: Stops ollama-test-multi.service along with single-GPU services
 
 set -euo pipefail
 
@@ -34,6 +36,14 @@ echo "== ollama-store-cleanup =="
 echo "Canonical store : $CANON"
 echo "Alt candidate   : $ALT"
 
+# Safety check: detect if benchmark processes are running
+if pgrep -f "benchmark\.sh" >/dev/null 2>&1; then
+  echo "WARNING: Benchmark processes detected running. Store cleanup during benchmarks"
+  echo "         can cause model corruption or inconsistent results."
+  echo "         Consider stopping benchmarks first or use --no-stop to skip service shutdown."
+  echo ""
+fi
+
 mkdir -p "$CANON"
 if [ ! -d "$ALT" ]; then
   echo "No ALT store at $ALT — nothing to do."
@@ -47,7 +57,7 @@ fi
 # Optionally stop services to avoid churn
 if [ "$STOP_SERVICES" -eq 1 ]; then
   echo "-- stopping Ollama services (will not fail if missing)"
-  for svc in ollama ollama-persist ollama-test-a ollama-test-b; do
+  for svc in ollama ollama-persist ollama-test-a ollama-test-b ollama-test-multi; do
     systemctl stop "$svc" 2>/dev/null || true
   done
 fi

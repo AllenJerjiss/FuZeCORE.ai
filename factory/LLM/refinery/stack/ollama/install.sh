@@ -71,9 +71,12 @@ done
 # Also explicitly remove commonly seen customs
 rm -f /etc/systemd/system/ollama-persist.service \
       /etc/systemd/system/ollama-test-a.service \
-      /etc/systemd/system/ollama-test-b.service 2>/dev/null || true
+      /etc/systemd/system/ollama-test-b.service \
+      /etc/systemd/system/ollama-test-multi.service 2>/dev/null || true
 rm -rf /etc/systemd/system/ollama-persist.service.d \
-       /etc/systemd/system/ollama-test-a.service.d 2>/dev/null || true
+       /etc/systemd/system/ollama-test-a.service.d \
+       /etc/systemd/system/ollama-test-b.service.d \
+       /etc/systemd/system/ollama-test-multi.service.d 2>/dev/null || true
 
 # Catch any GPU-bound custom units like ollama-5090.service, ollama-3090ti.service
 find /etc/systemd/system -maxdepth 1 -type f -name 'ollama-*.service' -print -delete 2>/dev/null || true

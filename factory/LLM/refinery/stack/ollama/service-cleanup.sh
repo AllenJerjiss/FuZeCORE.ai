@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Ensure a consistent persistent Ollama service on :11434 using OLLAMA_HOST
+# Ensure # 4) Don't let the distro service collide on :11434
+sudo systemctl stop ollama.service 2>/dev/null || true
+sudo systemctl disable ollama.service 2>/dev/null || true
+
+# Also stop any test services that might conflict
+sudo systemctl stop ollama-test-a.service ollama-test-b.service ollama-test-multi.service 2>/dev/null || trueonsistent persistent Ollama service on :11434 using OLLAMA_HOST
 
 # 0) Vars
 UNIT=/etc/systemd/system/ollama-persist.service
@@ -56,9 +61,9 @@ sudo systemctl enable --now ollama-persist.service
 # 6) Sanity check
 sleep 1
 echo "--- listeners ---"
-for p in 11434 11435 11436; do
+for p in 11434 11435 11436 11437; do
   echo "PORT $p:"
-  sudo lsof -nP -iTCP:$p -sTCP:LISTEN -FpctLn | paste -sd' ' -
+  sudo lsof -nP -iTCP:$p -sTCP:LISTEN -FpctLn | paste -sd' ' - 2>/dev/null || echo "  (none)"
 done
 echo "--- ping :11434 ---"
 curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && echo "OK /api/tags" || echo "NOT UP"
