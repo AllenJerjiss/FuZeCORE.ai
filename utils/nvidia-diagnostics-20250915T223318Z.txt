@@ -1,0 +1,1060 @@
+===== TIMESTAMP =====
+Mon 15 Sep 2025 10:33:18 PM UTC
+
+===== UNAME =====
+Linux fuze-bakery 6.8.0-79-generic #79-Ubuntu SMP PREEMPT_DYNAMIC Tue Aug 12 14:42:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+
+===== /etc/os-release (if exists) =====
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.3 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+
+===== lspci -nnk (NVIDIA lines) =====
+41:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090 Ti] [10de:2203] (rev a1)
+	Subsystem: NVIDIA Corporation GA102 [GeForce RTX 3090 Ti] [10de:1618]
+	Kernel driver in use: nvidia
+	Kernel modules: nvidiafb, nouveau, nvidia_drm, nvidia
+41:00.1 Audio device [0403]: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1aef] (rev a1)
+	Subsystem: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1618]
+	Kernel driver in use: snd_hda_intel
+	Kernel modules: snd_hda_intel
+42:00.0 Non-Volatile memory controller [0108]: Samsung Electronics Co Ltd Device [144d:a810]
+	Subsystem: Samsung Electronics Co Ltd Device [144d:a801]
+	Kernel driver in use: nvme
+	Kernel modules: nvme
+--
+81:00.0 VGA compatible controller [0300]: NVIDIA Corporation Device [10de:2b85] (rev a1)
+	Subsystem: ASUSTeK Computer Inc. Device [1043:89ef]
+	Kernel driver in use: nvidia
+	Kernel modules: nvidiafb, nouveau, nvidia_drm, nvidia
+81:00.1 Audio device [0403]: NVIDIA Corporation Device [10de:22e8] (rev a1)
+	Subsystem: NVIDIA Corporation Device [10de:0000]
+	Kernel driver in use: snd_hda_intel
+	Kernel modules: snd_hda_intel
+82:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090 Ti] [10de:2203] (rev a1)
+	Subsystem: NVIDIA Corporation GA102 [GeForce RTX 3090 Ti] [10de:1618]
+	Kernel driver in use: nvidia
+	Kernel modules: nvidiafb, nouveau, nvidia_drm, nvidia
+82:00.1 Audio device [0403]: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1aef] (rev a1)
+	Subsystem: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1618]
+	Kernel driver in use: snd_hda_intel
+	Kernel modules: snd_hda_intel
+83:00.0 Non-Essential Instrumentation [1300]: Advanced Micro Devices, Inc. [AMD] Device [1022:14ac] (rev 01)
+	Subsystem: Advanced Micro Devices, Inc. [AMD] Device [1022:14ac]
+c0:00.0 Host bridge [0600]: Advanced Micro Devices, Inc. [AMD] Device [1022:14a4] (rev 01)
+	Subsystem: Advanced Micro Devices, Inc. [AMD] Device [1022:14a4]
+
+===== full lspci for VGA/3D/Display =====
+41:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090 Ti] [10de:2203] (rev a1) (prog-if 00 [VGA controller])
+81:00.0 VGA compatible controller [0300]: NVIDIA Corporation Device [10de:2b85] (rev a1) (prog-if 00 [VGA controller])
+82:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090 Ti] [10de:2203] (rev a1) (prog-if 00 [VGA controller])
+
+===== which nvidia-smi and nvidia-smi output =====
+/usr/bin/nvidia-smi
+0, NVIDIA GeForce RTX 3090 Ti, 575.57.08, 24564 MiB
+1, NVIDIA GeForce RTX 3090 Ti, 575.57.08, 24564 MiB
+
+===== lsmod (nvidia/nouveau) =====
+nvidia_uvm           2158592  0
+nvidia_drm            139264  14
+nvidia_modeset       1736704  11 nvidia_drm
+nvidia              11550720  195 nvidia_uvm,nvidia_modeset
+video                  77824  1 nvidia_modeset
+ecc                    45056  2 ecdh_generic,nvidia
+
+===== dmesg (recent NVIDIA/nvrm/nouveau messages) =====
+dmesg: read kernel buffer failed: Operation not permitted
+
+===== journalctl (this boot) for nvidia/nouveau =====
+Sep 15 22:22:37 fuze-bakery kernel: nvidia: loading out-of-tree module taints kernel.
+Sep 15 22:22:37 fuze-bakery kernel: nvidia: module verification failed: signature and/or required key missing - tainting kernel
+Sep 15 22:22:37 fuze-bakery kernel: nvidia-nvlink: Nvlink Core is being initialized, major device number 236
+Sep 15 22:22:37 fuze-bakery kernel: nvidia 0000:81:00.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+Sep 15 22:22:37 fuze-bakery kernel: nvidia 0000:82:00.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+Sep 15 22:22:37 fuze-bakery kernel: nvidia 0000:41:00.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=3 as /devices/pci0000:40/0000:40:01.1/0000:41:00.1/sound/card3/input28
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=3 as /devices/pci0000:80/0000:80:01.1/0000:81:00.1/sound/card0/input24
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=7 as /devices/pci0000:80/0000:80:01.1/0000:81:00.1/sound/card0/input25
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=7 as /devices/pci0000:40/0000:40:01.1/0000:41:00.1/sound/card3/input29
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=8 as /devices/pci0000:80/0000:80:01.1/0000:81:00.1/sound/card0/input26
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=8 as /devices/pci0000:40/0000:40:01.1/0000:41:00.1/sound/card3/input30
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=3 as /devices/pci0000:80/0000:80:03.1/0000:82:00.1/sound/card1/input20
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=9 as /devices/pci0000:40/0000:40:01.1/0000:41:00.1/sound/card3/input31
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=9 as /devices/pci0000:80/0000:80:01.1/0000:81:00.1/sound/card0/input27
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=7 as /devices/pci0000:80/0000:80:03.1/0000:82:00.1/sound/card1/input21
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=8 as /devices/pci0000:80/0000:80:03.1/0000:82:00.1/sound/card1/input22
+Sep 15 22:22:37 fuze-bakery kernel: input: HDA NVidia HDMI/DP,pcm=9 as /devices/pci0000:80/0000:80:03.1/0000:82:00.1/sound/card1/input23
+Sep 15 22:22:37 fuze-bakery kernel: NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  575.57.08  Release Build  (dvs-builder@U22-I3-H04-01-5)  Sat May 24 07:03:13 UTC 2025
+Sep 15 22:22:37 fuze-bakery kernel: nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  575.57.08  Release Build  (dvs-builder@U22-I3-H04-01-5)  Sat May 24 06:53:21 UTC 2025
+Sep 15 22:22:37 fuze-bakery kernel: [drm] [nvidia-drm] [GPU ID 0x00008100] Loading driver
+Sep 15 22:22:37 fuze-bakery kernel: [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:81:00.0 on minor 1
+Sep 15 22:22:37 fuze-bakery kernel: [drm] [nvidia-drm] [GPU ID 0x00008200] Loading driver
+Sep 15 22:22:37 fuze-bakery kernel: [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:82:00.0 on minor 2
+Sep 15 22:22:37 fuze-bakery kernel: [drm] [nvidia-drm] [GPU ID 0x00004100] Loading driver
+Sep 15 22:22:37 fuze-bakery kernel: [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:41:00.0 on minor 3
+Sep 15 22:24:38 fuze-bakery systemd[1]: Starting nvidia-persistenced.service - NVIDIA Persistence Daemon...
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: Verbose syslog connection opened
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: Now running with user ID 113 and group ID 118
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: Started (1931)
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: device 0000:81:00.0 - registered
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: device 0000:82:00.0 - registered
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: device 0000:41:00.0 - registered
+Sep 15 22:24:38 fuze-bakery nvidia-persistenced[1931]: Local RPC services initialized
+Sep 15 22:24:38 fuze-bakery systemd[1]: Started nvidia-persistenced.service - NVIDIA Persistence Daemon.
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) OutputClass "nvidia" ModulePath extended to "/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/xorg/modules"
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) OutputClass "nvidia" ModulePath extended to "/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/xorg/modules"
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) OutputClass "nvidia" ModulePath extended to "/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/xorg/modules"
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Applying OutputClass "nvidia" to /dev/dri/card2
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]:         loading driver: nvidia
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Applying OutputClass "nvidia" to /dev/dri/card3
+Sep 15 22:24:52 fuze-bakery /usr/libexec/gdm-x-session[2688]:         loading driver: nvidia
+Sep 15 22:24:53 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Applying OutputClass "nvidia" to /dev/dri/card1
+Sep 15 22:24:53 fuze-bakery /usr/libexec/gdm-x-session[2688]:         loading driver: nvidia
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU at PCI:0000:81:00: GPU-f869acd6-5d4a-7fb5-6be9-f88e5bd9459d
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: Xid (PCI:0000:81:00): 79, GPU has fallen off the bus.
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: GPU has fallen off the bus.
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: kgspRcAndNotifyAllChannels_IMPL: RC all channels for critical error 79.
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _issueRpcAndWait: rpcSendMessage failed with status 0x0000000f for fn 78!
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: nvCheckOkFailedNoLog: Check failed: GPU lost from the bus [NV_ERR_GPU_IS_LOST] (0x0000000F) returned from nvdEngineDumpCallbackHelper(pGpu, pPrbEnc, pNvDumpState, pEngineCallback) @ nv_debug_dump.c:274
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmLogGpuCrash: RmLogGpuCrash: failed to save GPU crash data
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: _kgspLogRpcSanityCheckFailure: GPU0 sanity check failed 0xf waiting for RPC response from GSP. Expected function 1 (SET_GUEST_SYSTEM_INFO) (0x0 0x0).
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU0 GSP RPC buffer contains function 78 (DUMP_PROTOBUF_COMPONENT) and data 0x0000000000000000 0x0000000000000000.
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU0 RPC history (CPU -> GSP):
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     entry function                   data0              data1              ts_start           ts_end             duration actively_polling
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:      0    1    SET_GUEST_SYSTEM_INFO 0x0000000000000000 0x0000000000000000 0x00063ede78f01a88 0x0000000000000000          y
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -1    73   SET_REGISTRY          0x0000000000000000 0x0000000000000000 0x00063ede78e3b864 0x00063ede78f01a4a 811494us  
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -2    72   GSP_SET_SYSTEM_INFO   0x0000000000000000 0x0000000000000000 0x00063ede78e3b861 0x00063ede78f01a4a 811497us  
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU0 RPC event history (CPU <- GSP):
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     entry function                   data0              data1              ts_start           ts_end             duration during_incomplete_rpc
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:      0    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000000 0x0000000000000000 0x00063ede78ee8b5f 0x00063ede78ee8b5f           
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -1    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000001 0x0000000000000000 0x00063ede78ee776c 0x00063ede78ee776c           
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -2    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000000 0x0000000000000000 0x00063ede78ee767c 0x00063ede78ee767c           
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -3    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000001 0x0000000000000000 0x00063ede78ee72cf 0x00063ede78ee72cf           
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -4    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000000 0x0000000000000000 0x00063ede78ecf1ec 0x00063ede78ecf1ec           
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -5    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000001 0x0000000000000000 0x00063ede78ecf168 0x00063ede78ecf168           
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -6    4128 GSP_POST_NOCAT_RECORD 0x0000000000000002 0x0000000000000027 0x00063ede78ececba 0x00063ede78ececbd      3us  
+Sep 15 22:24:53 fuze-bakery kernel: NVRM:     -7    4124 GSP_LOCKDOWN_NOTICE   0x0000000000000000 0x0000000000000000 0x00063ede78ecdeef 0x00063ede78ecdeef           
+Sep 15 22:24:53 fuze-bakery kernel:  os_dump_stack+0xe/0x20 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  _kgspRpcRecvPoll+0x308/0x760 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  _issueRpcAndWait+0xd2/0x900 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  ? osGetCurrentThread+0x26/0x60 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  ? os_mem_copy+0x10/0x20 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  RmRpcSetGuestSystemInfo+0x1f1/0x4b0 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  kgspInitRm_IMPL+0x11de/0x1610 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  RmInitAdapter+0xfc2/0x1da0 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  rm_init_adapter+0xad/0xc0 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  nv_open_device+0x1fa/0x9f0 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel:  nvidia_open+0x24c/0x4a0 [nvidia]
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: kgspInitRm_IMPL: SET_GUEST_SYSTEM_INFO failed: 0xf
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: Cannot initialize GSP firmware RM
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: iovaspaceDestruct_IMPL: 1 left-over mappings in IOVAS 0x8100
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x62:0xf:1941)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:53 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:54 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) Matched nvidia as autoconfigured driver 0
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) Matched nouveau as autoconfigured driver 1
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) LoadModule: "nvidia"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Loading /usr/lib/x86_64-linux-gnu/nvidia/xorg/nvidia_drv.so
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Module nvidia: vendor="NVIDIA Corporation"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) LoadModule: "nouveau"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Loading /usr/lib/xorg/modules/drivers/nouveau_drv.so
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Module nouveau: vendor="X.Org Foundation"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA dlloader X Driver  575.57.08  Sat May 24 06:54:23 UTC 2025
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA Unified Driver for all Supported NVIDIA GPUs
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NOUVEAU driver Date:   Sat Jan 23 12:24:42 2021 -0500
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NOUVEAU driver for NVIDIA chipset families :
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): Creating default Display subsection in Screen section
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): Depth 24, (==) framebuffer bpp 32
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): RGB weight 888
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): Default visual is TrueColor
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): Using gamma correction (1.0, 1.0, 1.0)
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Applying OutputClass "nvidia" options to /dev/dri/card2
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) NVIDIA(0): Option "AllowEmptyInitialConfiguration"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) NVIDIA(0): Enabling 2D acceleration
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Loading sub module "glxserver_nvidia"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) LoadModule: "glxserver_nvidia"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Loading /usr/lib/x86_64-linux-gnu/nvidia/xorg/libglxserver_nvidia.so
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Module glxserver_nvidia: vendor="NVIDIA Corporation"
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA GLX Module  575.57.08  Sat May 24 06:58:04 UTC 2025
+Sep 15 22:24:54 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA: The X server supports PRIME Render Offload.
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0): Valid display device(s) on GPU-0 at PCI:130:0:0
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-0 (boot)
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-1
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-2
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-3
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-4
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-5
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-6
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): NVIDIA GPU NVIDIA GeForce RTX 3090 Ti (GA102-A) at PCI:130:0:0
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     (GPU-0)
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0): Memory: 25153536 kBytes
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0): VideoBIOS: 94.02.a0.00.01
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): Detected PCI Express Link width: 16X
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: disconnected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: Internal DisplayPort
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: disconnected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: Internal TMDS
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: disconnected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: Internal DisplayPort
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: disconnected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: Internal TMDS
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: disconnected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: Internal DisplayPort
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: disconnected
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: Internal TMDS
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): No modes were requested; the default mode "nvidia-auto-select"
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0):     will be used as the requested mode.
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0):
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): Validated MetaModes:
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     "DFP-0:nvidia-auto-select"
+Sep 15 22:24:55 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): Virtual screen size determined to be 3440 x 1440
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0): DPI set to (109, 110); computed from "UseEdidDpi" X config
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     option
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): Depth 24, (==) framebuffer bpp 32
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): RGB weight 888
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): Default visual is TrueColor
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): Using gamma correction (1.0, 1.0, 1.0)
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Applying OutputClass "nvidia" options to /dev/dri/card3
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) NVIDIA(G0): Option "AllowEmptyInitialConfiguration"
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) NVIDIA(G0): Enabling 2D acceleration
+Sep 15 22:24:56 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA: The X server supports PRIME Render Offload.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0): Valid display device(s) on GPU-1 at PCI:65:0:0
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-0
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-1
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-2
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-3
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-4
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-5
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(0):     DFP-6
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): NVIDIA GPU NVIDIA GeForce RTX 3090 Ti (GA102-A) at PCI:65:0:0
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     (GPU-1)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(G0): Memory: 25153536 kBytes
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(G0): VideoBIOS: 94.02.a0.00.01
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): Detected PCI Express Link width: 16X
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-0: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-0: Internal TMDS
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-0: 165.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-1: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-1: Internal DisplayPort
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-2: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-2: Internal TMDS
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-3: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-3: Internal DisplayPort
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-4: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-4: Internal TMDS
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-5: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-5: Internal DisplayPort
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-6: disconnected
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-6: Internal TMDS
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): Validated MetaModes:
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     "NULL"
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): Virtual screen size determined to be 640 x 480
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (WW) NVIDIA(G0): Unable to get display device for DPI computation.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): DPI set to (75, 75); computed from built-in default
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G1): Depth 24, (==) framebuffer bpp 32
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G1): RGB weight 888
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G1): Default visual is TrueColor
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G1): Using gamma correction (1.0, 1.0, 1.0)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Applying OutputClass "nvidia" options to /dev/dri/card1
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) NVIDIA(G1): Option "AllowEmptyInitialConfiguration"
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (**) NVIDIA(G1): Enabling 2D acceleration
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA: The X server supports PRIME Render Offload.
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(GPU-2): The NVIDIA GPU at PCI:129:0:0 is not supported by the
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(GPU-2):     575.57.08 NVIDIA driver.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(GPU-2): Failed to initialize the NVIDIA graphics device!
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(G1): Failing initialization of X screen
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) UnloadModule: "nvidia"
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) UnloadModule: "nouveau"
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) Unloading nouveau
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(GPU-2): The NVIDIA GPU at PCI:129:0:0 is not supported by the
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(GPU-2):     575.57.08 NVIDIA driver.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (EE) NVIDIA(GPU-2): Failed to initialize the NVIDIA graphics device!
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(GPU-2): Deleting GPU-2
+Sep 15 22:24:57 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA: Reserving 24576.00 MB of virtual memory for indirect memory
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA:     access.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): ACPI: failed to connect to the ACPI event daemon; the daemon
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     may not be running or the "AcpidSocketPath" X
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     configuration option may not be set correctly.  When the
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     ACPI event daemon is available, the NVIDIA X driver will
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     try to use it to receive ACPI event notifications.  For
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     details, please see the "ConnectToAcpid" and
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     "AcpidSocketPath" X configuration options in Appendix B: X
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0):     Config Options in the README.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): Setting mode "DFP-0:nvidia-auto-select"
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): Disabling shared memory pixmaps
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): Backing store enabled
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): Silken mouse enabled
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(0): DPMS enabled
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): [DRI2] Setup complete
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(0): [DRI2]   VDPAU driver: nvidia
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): ACPI: failed to connect to the ACPI event daemon; the daemon
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     may not be running or the "AcpidSocketPath" X
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     configuration option may not be set correctly.  When the
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     ACPI event daemon is available, the NVIDIA X driver will
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     try to use it to receive ACPI event notifications.  For
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     details, please see the "ConnectToAcpid" and
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     "AcpidSocketPath" X configuration options in Appendix B: X
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0):     Config Options in the README.
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): Setting mode "NULL"
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): Disabling shared memory pixmaps
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): Backing store enabled
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): Silken mouse enabled
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (==) NVIDIA(G0): DPMS enabled
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): [DRI2] Setup complete
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(G0): [DRI2]   VDPAU driver: nvidia
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=3 (/dev/input/event4)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=7 (/dev/input/event12)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=8 (/dev/input/event14)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=9 (/dev/input/event16)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=3 (/dev/input/event5)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=7 (/dev/input/event11)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=8 (/dev/input/event13)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=9 (/dev/input/event17)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=3 (/dev/input/event15)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=7 (/dev/input/event18)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=8 (/dev/input/event19)
+Sep 15 22:24:57 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=9 (/dev/input/event20)
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-0):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-0: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-0: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-0: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-1: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-1: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-2: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-2: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-3: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-3: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-4: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-4: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-5: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-5: Internal DisplayPort
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-6: disconnected
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-6: Internal TMDS
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:24:58 fuze-bakery /usr/libexec/gdm-x-session[2688]: (--) NVIDIA(GPU-1):
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:58 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:24:59 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) OutputClass "nvidia" ModulePath extended to "/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/xorg/modules"
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) OutputClass "nvidia" ModulePath extended to "/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/xorg/modules"
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) OutputClass "nvidia" ModulePath extended to "/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/x86_64-linux-gnu/nvidia/xorg,/usr/lib/xorg/modules"
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Applying OutputClass "nvidia" to /dev/dri/card2
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]:         loading driver: nvidia
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Applying OutputClass "nvidia" to /dev/dri/card3
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]:         loading driver: nvidia
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Applying OutputClass "nvidia" to /dev/dri/card1
+Sep 15 22:26:07 fuze-bakery /usr/libexec/gdm-x-session[3480]:         loading driver: nvidia
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) Matched nvidia as autoconfigured driver 0
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) Matched nouveau as autoconfigured driver 1
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) LoadModule: "nvidia"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Loading /usr/lib/x86_64-linux-gnu/nvidia/xorg/nvidia_drv.so
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Module nvidia: vendor="NVIDIA Corporation"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) LoadModule: "nouveau"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Loading /usr/lib/xorg/modules/drivers/nouveau_drv.so
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Module nouveau: vendor="X.Org Foundation"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA dlloader X Driver  575.57.08  Sat May 24 06:54:23 UTC 2025
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA Unified Driver for all Supported NVIDIA GPUs
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NOUVEAU driver Date:   Sat Jan 23 12:24:42 2021 -0500
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NOUVEAU driver for NVIDIA chipset families :
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): Creating default Display subsection in Screen section
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): Depth 24, (==) framebuffer bpp 32
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): RGB weight 888
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): Default visual is TrueColor
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): Using gamma correction (1.0, 1.0, 1.0)
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Applying OutputClass "nvidia" options to /dev/dri/card2
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) NVIDIA(0): Option "AllowEmptyInitialConfiguration"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) NVIDIA(0): Enabling 2D acceleration
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Loading sub module "glxserver_nvidia"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) LoadModule: "glxserver_nvidia"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Loading /usr/lib/x86_64-linux-gnu/nvidia/xorg/libglxserver_nvidia.so
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Module glxserver_nvidia: vendor="NVIDIA Corporation"
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA GLX Module  575.57.08  Sat May 24 06:58:04 UTC 2025
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA: The X server supports PRIME Render Offload.
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0): Valid display device(s) on GPU-0 at PCI:130:0:0
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-0 (boot)
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-1
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-2
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-3
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-4
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-5
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-6
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): NVIDIA GPU NVIDIA GeForce RTX 3090 Ti (GA102-A) at PCI:130:0:0
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     (GPU-0)
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0): Memory: 25153536 kBytes
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0): VideoBIOS: 94.02.a0.00.01
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): Detected PCI Express Link width: 16X
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: disconnected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: Internal DisplayPort
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: disconnected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: Internal TMDS
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: disconnected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: Internal DisplayPort
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: disconnected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: Internal TMDS
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: disconnected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: Internal DisplayPort
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: disconnected
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: Internal TMDS
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:26:08 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): No modes were requested; the default mode "nvidia-auto-select"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0):     will be used as the requested mode.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): Validated MetaModes:
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     "DFP-0:nvidia-auto-select"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): Virtual screen size determined to be 3440 x 1440
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0): DPI set to (109, 110); computed from "UseEdidDpi" X config
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     option
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): Depth 24, (==) framebuffer bpp 32
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): RGB weight 888
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): Default visual is TrueColor
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): Using gamma correction (1.0, 1.0, 1.0)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Applying OutputClass "nvidia" options to /dev/dri/card3
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) NVIDIA(G0): Option "AllowEmptyInitialConfiguration"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) NVIDIA(G0): Enabling 2D acceleration
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA: The X server supports PRIME Render Offload.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0): Valid display device(s) on GPU-1 at PCI:65:0:0
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-0
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-1
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-2
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-3
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-4
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-5
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(0):     DFP-6
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): NVIDIA GPU NVIDIA GeForce RTX 3090 Ti (GA102-A) at PCI:65:0:0
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     (GPU-1)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(G0): Memory: 25153536 kBytes
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(G0): VideoBIOS: 94.02.a0.00.01
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): Detected PCI Express Link width: 16X
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-0: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-0: Internal TMDS
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-0: 165.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-1: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-1: Internal DisplayPort
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-2: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-2: Internal TMDS
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-3: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-3: Internal DisplayPort
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-4: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-4: Internal TMDS
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-5: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-5: Internal DisplayPort
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-6: disconnected
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-6: Internal TMDS
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): Validated MetaModes:
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     "NULL"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): Virtual screen size determined to be 640 x 480
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (WW) NVIDIA(G0): Unable to get display device for DPI computation.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): DPI set to (75, 75); computed from built-in default
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G1): Depth 24, (==) framebuffer bpp 32
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G1): RGB weight 888
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G1): Default visual is TrueColor
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G1): Using gamma correction (1.0, 1.0, 1.0)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Applying OutputClass "nvidia" options to /dev/dri/card1
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) NVIDIA(G1): Option "AllowEmptyInitialConfiguration"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (**) NVIDIA(G1): Enabling 2D acceleration
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA: The X server supports PRIME Render Offload.
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(GPU-2): The NVIDIA GPU at PCI:129:0:0 is not supported by the
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(GPU-2):     575.57.08 NVIDIA driver.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(GPU-2): Failed to initialize the NVIDIA graphics device!
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(G1): Failing initialization of X screen
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) UnloadModule: "nvidia"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) UnloadModule: "nouveau"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) Unloading nouveau
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(GPU-2): The NVIDIA GPU at PCI:129:0:0 is not supported by the
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(GPU-2):     575.57.08 NVIDIA driver.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (EE) NVIDIA(GPU-2): Failed to initialize the NVIDIA graphics device!
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(GPU-2): Deleting GPU-2
+Sep 15 22:26:09 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA: Reserving 24576.00 MB of virtual memory for indirect memory
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA:     access.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): ACPI: failed to connect to the ACPI event daemon; the daemon
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     may not be running or the "AcpidSocketPath" X
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     configuration option may not be set correctly.  When the
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     ACPI event daemon is available, the NVIDIA X driver will
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     try to use it to receive ACPI event notifications.  For
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     details, please see the "ConnectToAcpid" and
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     "AcpidSocketPath" X configuration options in Appendix B: X
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0):     Config Options in the README.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): Setting mode "DFP-0:nvidia-auto-select"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): Disabling shared memory pixmaps
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): Backing store enabled
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): Silken mouse enabled
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(0): DPMS enabled
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): [DRI2] Setup complete
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(0): [DRI2]   VDPAU driver: nvidia
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): ACPI: failed to connect to the ACPI event daemon; the daemon
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     may not be running or the "AcpidSocketPath" X
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     configuration option may not be set correctly.  When the
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     ACPI event daemon is available, the NVIDIA X driver will
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     try to use it to receive ACPI event notifications.  For
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     details, please see the "ConnectToAcpid" and
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     "AcpidSocketPath" X configuration options in Appendix B: X
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0):     Config Options in the README.
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): Setting mode "NULL"
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): Disabling shared memory pixmaps
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): Backing store enabled
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): Silken mouse enabled
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (==) NVIDIA(G0): DPMS enabled
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): [DRI2] Setup complete
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) NVIDIA(G0): [DRI2]   VDPAU driver: nvidia
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=3 (/dev/input/event4)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=7 (/dev/input/event12)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=8 (/dev/input/event14)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=9 (/dev/input/event16)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=3 (/dev/input/event5)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=7 (/dev/input/event11)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=8 (/dev/input/event13)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=9 (/dev/input/event17)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=3 (/dev/input/event15)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=7 (/dev/input/event18)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=8 (/dev/input/event19)
+Sep 15 22:26:09 fuze-bakery /usr/libexec/gdm-x-session[3480]: (II) config/udev: Adding input device HDA NVidia HDMI/DP,pcm=9 (/dev/input/event20)
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): connected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): Samsung C34J79x (DFP-0): 600.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-0):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-0: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-0: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-0: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-1: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-1: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-1: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-2: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-2: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-2: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-3: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-3: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-3: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-4: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-4: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-4: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-5: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-5: Internal DisplayPort
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-5: 2670.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-6: disconnected
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-6: Internal TMDS
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1): DFP-6: 165.0 MHz maximum pixel clock
+Sep 15 22:26:10 fuze-bakery /usr/libexec/gdm-x-session[3480]: (--) NVIDIA(GPU-1):
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery systemd[3415]: Started app-gnome-nvidia\x2dsettings\x2dautostart-3978.scope - Application launched by gnome-session-binary.
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:10 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (WW) NVIDIA(G0): Failed to set the display configuration
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (WW) NVIDIA(G0):  - Setting a mode on head 0 failed: Insufficient permissions
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (WW) NVIDIA(G0):  - Setting a mode on head 1 failed: Insufficient permissions
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (WW) NVIDIA(G0):  - Setting a mode on head 2 failed: Insufficient permissions
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (WW) NVIDIA(G0):  - Setting a mode on head 3 failed: Insufficient permissions
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(GPU-0): Deleting GPU-0
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(GPU-1): Renaming GPU-1 to GPU-0
+Sep 15 22:26:12 fuze-bakery /usr/libexec/gdm-x-session[2688]: (II) NVIDIA(GPU-0): Deleting GPU-0
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:12 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:26:27 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:26:27 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:26:27 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:26:27 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:30:11 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+Sep 15 22:33:18 fuze-bakery kernel: NVRM: osInitNvMapping: *** Cannot attach gpu
+Sep 15 22:33:18 fuze-bakery kernel: NVRM: RmInitAdapter: osInitNvMapping failed, bailing out of RmInitAdapter
+Sep 15 22:33:18 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: RmInitAdapter failed! (0x22:0x56:742)
+Sep 15 22:33:18 fuze-bakery kernel: NVRM: GPU 0000:81:00.0: rm_init_adapter failed, device minor number 0
+
+===== Package manager NVIDIA packages (dpkg/rpm) =====
+ii  libnvidia-cfg1-575-server:amd64                    575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA binary OpenGL/GLX configuration library
+ii  libnvidia-common-575-server                        575.57.08-0ubuntu0.24.04.2               all          Shared files used by the NVIDIA libraries
+rc  libnvidia-compute-570-server:amd64                 570.158.01-0ubuntu0.24.04.1              amd64        NVIDIA libcompute package
+ii  libnvidia-compute-575-server:amd64                 575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA libcompute package
+ii  libnvidia-decode-575-server:amd64                  575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA Video Decoding runtime libraries
+ii  libnvidia-egl-wayland1:amd64                       1:1.1.13-1build1                         amd64        Wayland EGL External Platform library -- shared library
+ii  libnvidia-encode-575-server:amd64                  575.57.08-0ubuntu0.24.04.2               amd64        NVENC Video Encoding runtime library
+ii  libnvidia-extra-575-server:amd64                   575.57.08-0ubuntu0.24.04.2               amd64        Extra libraries for the NVIDIA Server Driver
+ii  libnvidia-fbc1-575-server:amd64                    575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA OpenGL-based Framebuffer Capture runtime library
+ii  libnvidia-gl-575-server:amd64                      575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA OpenGL/GLX/EGL/GLES GLVND libraries and Vulkan ICD
+rc  linux-modules-nvidia-570-server-5.15.0-153-generic 5.15.0-153.163                           amd64        Linux kernel nvidia modules for version 5.15.0-153
+rc  linux-modules-nvidia-570-server-6.8.0-79-generic   6.8.0-79.79                              amd64        Linux kernel nvidia modules for version 6.8.0-79
+ii  linux-objects-nvidia-570-server-5.15.0-153-generic 5.15.0-153.163                           amd64        Linux kernel nvidia modules for version 5.15.0-153 (objects)
+ii  linux-objects-nvidia-570-server-6.8.0-79-generic   6.8.0-79.79                              amd64        Linux kernel nvidia modules for version 6.8.0-79 (objects)
+ii  linux-signatures-nvidia-5.15.0-153-generic         5.15.0-153.163                           amd64        Linux kernel signatures for nvidia modules for version 5.15.0-153-generic
+ii  linux-signatures-nvidia-6.8.0-79-generic           6.8.0-79.79                              amd64        Linux kernel signatures for nvidia modules for version 6.8.0-79-generic
+rc  nvidia-compute-utils-570-server                    570.158.01-0ubuntu0.24.04.1              amd64        NVIDIA compute utilities
+ii  nvidia-compute-utils-575-server                    575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA compute utilities
+ii  nvidia-dkms-575-server-open                        575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA DKMS package (open kernel module)
+ii  nvidia-driver-575-server-open                      575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA driver (open kernel) metapackage
+ii  nvidia-firmware-575-server-575.57.08               575.57.08-0ubuntu0.24.04.2               amd64        Firmware files used by the kernel module
+rc  nvidia-kernel-common-570-server                    570.158.01-0ubuntu0.24.04.1              amd64        Shared files used with the kernel module
+ii  nvidia-kernel-common-575-server                    575.57.08-0ubuntu0.24.04.2               amd64        Shared files used with the kernel module
+ii  nvidia-kernel-source-575-server-open               575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA kernel source package
+ii  nvidia-prime                                       0.8.17.2                                 all          Tools to enable NVIDIA's Prime
+ii  nvidia-settings                                    510.47.03-0ubuntu4                       amd64        Tool for configuring the NVIDIA graphics driver
+ii  nvidia-utils-575-server                            575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA Server Driver support binaries
+ii  screen-resolution-extra                            0.18.3ubuntu0.24.04.1                    all          Extension for the nvidia-settings control panel
+ii  xserver-xorg-video-nvidia-575-server               575.57.08-0ubuntu0.24.04.2               amd64        NVIDIA binary Xorg driver
+
+===== mokutil Secure Boot state (if available) =====
+sudo: a password is required
+SecureBoot disabled
+Platform is in Setup Mode
+
+===== dkms status (if available) =====
+sudo: a password is required
+nvidia/575.57.08, 6.8.0-79-generic, x86_64: installed
+
+===== end =====

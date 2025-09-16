@@ -1,0 +1,188 @@
+uze@fuze-bakery:~/GitHub/FuZeCORE.ai.test$ sudo ./benchmark.sh --env explore --model '^.*qwen|oss|-16.*$' ollama
+== Wrapper start @ 20250914_213745 (logs: /var/log/fuze-stack)
+Best-per-(stack,model) CSV: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/benchmarks.best.csv
+Best-by-(host,model) CSV: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/benchmarks.best.by_host_model.csv
+Best-global-by-model CSV: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/benchmarks.best.by_model.csv
+CSVs in : /var/log/fuze-stack
+== [env-prepare:explore]
+skip (exists): LLM-FuZe-qwen3-32b-q8_0.env
+skip (exists): LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env
+skip (exists): LLM-FuZe-gpt-oss-20b.env
+skip (exists): LLM-FuZe-llama4-17b-scout-16e-instruct-fp16.env
+Summary: models=4 written=0 skipped=4 dest=/home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/stack/env/explore template=LLM-FuZe-explore.env.template
+✔ [env-prepare:explore] done (0s)
+== [preflight]
+✔ [preflight] done (1s)
+== ENV: LLM-FuZe-qwen3-32b-q8_0.env
+== ollama:LLM-FuZe-qwen3-32b-q8_0.env:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force.
+== [ollama:LLM-FuZe-qwen3-32b-q8_0.env:service-cleanup]
+--- listeners ---
+PORT 11434:
+p2586 collama Lollama tIPv4 n127.0.0.1:11434
+PORT 11435:
+p639501 collama Lollama tIPv4 n127.0.0.1:11435
+PORT 11436:
+p639819 collama Lollama tIPv4 n127.0.0.1:11436
+--- ping :11434 ---
+OK /api/tags
+NAME                                                          ID              SIZE      MODIFIED           
+qwen3:32b-q8_0                                                a46beca077e5    35 GB     About a minute ago    
+qwen3:30b-a3b-thinking-2507-q4_K_M                            e50831eb2d91    18 GB     3 minutes ago         
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng28:latest    a5a70b4d68a8    8.6 GB    8 minutes ago         
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5070ti-ng27:latest    e10e74acd77b    8.6 GB    9 minutes ago         
+LLM-FuZe-gpt-oss-20b-explore-nvidia-3090ti-ng25:latest        a4fa2c69bfbf    13 GB     10 minutes ago        
+LLM-FuZe-gpt-oss-20b-explore-nvidia-5070ti-ng12:latest        1ffbc407e72b    13 GB     11 minutes ago        
+llama3.1:8b-text-fp16                                         722fd1ff1fda    16 GB     25 hours ago          
+kronos483/MedEmbed-large-v0.1:latest                          bae5584e161f    670 MB    27 hours ago          
+gemma3:4b-it-fp16                                             c4da438ae756    8.6 GB    37 hours ago          
+gemma3:27b-it-fp16                                            b7d58e2e179e    54 GB     37 hours ago          
+gpt-oss:20b                                                   aa4295ac10c3    13 GB     37 hours ago          
+llama4:17b-scout-16e-instruct-fp16                            f390ec6c1a81    217 GB    2 days ago            
+deepseek-r1:671b-q4_K_M                                       58e944f7074d    404 GB    2 days ago            
+deepseek-r1:70b                                               d37b54d01a76    42 GB     2 days ago            
+llama4:16x17b                                                 bf31604e25c2    67 GB     3 days ago            
+llama4:128x17b                                                b4832b93e292    244 GB    3 days ago            
+✔ [ollama:LLM-FuZe-qwen3-32b-q8_0.env:service-cleanup] done (2s)
+== ollama:LLM-FuZe-qwen3-32b-q8_0.env:cleanup-variants — skipped (preserving existing variants). Set VARIANT_CLEANUP=1 to allow.
+== [ollama:LLM-FuZe-qwen3-32b-q8_0.env:benchmark]
+== One-at-a-time auto-tune + bench (POSIX) ==
+Persistent : 127.0.0.1:11434
+CSV        : /var/log/fuze-stack/ollama_bench_20250914_213748.csv
+Analyze    : /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/stack/common/analyze.sh --stack ollama
+== Preparing directories and services
+GPU: NVIDIA GeForce RTX 5070 Ti, GPU-36c7f9d2-5480-e9a4-4740-6b5bf0605c6c, 16303 MiB
+GPU: NVIDIA GeForce RTX 3090 Ti, GPU-b8530596-c700-dd8d-4312-2b4fb42129fc, 24564 MiB
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-a.service → /etc/systemd/system/ollama-test-a.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-b.service → /etc/systemd/system/ollama-test-b.service.
+== TEST A OLLAMA_MODELS: /FuZe/models/ollama
+== TEST B OLLAMA_MODELS: /FuZe/models/ollama
+== Waiting for APIs
+== ollama version: ollama version is 0.11.10
+== Discovering base models from persistent daemon (:11434)
+== Models     : qwen3:32b-q8_0|LLM-FuZe-qwen3-32b-q8_0-explore 
+=== Tuning on 127.0.0.1:11435 — base: qwen3:32b-q8_0 (alias LLM-FuZe-qwen3-32b-q8_0-explore) ===
+==  Using AUTO_NG (layers.model=65) -> ng: 65 62 59 56 52 49 46 43 39 36 33 30 26 23 20 17 13 10 7
+!      Breaking after 5 non-improving trials (best=4.54 tok/s)
+✔  Best so far: LLM-FuZe-qwen3-32b-q8_0-explore+ng65 (ng=65) at 4.54 tok/s
+==  Publishing best variant tag: LLM-FuZe-qwen3-32b-q8_0-explore-nvidia-5070ti-ng65 (FROM qwen3:32b-q8_0 num_gpu=65)
+✔  Published: LLM-FuZe-qwen3-32b-q8_0-explore-nvidia-5070ti-ng65:latest
+!  Published variant returned 0.00 tok/s
+=== Tuning on 127.0.0.1:11436 — base: qwen3:32b-q8_0 (alias LLM-FuZe-qwen3-32b-q8_0-explore) ===
+
+
+
+==  Using AUTO_NG (layers.model=65) -> ng: 65 62 59 56 52 49 46 43 39 36 33 30 26 23 20 17 13 10 7
+^C
+fuze@fuze-bakery:~/GitHub/FuZeCORE.ai.test$ ollama ls
+NAME                                                          ID              SIZE      MODIFIED       
+LLM-FuZe-qwen3-32b-q8_0-explore-nvidia-5070ti-ng65:latest     23bd6f2e7041    35 GB     3 minutes ago     
+qwen3:32b-q8_0                                                a46beca077e5    35 GB     16 minutes ago    
+qwen3:30b-a3b-thinking-2507-q4_K_M                            e50831eb2d91    18 GB     18 minutes ago    
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng28:latest    a5a70b4d68a8    8.6 GB    24 minutes ago    
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5070ti-ng27:latest    e10e74acd77b    8.6 GB    24 minutes ago    
+LLM-FuZe-gpt-oss-20b-explore-nvidia-3090ti-ng25:latest        a4fa2c69bfbf    13 GB     26 minutes ago    
+LLM-FuZe-gpt-oss-20b-explore-nvidia-5070ti-ng12:latest        1ffbc407e72b    13 GB     27 minutes ago    
+llama3.1:8b-text-fp16                                         722fd1ff1fda    16 GB     25 hours ago      
+kronos483/MedEmbed-large-v0.1:latest                          bae5584e161f    670 MB    27 hours ago      
+gemma3:4b-it-fp16                                             c4da438ae756    8.6 GB    38 hours ago      
+gemma3:27b-it-fp16                                            b7d58e2e179e    54 GB     38 hours ago      
+gpt-oss:20b                                                   aa4295ac10c3    13 GB     38 hours ago      
+llama4:17b-scout-16e-instruct-fp16                            f390ec6c1a81    217 GB    2 days ago        
+deepseek-r1:671b-q4_K_M                                       58e944f7074d    404 GB    2 days ago        
+deepseek-r1:70b                                               d37b54d01a76    42 GB     2 days ago        
+llama4:16x17b                                                 bf31604e25c2    67 GB     3 days ago        
+llama4:128x17b                                                b4832b93e292    244 GB    3 days ago        
+fuze@fuze-bakery:~/GitHub/FuZeCORE.ai.test$ sudo ./benchmark.sh --env explore --model '^.*qwen3.*thinking.*$' ollama
+[sudo] password for fuze: 
+== Wrapper start @ 20250914_215356 (logs: /var/log/fuze-stack)
+Best-per-(stack,model) CSV: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/benchmarks.best.csv
+Best-by-(host,model) CSV: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/benchmarks.best.by_host_model.csv
+Best-global-by-model CSV: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/benchmarks.best.by_model.csv
+CSVs in : /var/log/fuze-stack
+== [env-prepare:explore]
+skip (exists): LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env
+Summary: models=1 written=0 skipped=1 dest=/home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/stack/env/explore template=LLM-FuZe-explore.env.template
+✔ [env-prepare:explore] done (0s)
+== [preflight]
+✔ [preflight] done (1s)
+== ENV: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env
+== ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:install — skipped (ollama present). Set FORCE_OLLAMA_INSTALL=1 to force.
+== [ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:service-cleanup]
+--- listeners ---
+PORT 11434:
+p2586 collama Lollama tIPv4 n127.0.0.1:11434
+PORT 11435:
+p642851 collama Lollama tIPv4 n127.0.0.1:11435
+PORT 11436:
+p643168 collama Lollama tIPv4 n127.0.0.1:11436
+--- ping :11434 ---
+OK /api/tags
+NAME                                                          ID              SIZE      MODIFIED       
+LLM-FuZe-qwen3-32b-q8_0-explore-nvidia-5070ti-ng65:latest     23bd6f2e7041    35 GB     3 minutes ago     
+qwen3:32b-q8_0                                                a46beca077e5    35 GB     17 minutes ago    
+qwen3:30b-a3b-thinking-2507-q4_K_M                            e50831eb2d91    18 GB     19 minutes ago    
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-3090ti-ng28:latest    a5a70b4d68a8    8.6 GB    24 minutes ago    
+LLM-FuZe-gemma3-4b-i-f16-explore-nvidia-5070ti-ng27:latest    e10e74acd77b    8.6 GB    25 minutes ago    
+LLM-FuZe-gpt-oss-20b-explore-nvidia-3090ti-ng25:latest        a4fa2c69bfbf    13 GB     26 minutes ago    
+LLM-FuZe-gpt-oss-20b-explore-nvidia-5070ti-ng12:latest        1ffbc407e72b    13 GB     27 minutes ago    
+llama3.1:8b-text-fp16                                         722fd1ff1fda    16 GB     25 hours ago      
+kronos483/MedEmbed-large-v0.1:latest                          bae5584e161f    670 MB    27 hours ago      
+gemma3:4b-it-fp16                                             c4da438ae756    8.6 GB    38 hours ago      
+gemma3:27b-it-fp16                                            b7d58e2e179e    54 GB     38 hours ago      
+gpt-oss:20b                                                   aa4295ac10c3    13 GB     38 hours ago      
+llama4:17b-scout-16e-instruct-fp16                            f390ec6c1a81    217 GB    2 days ago        
+deepseek-r1:671b-q4_K_M                                       58e944f7074d    404 GB    2 days ago        
+deepseek-r1:70b                                               d37b54d01a76    42 GB     2 days ago        
+llama4:16x17b                                                 bf31604e25c2    67 GB     3 days ago        
+llama4:128x17b                                                b4832b93e292    244 GB    3 days ago        
+✔ [ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:service-cleanup] done (2s)
+== ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:cleanup-variants — skipped (preserving existing variants). Set VARIANT_CLEANUP=1 to allow.
+== [ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:benchmark]
+== One-at-a-time auto-tune + bench (POSIX) ==
+Persistent : 127.0.0.1:11434
+CSV        : /var/log/fuze-stack/ollama_bench_20250914_215359.csv
+Analyze    : /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/stack/common/analyze.sh --stack ollama
+== Preparing directories and services
+GPU: NVIDIA GeForce RTX 5070 Ti, GPU-36c7f9d2-5480-e9a4-4740-6b5bf0605c6c, 16303 MiB
+GPU: NVIDIA GeForce RTX 3090 Ti, GPU-b8530596-c700-dd8d-4312-2b4fb42129fc, 24564 MiB
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-a.service → /etc/systemd/system/ollama-test-a.service.
+Created symlink /etc/systemd/system/multi-user.target.wants/ollama-test-b.service → /etc/systemd/system/ollama-test-b.service.
+== TEST A OLLAMA_MODELS: /FuZe/models/ollama
+== TEST B OLLAMA_MODELS: /FuZe/models/ollama
+== Waiting for APIs
+== ollama version: ollama version is 0.11.10
+== Discovering base models from persistent daemon (:11434)
+== Models     : qwen3:30b-a3b-thinking-2507-q4_K_M|LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore 
+=== Tuning on 127.0.0.1:11435 — base: qwen3:30b-a3b-thinking-2507-q4_K_M (alias LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore) ===
+==  Using AUTO_NG (layers.model=49) -> ng: 49 47 45 42 40 37 35 32 30 27 25 23 20 18 15 13 10 8 5
+!      Breaking after 5 non-improving trials (best=36.98 tok/s)
+✔  Best so far: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore+ng37 (ng=37) at 36.98 tok/s
+==  Publishing best variant tag: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore-nvidia-5070ti-ng37 (FROM qwen3:30b-a3b-thinking-2507-q4_K_M num_gpu=37)
+✔  Published: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore-nvidia-5070ti-ng37:latest
+✔  Published variant performance: 34.42 tok/s
+=== Tuning on 127.0.0.1:11436 — base: qwen3:30b-a3b-thinking-2507-q4_K_M (alias LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore) ===
+==  Using AUTO_NG (layers.model=49) -> ng: 49 47 45 42 40 37 35 32 30 27 25 23 20 18 15 13 10 8 5
+!      Breaking after 5 non-improving trials (best=144.13 tok/s)
+✔  Best so far: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore+ng32 (ng=32) at 144.13 tok/s
+==  Publishing best variant tag: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore-nvidia-3090ti-ng32 (FROM qwen3:30b-a3b-thinking-2507-q4_K_M num_gpu=32)
+✔  Published: LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M-explore-nvidia-3090ti-ng32:latest
+✔  Published variant performance: 27.92 tok/s
+✔ Done.
+✔ [ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:benchmark] done (310s)
+== [ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:export-gguf]
+OK  export(manifest): qwen3:32b-q8_0 -> /FuZe/models/gguf/qwen3-32b-q8_0.gguf (35132291680 bytes)
+OK  export(manifest): qwen3:30b-a3b-thinking-2507-q4_K_M -> /FuZe/models/gguf/qwen3-30b-a3b-thinking-2507-q4_K_M.gguf (18556685856 bytes)
+OK   existing(valid): /FuZe/models/gguf/llama3.1-8b-text-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gemma3-4b-it-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gemma3-27b-it-fp16.gguf — skip re-export
+OK   existing(valid): /FuZe/models/gguf/gpt-oss-20b.gguf — skip re-export
+
+Summary: found=19 kept=6 exported=6 failed=0
+CSV: /var/log/fuze-stack/ollama_export_20250914_215909.csv
+llama.cpp env mappings: /home/fuze/GitHub/FuZeCORE.ai.test/factory/LLM/refinery/stack/llama.cpp/models.env
+Errors (if any): /var/log/fuze-stack/export_errors_20250914_215909
+✔ [ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:export-gguf] done (26s)
+== ollama:LLM-FuZe-qwen3-30b-a3b-thinking-2507-q4_K_M.env:analyze — skipped (shown in final wrapper step)
+== [collect]
+✔ [collect] done (0s)
+

@@ -1,1 +1,0 @@
-host,timestamp,endpoint,gpu_name,gpu_uuid,label,model,num_gpu,endpoint_suffix,eval_count,eval_duration,tokens_per_sec

@@ -1,8 +1,0 @@
-=== Final Summary @ fuze-bakery 20250913_093922 ===
-CSV: /home/fuze/GitHub/FuZeCORE.ai/fuze-box/stack/logs/ollama_bench_20250913_093922.csv
-
-No optimized variants succeeded.
-
-=== Base vs Optimized (per endpoint & model) ===
-endpoint              model                          base_t/s    opt_t/s        x best_variant
-127.0.0.1:11435       gemma3:4b-it-fp16                  0.00       0.00     0.00x 
