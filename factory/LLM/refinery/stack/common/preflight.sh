@@ -5,29 +5,28 @@
 
 set -euo pipefail
 
-c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
-ok(){ echo -e "${c_green}✔${c_reset} $*"; }
-warn(){ echo -e "${c_yellow}!${c_reset} $*"; }
-err(){ echo -e "${c_red}✖${c_reset} $*"; }
-info(){ echo -e "${c_bold}==${c_reset} $*"; }
+# Source common functions
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/common.sh"
+
+# Initialize with common functions
+init_common "preflight"
 
 HAVE_WARN=0; HAVE_ERR=0
 mark_warn(){ HAVE_WARN=1; }
 mark_err(){ HAVE_ERR=1; }
 
-have_cmd(){ command -v "$1" >/dev/null 2>&1; }
-
 section_sys(){
-  info "System"
-  if have_cmd lsb_release; then
-    ok "OS       : $(lsb_release -sd 2>/dev/null || true)"
+  log_info "System Status"
+  if require_cmd "lsb_release" 2>/dev/null; then
+    log_success "OS       : $(lsb_release -sd 2>/dev/null || true)"
   elif [ -f /etc/os-release ]; then
     # shellcheck disable=SC1091
-    . /etc/os-release; ok "OS       : ${PRETTY_NAME:-unknown}"
+    . /etc/os-release; log_success "OS       : ${PRETTY_NAME:-unknown}"
   else
-    warn "OS       : unknown (no lsb_release/os-release)"; mark_warn
+    log_warn "OS       : unknown (no lsb_release/os-release)"; mark_warn
   fi
-  ok "Kernel   : $(uname -r)"
+  log_success "Kernel   : $(uname -r)"
 }
 
 section_gpu(){

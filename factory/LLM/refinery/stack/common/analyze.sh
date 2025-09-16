@@ -10,25 +10,28 @@
 
 set -euo pipefail
 
-LOG_DIR_DEFAULT="${LOG_DIR:-/var/log/fuze-stack}"
-# Alias prefix (should match benchmark scripts); can be blank
-ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Configuration
+LOG_DIR="${LOG_DIR:-$LOG_DIR_DEFAULT}"
+ALIAS_PREFIX="${ALIAS_PREFIX:-$ALIAS_PREFIX_DEFAULT}"
 STACK=""
 CSV=""
 MODEL_RE=""
-TOPN=5
+TOPN="$TOPN_DEFAULT"
 WITH_DEBUG=1
 NO_TOP=0
 
 usage(){
   cat <<USAGE
 Usage: $0 [--stack STACK] [--csv PATH] [--model REGEX] [--top N] [--no-debug] [--no-top]
-  STACK: one of {ollama, vLLM, llama.cpp, Triton}
+  STACK: one of {$SUPPORTED_STACKS}
   CSV  : path to a benchmark CSV (overrides autodiscovery)
   MODEL: regex to filter base_model (e.g., '^gemma3:4b')
   TOP  : number of top rows to show (default: ${TOPN})
 Env:
-  LOG_DIR: logs directory (default: ${LOG_DIR_DEFAULT})
+  LOG_DIR: logs directory (default: ${LOG_DIR})
 USAGE
 }
 
@@ -41,13 +44,51 @@ while [ $# -gt 0 ]; do
     --no-debug) WITH_DEBUG=0; shift 1;;
     --no-top)   NO_TOP=1; shift 1;;
     -h|--help) usage; exit 0;;
-    *) echo "Unknown arg: $1" >&2; usage; exit 2;;
+    *) error_exit "Unknown argument: $1";;
   esac
 done
 
-log(){ echo -e "$*"; }
-err(){ echo -e "\033[31m✖\033[0m $*" >&2; }
-ok(){ echo -e "\033[32m✔\033[0m $*"; }
+# Validate parameters
+validate_number "$TOPN" "top" 1 100
+[ -n "$MODEL_RE" ] && validate_regex "$MODEL_RE" "model"
+
+# Check required tools
+require_cmds awk sed find
+
+# Find CSV if not specified
+if [ -z "$CSV" ]; then
+  if [ -n "$STACK" ]; then
+    # Look for latest CSV for specific stack
+    CSV="$(find "$LOG_DIR" -name "${STACK}_benchmark_*.csv" -type f 2>/dev/null | sort | tail -n1)"
+  else
+    # Auto-detect latest CSV from any stack  
+    local latest_csv=""
+    local latest_time=0
+    for stack in $SUPPORTED_STACKS; do
+      local stack_csv
+      stack_csv="$(find "$LOG_DIR" -name "${stack}_benchmark_*.csv" -type f 2>/dev/null | sort | tail -n1)"
+      if [ -n "$stack_csv" ] && [ -f "$stack_csv" ]; then
+        local file_time
+        file_time="$(stat -c %Y "$stack_csv" 2>/dev/null || echo 0)"
+        if [ "$file_time" -gt "$latest_time" ]; then
+          latest_time="$file_time"
+          latest_csv="$stack_csv"
+          STACK="$(basename "$stack_csv" | cut -d'_' -f1)"
+        fi
+      fi
+    done
+    CSV="$latest_csv"
+  fi
+fi
+
+# Validate CSV file
+if [ -z "$CSV" ] || [ ! -f "$CSV" ]; then
+  error_exit "No benchmark CSV found. Use --csv PATH or run a benchmark first."
+fi
+
+validate_csv "$CSV" 10
+
+HOST_SHORT="$(get_hostname)"
 
 pick_latest_csv(){
   local dir="$1" stack="$2"; local pat
@@ -82,9 +123,9 @@ HOST_SHORT="$(hostname -s 2>/dev/null || hostname)"
 
 # Header details only in debug mode
 if [ "$WITH_DEBUG" -eq 1 ]; then
-  log "CSV     : $CSV"
+  info "CSV     : $CSV"
   if [ -n "$MODEL_RE" ]; then
-    log "Model RE: $MODEL_RE"
+    info "Model RE: $MODEL_RE"
   fi
   # Count rows and unique base models
   awk -F',' 'NR>1{n++; m[$5]=1} END{printf "Rows   : %d\nModels : %d\n", n, length(m)}' "$CSV"
@@ -93,8 +134,9 @@ fi
 # If model filter provided, create a temp filtered view
 TMP_CSV="$CSV"
 if [ -n "$MODEL_RE" ]; then
-  TMP_CSV="$(mktemp)"
-  awk -F',' -v re="$MODEL_RE" 'NR==1|| $5 ~ re' "$CSV" >"$TMP_CSV"
+  TMP_CSV="$(make_temp)"
+  awk -F',' -v re="$MODEL_RE" 'NR==1|| $5 ~ re' "$CSV" >"$TMP_CSV" || error_exit "Failed to filter CSV by model regex"
+  debug "Created filtered CSV with $(wc -l < "$TMP_CSV") lines"
 fi
 
 # Baseline map per (endpoint|model)

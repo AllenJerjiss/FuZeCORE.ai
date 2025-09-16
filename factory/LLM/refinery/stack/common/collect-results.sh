@@ -7,19 +7,29 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
 # Repo refinery root (this script lives in LLM/refinery/stack/common)
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
+LOG_DIR="${LOG_DIR:-$LOG_DIR_DEFAULT}"
 OUT_CSV="${OUT_CSV:-${ROOT_DIR}/benchmarks.csv}"
-STACKS="${STACKS:-ollama vLLM llama.cpp Triton}"
+STACKS="${STACKS:-$SUPPORTED_STACKS}"
 SCAN_ALL=0
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--log-dir DIR] [--out PATH] [--stacks "ollama vLLM llama.cpp Triton"] [--all]
-Env:
-  LOG_DIR, OUT_CSV, STACKS
+Usage: $(basename "$0") [--log-dir DIR] [--out PATH] [--stacks "STACK LIST"] [--all] [--help]
+
+Options:
+  --log-dir DIR    Log directory to scan (default: $LOG_DIR)
+  --out PATH       Output CSV file (default: $OUT_CSV) 
+  --stacks "LIST"  Space-separated stack names (default: $STACKS)
+  --all            Scan all CSV files, not just latest per stack
+  --help           Show this help
+
+Environment:
+  LOG_DIR, OUT_CSV, STACKS can also be set via environment variables
 USAGE
 }
 
@@ -30,11 +40,23 @@ while [ $# -gt 0 ]; do
     --stacks)  STACKS="$2"; shift 2;;
     --all)     SCAN_ALL=1; shift 1;;
     -h|--help) usage; exit 0;;
-    *) echo "Unknown arg: $1" >&2; usage; exit 2;;
+    *) error_exit "Unknown argument: $1";;
   esac
 done
 
-host="$(hostname -s 2>/dev/null || hostname)"
+# Validate inputs
+require_dir_writable "$(dirname "$OUT_CSV")"
+[ -d "$LOG_DIR" ] || error_exit "Log directory not found: $LOG_DIR"
+
+# Check required tools
+require_cmds awk sort find
+
+info "Collecting benchmark results..."
+info "Log directory: $LOG_DIR"
+info "Output CSV: $OUT_CSV"
+info "Stacks: $STACKS"
+
+host="$(get_hostname)"
 
 # Ensure output exists with header
 if [ ! -f "$OUT_CSV" ]; then

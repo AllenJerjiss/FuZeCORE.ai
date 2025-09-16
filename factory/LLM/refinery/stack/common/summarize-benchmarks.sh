@@ -8,7 +8,13 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Source common functions
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/common.sh"
+
+# Initialize with common functions
+init_common "summarize-benchmarks"
+
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 CSV="${CSV:-${ROOT_DIR}/benchmarks.csv}"
@@ -28,12 +34,34 @@ ONLY_TOP=0
 usage(){
   cat <<USAGE
 Usage: $(basename "$0") [--csv PATH] [--current-csv PATH] [--top N] [--stack REGEX] [--model REGEX] [--gpu REGEX] [--host REGEX] [--md-out FILE]
-Env:
-  CSV (default: LLM/refinery/benchmarks.csv)
-  CURRENT_CSV (optional: individual benchmark CSV to include in results)
-  TOPN (default: 10)
-  STACK_RE, MODEL_RE, GPU_RE, HOST_RE (regex filters)
-  MD_OUT (optional path to write Markdown copy)
+
+Generate comprehensive benchmark summaries with multiple output formats.
+
+OPTIONS:
+    --csv PATH             Use specific CSV file (default: LLM/refinery/benchmarks.csv)
+    --current-csv PATH     Individual benchmark CSV to include in results
+    --top N                Show top N results (default: 10) 
+    --stack REGEX          Filter by stack name pattern
+    --model REGEX          Filter by model name pattern
+    --gpu REGEX            Filter by GPU label pattern
+    --host REGEX           Filter by hostname pattern
+    --md-out FILE          Generate markdown report to file
+    --no-paths             Exclude file paths from output
+    --only-global          Only show global top results
+    --only-top             Only generate top results, not full summaries
+    --quiet                Minimal output
+    --dry-run              Show what would be done without executing
+    -h, --help             Show this help
+
+EXAMPLES:
+    $0                              # Process all results
+    $0 --stack ollama              # Only ollama results  
+    $0 --model "gemma3"            # Filter by model name
+    $0 --only-top --top 10         # Just top 10 performers
+    $0 --md-out report.md          # Generate markdown report
+
+Environment Variables:
+  CSV, CURRENT_CSV, TOPN, STACK_RE, MODEL_RE, GPU_RE, HOST_RE, MD_OUT
 USAGE
 }
 
@@ -42,27 +70,58 @@ while [ $# -gt 0 ]; do
     --csv) CSV="$2"; shift 2;;
     --current-csv) CURRENT_CSV="$2"; shift 2;;
     --top) TOPN="$2"; shift 2;;
+    --stack) STACK_RE="$2"; shift 2;;
+    --model) MODEL_RE="$2"; shift 2;;
+    --gpu) GPU_RE="$2"; shift 2;;
+    --host) HOST_RE="$2"; shift 2;;
+    --md-out) MD_OUT="$2"; shift 2;;
     --no-paths) NO_PATHS=1; shift 1;;
     --only-global) ONLY_GLOBAL=1; shift 1;;
     --only-top) ONLY_TOP=1; shift 1;;
     --quiet) QUIET=1; shift 1;;
+    --dry-run) DRY_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
-    *) echo "Unknown arg: $1" >&2; usage; exit 2;;
+    *) error_exit "Unknown argument: $1" ;;
   esac
 done
 
+# Validate inputs
+require_cmd "awk" "sed" "sort"
+
 if [ ! -f "$CSV" ]; then
-  echo "No data: $CSV not found" >&2
-  exit 1
+  log_warn "No historical data found: $CSV"
+  if [ -z "$CURRENT_CSV" ]; then
+    error_exit "No CSV data available"
+  fi
+fi
+
+if [ -n "$CURRENT_CSV" ] && [ ! -f "$CURRENT_CSV" ]; then
+  error_exit "Current CSV file not found: $CURRENT_CSV"
+fi
+
+# Validate TOPN is a number
+if ! [[ "$TOPN" =~ ^[0-9]+$ ]] || [ "$TOPN" -lt 1 ]; then
+  error_exit "TOPN must be a positive integer, got: $TOPN"
+fi
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  log_info "Would process CSV: $CSV"
+  [ -n "$CURRENT_CSV" ] && log_info "Would include current: $CURRENT_CSV"
+  [ -n "$MD_OUT" ] && log_info "Would generate markdown: $MD_OUT"
+  log_info "Would show top $TOPN results"
+  exit 0
 fi
 
 if [ -n "$MD_OUT" ]; then
-  mkdir -p "$(dirname "$MD_OUT")" 2>/dev/null || true
+  make_temp "md_dir" "$(dirname "$MD_OUT")"
   : > "$MD_OUT"
   exec > >(tee "$MD_OUT")
 fi
 
-if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
+if [ "$QUIET" -eq 0 ]; then 
+  log_info "Processing data: $CSV"
+  [ -n "$CURRENT_CSV" ] && log_info "Including current: $CURRENT_CSV"
+fi
 
 # Function to convert individual CSV format to aggregated format and merge with historical data
 create_combined_csv() {

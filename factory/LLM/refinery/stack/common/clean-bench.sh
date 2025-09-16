@@ -7,6 +7,42 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+UST="${ROOT_DIR}/stack/ust.sh"
+
+LOG_DIR="${LOG_DIR:-$LOG_DIR_DEFAULT}"
+ENV_MODE=""
+DO_LOGS=1
+DO_REPO=1
+DO_ENVS=0        # only true for explore mode unless forced
+DO_VARIANTS=0
+KEEP_LATEST=0
+YES=0
+DRY_RUN=1        # Safe default - require explicit --yes
+
+usage(){
+  cat <<USAGE
+Usage: $(basename "$0") [--env explore|preprod|prod] [--no-logs] [--no-repo] [--envs] [--variants] [--keep-latest N] [--yes]
+Defaults:
+  - env inferred from branch: main=explore, preprod=preprod, prod=prod
+  - removes bench logs under LOG_DIR and repo aggregates under factory/LLM/refinery (dry-run unless --yes)
+  - does NOT remove env files unless --envs (and only for explore by default)
+Options:
+  --env MODE         : explore | preprod | prod (override branch mapping)
+  --no-logs          : skip LOG_DIR cleanup
+  --no-repo          : skip repo CSV cleanup
+  --envs             : also clean env files (dangerous in prod!)
+  --variants         : also run Ollama variant cleanup
+  --keep-latest N    : keep N most recent files in each category
+  --yes              : actually execute (default is dry-run)
+USAGE
+}
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 UST="${ROOT_DIR}/stack/ust.sh"
 
@@ -39,8 +75,6 @@ Env:
 USAGE
 }
 
-branch(){ git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown; }
-
 while [ $# -gt 0 ]; do
   case "$1" in
     --env) ENV_MODE="$2"; shift 2;;
@@ -49,20 +83,39 @@ while [ $# -gt 0 ]; do
     --envs) DO_ENVS=1; shift 1;;
     --variants) DO_VARIANTS=1; shift 1;;
     --keep-latest) KEEP_LATEST="$2"; shift 2;;
-    --yes|-y) YES=1; shift 1;;
+    --yes|-y) YES=1; DRY_RUN=0; shift 1;;
     -h|--help) usage; exit 0;;
-    *) echo "Unknown arg: $1" >&2; usage; exit 2;;
+    *) error_exit "Unknown argument: $1";;
   esac
 done
 
-if [ -z "${ENV_MODE}" ]; then
-  case "$(branch)" in
-    main) ENV_MODE="explore";;
-    preprod) ENV_MODE="preprod";;
-    prod) ENV_MODE="prod";;
-    *) ENV_MODE="explore";;
-  esac
+# Validate parameters
+if [ -n "$KEEP_LATEST" ]; then
+    validate_number "$KEEP_LATEST" "keep-latest" 0
 fi
+
+# Environment detection
+if [ -z "${ENV_MODE}" ]; then
+  ENV_MODE="$(branch_to_env)"
+fi
+
+# Validate environment
+case "$ENV_MODE" in
+    explore|preprod|prod) ;;
+    *) error_exit "Invalid environment: $ENV_MODE (must be explore, preprod, or prod)";;
+esac
+
+# Safety check for production
+if [ "$ENV_MODE" = "prod" ] && [ "$DO_ENVS" -eq 1 ] && [ "$YES" -eq 1 ]; then
+    error "WARNING: You are about to delete environment files in PRODUCTION!"
+    error "This could break running systems. Are you absolutely sure?"
+    read -p "Type 'DELETE PROD ENVS' to confirm: " confirm
+    if [ "$confirm" != "DELETE PROD ENVS" ]; then
+        error_exit "Aborted. Production environment files preserved."
+    fi
+fi
+
+show_dry_run_status
 
 echo "== Clean plan =="
 echo "Branch : $(branch)"
