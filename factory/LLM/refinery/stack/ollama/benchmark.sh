@@ -28,6 +28,7 @@ fi
 PERSISTENT_PORT="${PERSISTENT_PORT:-11434}"  # always-on puller / builder
 TEST_PORT_A="${TEST_PORT_A:-11435}"          # test instance A
 TEST_PORT_B="${TEST_PORT_B:-11436}"          # test instance B
+TEST_PORT_MULTI="${TEST_PORT_MULTI:-11437}"  # multi-GPU instance
 
 # Persistent model store (used by :11434)
 OLLAMA_MODELS_DIR="${OLLAMA_MODELS_DIR:-/FuZe/models/ollama}"
@@ -158,13 +159,19 @@ unit_for_ep(){
   case "$1" in
     *:${TEST_PORT_A}) echo "ollama-test-a.service" ;;
     *:${TEST_PORT_B}) echo "ollama-test-b.service" ;;
+    *:${TEST_PORT_MULTI:-11437}) echo "ollama-test-multi.service" ;;
     *:${PERSISTENT_PORT}) echo "ollama-persist.service" ;;
     *) echo "" ;;
   esac
 }
 
-write_unit(){ # name port gpu_uuid title
-  local name="$1" port="$2" uuid="$3" title="$4"
+write_unit(){ # name port gpu_uuid_or_indices title
+  local name="$1" port="$2" gpu_spec="$3" title="$4"
+  local extra_env=""
+  # Add OLLAMA_SCHED_SPREAD for multi-GPU services
+  if [[ "$gpu_spec" == *","* ]] && [ "${OLLAMA_SCHED_SPREAD:-0}" -eq 1 ]; then
+    extra_env="Environment=OLLAMA_SCHED_SPREAD=1"
+  fi
   cat >/etc/systemd/system/"$name" <<UNIT
 [Unit]
 Description=${title}
@@ -176,8 +183,9 @@ User=ollama
 Group=ollama
 SupplementaryGroups=video render
 Environment=OLLAMA_MODELS=${OLLAMA_MODELS_DIR}
-Environment=CUDA_VISIBLE_DEVICES=${uuid}
+Environment=CUDA_VISIBLE_DEVICES=${gpu_spec}
 Environment=OLLAMA_HOST=127.0.0.1:${port}
+${extra_env}
 ExecStart=${OLLAMA_BIN} serve
 Restart=always
 RestartSec=2
@@ -230,11 +238,39 @@ normalize_gpu_label(){
 gpu_label_for_ep(){
   local ep="$1" unit lbl name uuid mem
   unit="$(unit_for_ep "$ep")"
-  IFS=',' read -r name uuid mem <<<"$(offload_triplet "$unit")"
-  if [ -z "${name:-}" ]; then
-    echo "nvidia-unknown"
+  
+  # Check if this is a multi-GPU service
+  if [[ "$unit" == "ollama-test-multi.service" ]]; then
+    # For multi-GPU, generate combined label from CUDA_VISIBLE_DEVICES
+    local gpu_indices gpu_labels=()
+    gpu_indices="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
+    if [ -n "$gpu_indices" ]; then
+      IFS=',' read -ra indices <<< "$gpu_indices"
+      for idx in "${indices[@]}"; do
+        # Get GPU name for this index
+        local gpu_name
+        gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
+        if [ -n "$gpu_name" ]; then
+          gpu_labels+=("$(normalize_gpu_label "$gpu_name")")
+        else
+          gpu_labels+=("nvidia-unknown")
+        fi
+      done
+      # Join labels with +
+      local combined_label
+      printf -v combined_label '%s+' "${gpu_labels[@]}"
+      echo "${combined_label%+}"  # Remove trailing +
+    else
+      echo "nvidia-multi-unknown"
+    fi
   else
-    echo "$(normalize_gpu_label "$name")"
+    # Original single-GPU logic
+    IFS=',' read -r name uuid mem <<<"$(offload_triplet "$unit")"
+    if [ -z "${name:-}" ]; then
+      echo "nvidia-unknown"
+    else
+      echo "$(normalize_gpu_label "$name")"
+    fi
   fi
 }
 
@@ -256,6 +292,7 @@ suffix_for_ep(){
   case "$1" in
     *:${TEST_PORT_A}) echo "A" ;;
     *:${TEST_PORT_B}) echo "B" ;;
+    *:${TEST_PORT_MULTI:-11437}) echo "MULTI" ;;
     *:*) echo "${1##*:}" ;;
   esac
 }
@@ -641,19 +678,34 @@ ENDPOINTS=()
 if [ "$SKIP_TEST_UNITS" -eq 1 ]; then
   ENDPOINTS+=("127.0.0.1:${PERSISTENT_PORT}")
 else
-  if [ -n "${uuid_a:-}" ]; then
-    if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; fi
-    write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
+  # Check if CUDA_VISIBLE_DEVICES contains multiple GPUs (multi-GPU mode)
+  if [[ "${CUDA_VISIBLE_DEVICES:-}" == *","* ]] && [ "${OLLAMA_SCHED_SPREAD:-0}" -eq 1 ]; then
+    info "Multi-GPU mode detected: CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}, OLLAMA_SCHED_SPREAD=${OLLAMA_SCHED_SPREAD}"
+    # Create a single multi-GPU service using all specified GPUs
+    TEST_PORT_MULTI="${TEST_PORT_MULTI:-11437}"
+    if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-multi.service; fi
+    write_unit "ollama-test-multi.service" "$TEST_PORT_MULTI" "$CUDA_VISIBLE_DEVICES" "Ollama (Multi-GPU on :${TEST_PORT_MULTI})"
     systemctl daemon-reload || true
-    systemctl enable --now ollama-test-a.service || true
-    ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
+    systemctl enable --now ollama-test-multi.service || true
+    ENDPOINTS+=("127.0.0.1:${TEST_PORT_MULTI}")
   fi
-  if [ -n "${uuid_b:-}" ]; then
-    if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-b.service; fi
-    write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
-    systemctl daemon-reload || true
-    systemctl enable --now ollama-test-b.service || true
-    ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}")
+  
+  # Original single-GPU per service logic (always available unless multi-GPU replaces it)
+  if [[ ! ("${CUDA_VISIBLE_DEVICES:-}" == *","* && "${OLLAMA_SCHED_SPREAD:-0}" -eq 1) ]]; then
+    if [ -n "${uuid_a:-}" ]; then
+      if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; fi
+      write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
+      systemctl daemon-reload || true
+      systemctl enable --now ollama-test-a.service || true
+      ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
+    fi
+    if [ -n "${uuid_b:-}" ]; then
+      if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-b.service; fi
+      write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
+      systemctl daemon-reload || true
+      systemctl enable --now ollama-test-b.service || true
+      ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}")
+    fi
   fi
 fi
 

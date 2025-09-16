@@ -6,3 +6,5 @@ run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_en
 20250914_220605,fuze-bakery,ollama,llama3.1:8b-text-fp16,56.43,llama3.1:8b-text-fp16,56.84,127.0.0.1:11436,127.0.0.1:11436,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,33,/var/log/fuze-stack/ollama_bench_20250914_220605.csv
 20250915_202955,fuze-bakery,ollama,gpt-oss:20b,31.23,gpt-oss:20b,31.74,127.0.0.1:11436,127.0.0.1:11436,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,23,/var/log/fuze-stack/ollama_bench_20250915_202955.csv
 20250916_000211,fuze-bakery,ollama,gemma3:4b-it-fp16,138.64,gemma3:4b-it-fp16,147.19,127.0.0.1:11435,127.0.0.1:11435,nvidia-5090,NVIDIA GeForce RTX 5090,34,/var/log/fuze-stack/ollama_bench_20250916_000211.csv
+20250916_075548,fuze-bakery,ollama,gemma3:27b-it-fp16,18.40,gemma3:27b-it-fp16,18.47,127.0.0.1:11437,127.0.0.1:11437,nvidia-3090ti+nvidia-5090+nvidia-3090ti,,63,/var/log/fuze-stack/ollama_bench_20250916_075548.csv
+20250916_075548,fuze-bakery,ollama,gemma3:27b-it-fp16,18.40,gemma3:27b-it-fp16,18.47,127.0.0.1:11437,127.0.0.1:11437,nvidia-3090ti+nvidia-5090+nvidia-3090ti,,63,/var/log/fuze-stack/ollama_bench_20250916_075548.csv

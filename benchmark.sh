@@ -59,9 +59,10 @@ set -E -o functrace; trap 'rc=$?; echo "ERR rc=$rc at ${BASH_SOURCE##*/}:${LINEN
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [--debug] [stacks...]
+Usage: $(basename "$0") [--stack "ollama llama.cpp vLLM Triton"] [--model REGEX]... [--env explore|preprod|prod] [--combined gpu0,gpu1] [--debug] [stacks...]
 Runs all stacks on all model env files by default.
 You may also pass stack names positionally at the end (e.g., 'ollama').
+--combined: Run models across multiple GPUs in parallel (e.g., gpu0,gpu2 or gpu1) - enables multi-GPU model splitting
 USAGE
 }
 
@@ -69,11 +70,13 @@ STACKS=()
 MODEL_RES=()
 ENV_MODE=""
 DEBUG_RUN=0
+COMBINED_GPUS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --stack) shift; IFS=', ' read -r -a arr <<<"${1:-}"; for x in "${arr[@]}"; do [ -n "$x" ] && STACKS+=("$x"); done; shift||true;;
     --model) MODEL_RES+=("$2"); shift 2;;
     --env) ENV_MODE="$2"; shift 2;;
+    --combined) COMBINED_GPUS="$2"; shift 2;;
     --debug) DEBUG_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
     *)
@@ -85,6 +88,15 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+# Process --combined GPUs
+if [ -n "$COMBINED_GPUS" ]; then
+  CUDA_GPUS=$(echo "$COMBINED_GPUS" | sed 's/gpu//g')
+  export CUDA_VISIBLE_DEVICES="$CUDA_GPUS"
+  # Enable Ollama multi-GPU spreading across all specified GPUs
+  export OLLAMA_SCHED_SPREAD=1
+  info "Multi-GPU mode enabled: GPUs $CUDA_GPUS (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES, OLLAMA_SCHED_SPREAD=1)"
+fi
 
 [ -x "$UST" ] || { err "ust.sh not found: $UST"; exit 2; }
 # Default to quiet, only enable verbose+debug when --debug is provided
@@ -106,6 +118,63 @@ log "CSVs in : ${LOG_DIR}"
 if [ ${#STACKS[@]} -eq 0 ]; then
   for s in ollama llama.cpp vLLM Triton; do [ -d "${ROOT_DIR}/factory/LLM/refinery/stack/${s}" ] && STACKS+=("$s"); done
 fi
+
+# Dynamic environment file generation for --combined mode
+generate_dynamic_env(){
+  local model_pattern="$1" gpu_config="$2" env_mode="${3:-explore}"
+  local timestamp="$(date +%Y%m%d_%H%M%S)"
+  local gpu_suffix="$(echo "$gpu_config" | sed 's/gpu//g')"
+  
+  # Create dynamic env filename
+  local env_name="LLM-FuZe-${model_pattern}-multi-gpu${gpu_suffix}-${timestamp}.env"
+  local env_path="${LOG_DIR}/${env_name}"
+  
+  # Generate environment file content
+  cat > "$env_path" <<EOF
+# Dynamic multi-GPU environment file generated $(date)
+# GPU Configuration: $gpu_config
+# CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES
+# OLLAMA_SCHED_SPREAD: $OLLAMA_SCHED_SPREAD
+
+# Logs
+LOG_DIR=$LOG_DIR
+
+# Naming
+ALIAS_PREFIX=LLM-FuZe-
+ALIAS_SUFFIX=-${env_mode}
+
+# Scope to one model tag
+INCLUDE_MODELS='^${model_pattern//[-]/[-]}$'
+
+# Multi-GPU specific configuration
+CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
+OLLAMA_SCHED_SPREAD=1
+
+# Bench behavior (aggressive for multi-GPU)
+FAST_MODE=1            # no tag baking during search; pass options at runtime
+EXHAUSTIVE=1           # try all candidates for broader coverage
+BENCH_NUM_PREDICT=128
+BENCH_NUM_CTX=4096
+TEMPERATURE=0.0
+TIMEOUT_GEN=300        # allow extra time for first gen
+VERBOSE=${VERBOSE:-1}
+
+# Debugging / publishing (aggressive)
+DEBUG_BENCH=${DEBUG_BENCH:-1}      # capture request/response/metrics, probe, journal on 0 t/s
+PUBLISH_BEST=1         # bake the best variant tag after the run
+
+# Ollama service handling
+CLEAN_START_TESTS=1
+SKIP_TEST_UNITS=0
+KEEP_FAILED_VARIANTS=1 # keep any baked tags for inspection (not used in FAST_MODE)
+GC_AFTER_RUN=0         # do not GC created tags automatically
+
+# Candidate sweep control (aggressive for multi-GPU)
+NG_PERCENT_SET="100 95 90 85 80 75 70 65 60 55 50 45 40 35 30 25 20 15 10"
+EOF
+
+  echo "$env_path"
+}
 
 # Prepare env files per requested environment and discover .env files
 ENV_BASE="${ROOT_DIR}/factory/LLM/refinery/stack/env"
@@ -146,35 +215,54 @@ case "${ENV_MODE:-}" in
 esac
 
 ENV_FILES=()
-if [ -d "$ENV_ROOT" ]; then
-  while IFS= read -r -d '' f; do ENV_FILES+=("$f"); done < <(find "$ENV_ROOT" -type f -name "*.env" -print0 2>/dev/null)
-else
-  shopt -s nullglob
-  for f in "${ROOT_DIR}/factory/LLM/refinery/stack"/*.env; do ENV_FILES+=("$f"); done
-  shopt -u nullglob
-fi
-if [ ${#MODEL_RES[@]} -eq 0 ]; then
-  : # Already discovered via find; nothing to do
-else
-  FILTERED=()
-  for e in "${ENV_FILES[@]}"; do
-    [ -f "$e" ] || continue
-    bn="$(basename "$e")"
-    keep=0
-    for re in "${MODEL_RES[@]}"; do
-      # Match by filename OR by the embedded INCLUDE_MODELS tag in the env file
-      if echo "$bn" | grep -Eq "$re"; then keep=1; break; fi
-      inc_tag="$(awk -F"'" '/^INCLUDE_MODELS=/{print $2; exit}' "$e" 2>/dev/null | sed -E 's/^\^//; s/\$$//')"
-      if [ -n "$inc_tag" ] && echo "$inc_tag" | grep -Eq "$re"; then keep=1; break; fi
-    done
-    [ "$keep" -eq 1 ] && FILTERED+=("$e")
+
+# Handle --combined mode with dynamic environment generation
+if [ -n "$COMBINED_GPUS" ]; then
+  # For combined mode, generate dynamic environment files for each model pattern
+  if [ ${#MODEL_RES[@]} -eq 0 ]; then
+    err "Combined mode requires --model pattern to specify which models to run"; exit 2
+  fi
+  
+  for model_pattern in "${MODEL_RES[@]}"; do
+    env_file="$(generate_dynamic_env "$model_pattern" "$COMBINED_GPUS" "${ENV_MODE:-explore}")"
+    ENV_FILES+=("$env_file")
   done
-  if [ ${#FILTERED[@]} -gt 0 ]; then
-    ENV_FILES=("${FILTERED[@]}")
+  
+  info "Generated ${#ENV_FILES[@]} dynamic environment files for combined GPU mode"
+else
+  # Original static environment file discovery
+  if [ -d "$ENV_ROOT" ]; then
+    while IFS= read -r -d '' f; do ENV_FILES+=("$f"); done < <(find "$ENV_ROOT" -type f -name "*.env" -print0 2>/dev/null)
   else
-    ENV_FILES=()
+    shopt -s nullglob
+    for f in "${ROOT_DIR}/factory/LLM/refinery/stack"/*.env; do ENV_FILES+=("$f"); done
+    shopt -u nullglob
+  fi
+  
+  if [ ${#MODEL_RES[@]} -eq 0 ]; then
+    : # Already discovered via find; nothing to do
+  else
+    FILTERED=()
+    for e in "${ENV_FILES[@]}"; do
+      [ -f "$e" ] || continue
+      bn="$(basename "$e")"
+      keep=0
+      for re in "${MODEL_RES[@]}"; do
+        # Match by filename OR by the embedded INCLUDE_MODELS tag in the env file
+        if echo "$bn" | grep -Eq "$re"; then keep=1; break; fi
+        inc_tag="$(awk -F"'" '/^INCLUDE_MODELS=/{print $2; exit}' "$e" 2>/dev/null | sed -E 's/^\^//; s/\$$//')"
+        if [ -n "$inc_tag" ] && echo "$inc_tag" | grep -Eq "$re"; then keep=1; break; fi
+      done
+      [ "$keep" -eq 1 ] && FILTERED+=("$e")
+    done
+    if [ ${#FILTERED[@]} -gt 0 ]; then
+      ENV_FILES=("${FILTERED[@]}")
+    else
+      ENV_FILES=()
+    fi
   fi
 fi
+
 if [ ${#ENV_FILES[@]} -eq 0 ]; then err "No env files matched. Use --env explore|preprod|prod or add .env files under factory/LLM/refinery/stack/env/*"; exit 2; fi
 
 preflight(){ step_begin "preflight"; rc=0; "$UST" preflight >/dev/null 2>&1 || rc=$?; step_end $rc; }
@@ -272,23 +360,22 @@ ALIAS_SUFFIX="${SUMMARY_ALIAS_SUFFIX}" \
   --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" \
   | tee -a "${LOG_DIR}/wrapper_best_${TS}.txt"
 
-# Final: current analysis numbers for the latest bench CSV (last thing printed)
+# Final: unified results combining historical and current run data
 LATEST_CSV="$(ls -t ${LOG_DIR}/*_bench_*.csv 2>/dev/null | head -n1 || true)"
 if [ -n "$LATEST_CSV" ]; then
-  base="$(basename "$LATEST_CSV")"
-  case "$base" in
-    ollama_bench_*) stk="ollama" ;;
-    vllm_bench_*)   stk="vLLM" ;;
-    llamacpp_bench_*) stk="llama.cpp" ;;
-    triton_bench_*) stk="Triton" ;;
-    *) stk="" ;;
-  esac
-  if [ -z "$stk" ]; then
-    log "Could not infer stack for latest CSV: $LATEST_CSV"
-  fi
-  else
-    log "No bench CSVs found in ${LOG_DIR}"
-  fi
+  log "Including current run results from: $(basename "$LATEST_CSV")"
+  "${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
+    --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" \
+    --current-csv "$LATEST_CSV" \
+    --top 10 \
+    | tee -a "${LOG_DIR}/wrapper_unified_${TS}.txt"
+else
+  log "No current run CSV found, showing historical results only"
+  "${ROOT_DIR}/factory/LLM/refinery/stack/common/summarize-benchmarks.sh" \
+    --csv "${ROOT_DIR}/factory/LLM/refinery/benchmarks.csv" \
+    --top 10 \
+    | tee -a "${LOG_DIR}/wrapper_unified_${TS}.txt"
+fi
 
-# Mark wrapper completion after printing current run analysis
+# Mark wrapper completion after printing unified analysis
 ok "Wrapper complete. Summary: $SUMMARY"

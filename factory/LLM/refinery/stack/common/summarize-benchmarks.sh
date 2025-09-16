@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 CSV="${CSV:-${ROOT_DIR}/benchmarks.csv}"
+CURRENT_CSV="${CURRENT_CSV:-}"
 TOPN="${TOPN:-10}"
 STACK_RE="${STACK_RE:-}"
 MODEL_RE="${MODEL_RE:-}"
@@ -26,9 +27,10 @@ ONLY_TOP=0
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--csv PATH] [--top N] [--stack REGEX] [--model REGEX] [--gpu REGEX] [--host REGEX] [--md-out FILE]
+Usage: $(basename "$0") [--csv PATH] [--current-csv PATH] [--top N] [--stack REGEX] [--model REGEX] [--gpu REGEX] [--host REGEX] [--md-out FILE]
 Env:
   CSV (default: LLM/refinery/benchmarks.csv)
+  CURRENT_CSV (optional: individual benchmark CSV to include in results)
   TOPN (default: 10)
   STACK_RE, MODEL_RE, GPU_RE, HOST_RE (regex filters)
   MD_OUT (optional path to write Markdown copy)
@@ -38,6 +40,7 @@ USAGE
 while [ $# -gt 0 ]; do
   case "$1" in
     --csv) CSV="$2"; shift 2;;
+    --current-csv) CURRENT_CSV="$2"; shift 2;;
     --top) TOPN="$2"; shift 2;;
     --no-paths) NO_PATHS=1; shift 1;;
     --only-global) ONLY_GLOBAL=1; shift 1;;
@@ -61,10 +64,81 @@ fi
 
 if [ "$QUIET" -eq 0 ]; then echo "Data: $CSV"; fi
 
-# ------------- Top N overall by optimal_tokps -------------------------------
+# Function to convert individual CSV format to aggregated format and merge with historical data
+create_combined_csv() {
+  local temp_csv="/tmp/combined_benchmarks_$$.csv"
+  
+  # Start with historical data
+  if [ -f "$CSV" ]; then
+    cat "$CSV" > "$temp_csv"
+  else
+    # Create header if no historical data exists
+    echo "run_ts,host,stack,model,baseline_tokps,optimal_variant,optimal_tokps,baseline_endpoint,optimal_endpoint,gpu_label,gpu_name,num_gpu,csv_file" > "$temp_csv"
+  fi
+  
+  # Convert and append current run data if provided
+  if [ -n "$CURRENT_CSV" ] && [ -f "$CURRENT_CSV" ]; then
+    # Convert individual CSV format to aggregated format
+    awk -F',' 'NR>1 {
+      # Extract components from individual CSV format
+      # ts,endpoint,unit,suffix,base_model,variant_label,model_tag,num_gpu,num_ctx,batch,num_predict,tokens_per_sec,gpu_label,gpu_name,gpu_uuid,gpu_mem_mib
+      ts=$1; endpoint=$2; unit=$3; suffix=$4; base_model=$5; variant_label=$6; model_tag=$7; num_gpu=$8;
+      tokens_per_sec=$12; gpu_label=$13; gpu_name=$14;
+      
+      # Extract stack from endpoint (e.g., "localhost:11434" -> ollama, "localhost:11437" -> ollama)
+      stack="ollama"; # Default assumption based on context
+      if (endpoint ~ /:8000/) stack="vLLM";
+      else if (endpoint ~ /:8080/) stack="llama.cpp";
+      else if (endpoint ~ /:8001/) stack="Triton";
+      
+      # Extract host from endpoint
+      split(endpoint, ep_parts, ":");
+      host=ep_parts[1];
+      if (host == "localhost" || host == "127.0.0.1") {
+        # Get actual hostname
+        "hostname" | getline actual_host;
+        close("hostname");
+        host = actual_host;
+      }
+      
+      # Use model_tag as the model name, variant_label as optimal_variant
+      model = model_tag;
+      optimal_variant = variant_label;
+      
+      # For current run, baseline is often the same as optimal (single measurement)
+      baseline_tokps = tokens_per_sec;
+      optimal_tokps = tokens_per_sec;
+      baseline_endpoint = endpoint;
+      optimal_endpoint = endpoint;
+      
+      # Format timestamp to match aggregated format
+      run_ts = ts;
+      
+      # Original CSV file reference
+      csv_file = "'"$CURRENT_CSV"'";
+      
+      # Print in aggregated format
+      printf "%s,%s,%s,%s,%.2f,%s,%.2f,%s,%s,%s,%s,%s,%s\n", 
+        run_ts, host, stack, model, baseline_tokps, optimal_variant, optimal_tokps, 
+        baseline_endpoint, optimal_endpoint, gpu_label, gpu_name, num_gpu, csv_file;
+    }' "$CURRENT_CSV" >> "$temp_csv"
+  fi
+  
+  echo "$temp_csv"
+}
+
+# Create combined CSV with both historical and current data
+COMBINED_CSV="$(create_combined_csv)"
+CSV="$COMBINED_CSV"
+
+# ------------- Top N overall by optimal_tokps (includes current run) ----------
 #
 if [ "$ONLY_GLOBAL" -eq 0 ]; then
-  echo "Top ${TOPN} overall:"
+  if [ -n "$CURRENT_CSV" ]; then
+    echo "Benchmark Results (Historical + Current Run) - Top ${TOPN} overall:"
+  else
+    echo "Top ${TOPN} overall:"
+  fi
   awk -F',' -v ST="$STACK_RE" -v MR="$MODEL_RE" -v GR="$GPU_RE" -v HR="$HOST_RE" 'NR>1 {
       if (ST!="" && $3 !~ ST) next;
       if (MR!="" && $4 !~ MR) next;
@@ -345,4 +419,9 @@ if [ "$ONLY_TOP" -eq 0 ]; then
     | awk -F',' '{printf "%s,%s,%s,%.2f,%.2f,%s,%s,%s,%s,%s,%s\n", $4,$3,$2,$7,$5,$6,$10,$11,$12,$1,$13}'
   } > "$BEST_GLOBAL_BY_MODEL_CSV"
   if [ "$NO_PATHS" -eq 0 ]; then echo "Best-global-by-model CSV: $BEST_GLOBAL_BY_MODEL_CSV"; fi
+fi
+
+# Cleanup temporary combined CSV if it was created
+if [ -n "$CURRENT_CSV" ] && [ -f "$COMBINED_CSV" ] && [[ "$COMBINED_CSV" == /tmp/combined_benchmarks_* ]]; then
+  rm -f "$COMBINED_CSV"
 fi
