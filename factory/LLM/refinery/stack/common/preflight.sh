@@ -17,16 +17,16 @@ mark_warn(){ HAVE_WARN=1; }
 mark_err(){ HAVE_ERR=1; }
 
 section_sys(){
-  log_info "System Status"
-  if require_cmd "lsb_release" 2>/dev/null; then
-    log_success "OS       : $(lsb_release -sd 2>/dev/null || true)"
+  info "System Status"
+  if command -v lsb_release >/dev/null 2>&1; then
+    ok "OS       : $(lsb_release -sd 2>/dev/null || true)"
   elif [ -f /etc/os-release ]; then
     # shellcheck disable=SC1091
-    . /etc/os-release; log_success "OS       : ${PRETTY_NAME:-unknown}"
+    . /etc/os-release; ok "OS       : ${PRETTY_NAME:-unknown}"
   else
-    log_warn "OS       : unknown (no lsb_release/os-release)"; mark_warn
+    warn "OS       : unknown (no lsb_release/os-release)"; mark_warn
   fi
-  log_success "Kernel   : $(uname -r)"
+  ok "Kernel   : $(uname -r)"
 }
 
 section_gpu(){
