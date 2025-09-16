@@ -290,6 +290,86 @@ get_hostname() {
 }
 
 # ============================================================================
+# DYNAMIC ENVIRONMENT GENERATION
+# ============================================================================
+
+# Generate dynamic environment file for multi-GPU benchmarking
+# Usage: generate_dynamic_env <model_pattern> <gpu_config> [env_mode] [log_dir]
+generate_dynamic_env() {
+    local model_pattern="$1"
+    local gpu_config="$2"
+    local env_mode="${3:-explore}"
+    local log_dir="${4:-${LOG_DIR_DEFAULT}}"
+    
+    if [ -z "$model_pattern" ] || [ -z "$gpu_config" ]; then
+        error_exit "generate_dynamic_env requires model_pattern and gpu_config"
+    fi
+    
+    local timestamp="$(date +%Y%m%d_%H%M%S)"
+    local gpu_suffix="$(echo "$gpu_config" | sed 's/gpu//g')"
+    
+    # Create dynamic env filename
+    local env_name="LLM-FuZe-${model_pattern}-multi-gpu${gpu_suffix}-${timestamp}.env"
+    local env_path="${log_dir}/${env_name}"
+    
+    # Ensure log directory exists
+    mkdir -p "$log_dir" || error_exit "Failed to create log directory: $log_dir"
+    
+    info "Generating dynamic environment file: $env_name"
+    
+    # Generate environment file content
+    cat > "$env_path" <<EOF
+# Dynamic multi-GPU environment file generated $(date)
+# GPU Configuration: $gpu_config
+# Model Pattern: $model_pattern
+# Environment Mode: $env_mode
+
+# Logs
+LOG_DIR=$log_dir
+
+# Naming
+ALIAS_PREFIX=LLM-FuZe-
+ALIAS_SUFFIX=-${env_mode}
+
+# Scope to one model tag
+INCLUDE_MODELS='^${model_pattern//[-]/[-]}$'
+
+# Multi-GPU specific configuration
+CUDA_VISIBLE_DEVICES=$gpu_config
+OLLAMA_SCHED_SPREAD=1
+
+# Bench behavior (aggressive for multi-GPU)
+FAST_MODE=1            # no tag baking during search; pass options at runtime
+EXHAUSTIVE=1           # try all candidates for broader coverage
+BENCH_NUM_PREDICT=128
+BENCH_NUM_CTX=4096
+TEMPERATURE=0.0
+TIMEOUT_GEN=300        # allow extra time for first gen
+VERBOSE=\${VERBOSE:-1}
+
+# Debugging / publishing (aggressive)
+DEBUG_BENCH=\${DEBUG_BENCH:-1}      # capture request/response/metrics, probe, journal on 0 t/s
+PUBLISH_BEST=1         # bake the best variant tag after the run
+
+# Ollama service handling
+CLEAN_START_TESTS=1
+SKIP_TEST_UNITS=0
+KEEP_FAILED_VARIANTS=1 # keep any baked tags for inspection (not used in FAST_MODE)
+GC_AFTER_RUN=0         # do not GC created tags automatically
+
+# Candidate sweep control (aggressive for multi-GPU)
+NG_PERCENT_SET="100 95 90 85 80 75 70 65 60 55 50 45 40 35 30 25 20 15 10"
+EOF
+
+    if [ ! -f "$env_path" ]; then
+        error_exit "Failed to generate environment file: $env_path"
+    fi
+    
+    ok "Generated environment file: $env_path"
+    echo "$env_path"
+}
+
+# ============================================================================
 # INITIALIZATION
 # ============================================================================
 

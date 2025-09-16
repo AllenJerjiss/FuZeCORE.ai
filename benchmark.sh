@@ -23,6 +23,7 @@ OPTIONS:
     --stack STACK       Target stack: ollama | vLLM | llama.cpp | Triton
     --model PATTERN     Model pattern/regex to match
     --gpu LIST          GPU specification (e.g., "0,1" for multi-GPU)
+    --combined LIST     Multi-GPU model splitting (e.g., "0,1,2")
     --debug             Enable debug mode
     --clean             Clean before benchmarking
     -h, --help          Show this help
@@ -31,6 +32,7 @@ EXAMPLES:
     $0 --stack ollama                           # Benchmark Ollama with defaults
     $0 --stack vLLM --model gemma3             # Benchmark vLLM with gemma3 models
     $0 --stack ollama --gpu 0,1 --debug        # Multi-GPU Ollama with debug
+    $0 --stack ollama --combined 0,1,2 --model deepseek   # Multi-GPU model splitting
     $0 --clean --stack llama.cpp               # Clean then benchmark llama.cpp
 
 WORKFLOW:
@@ -47,6 +49,7 @@ USAGE
 STACK=""
 MODEL=""
 GPU=""
+COMBINED=""
 DEBUG=0
 CLEAN=0
 
@@ -62,6 +65,10 @@ while [ $# -gt 0 ]; do
             ;;
         --gpu)
             GPU="$2"
+            shift 2
+            ;;
+        --combined)
+            COMBINED="$2"
             shift 2
             ;;
         --debug)
@@ -138,6 +145,23 @@ if [ -n "$GPU" ]; then
     fi
 fi
 
+# Handle combined GPU mode (multi-GPU model splitting)
+if [ -n "$COMBINED" ]; then
+    if [ -z "$MODEL" ]; then
+        echo "ERROR: --combined requires --model to specify which model to split" >&2
+        exit 1
+    fi
+    
+    # Convert gpu list format
+    CUDA_GPUS="$COMBINED"
+    ENV_VARS+=("CUDA_VISIBLE_DEVICES=$CUDA_GPUS")
+    ENV_VARS+=("OLLAMA_SCHED_SPREAD=1")
+    ENV_VARS+=("FUZE_COMBINED_MODE=1")
+    ENV_VARS+=("FUZE_GPU_CONFIG=$COMBINED")
+    
+    echo "Multi-GPU model splitting: $CUDA_GPUS (model: $MODEL)"
+fi
+
 # Handle model pattern
 if [ -n "$MODEL" ]; then
     ENV_VARS+=("MODEL_PATTERN=$MODEL")
@@ -148,6 +172,14 @@ fi
 if [ "$DEBUG" -eq 1 ]; then
     ENV_VARS+=("VERBOSE=1" "DEBUG=1")
     echo "Debug mode enabled"
+fi
+
+# Export variables for ust.sh access
+if [ -n "$COMBINED" ]; then
+    export COMBINED="$COMBINED"
+fi
+if [ -n "$MODEL" ]; then
+    export MODEL="$MODEL"
 fi
 
 # Execute the benchmark via ust.sh

@@ -121,7 +121,12 @@ fi
 case "$stack" in
   ollama|Ollama)
     case "$cmd" in
-      bench|benchmark)           exec "${STACK_ROOT}/ollama/benchmark.sh" "$@" ;;
+      bench|benchmark)           
+        # Handle combined mode with dynamic environment generation
+        if [[ -n "$COMBINED" ]]; then
+          generate_dynamic_env "$MODEL" "$COMBINED"
+        fi
+        exec "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;
       install)                   exec "${STACK_ROOT}/ollama/install.sh" "$@" ;;
       service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
       store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
