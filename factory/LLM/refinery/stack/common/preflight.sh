@@ -67,12 +67,12 @@ section_services(){
   local st
   if have_cmd systemctl; then
     st=$(systemctl is-active ollama.service 2>/dev/null || true)
-    [ "$st" = active ] && ok "ollama.service active" || warn "ollama.service: $st (optional; use service-cleanup to run :11434)"
+    [ "$st" = active ] && ok "ollama.service active" || warn "ollama.service: $st (optional)"
   fi
   if curl -fsS --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     ok ":11434 reachable (Ollama)"
   else
-    warn ":11434 not reachable — start stock service or run: ./ust.sh ollama service-cleanup"; mark_warn
+    warn ":11434 not reachable — use dedicated cleanup scripts if needed"; mark_warn
   fi
   for p in 11435 11436; do
     if port_listen "$p" >/dev/null; then ok ":$p listening"; else warn ":$p not in use (created on demand by benchmarks)"; fi

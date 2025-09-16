@@ -65,7 +65,7 @@ SERVICE_HOME="${SERVICE_HOME:-/root}"   # only used for unit templates (not $HOM
 MATCH_GPU_A="${MATCH_GPU_A:-5090}"
 MATCH_GPU_B="${MATCH_GPU_B:-3090 Ti}"
 
-KEEP_FAILED_VARIANTS="${KEEP_FAILED_VARIANTS:-0}"  # 0=rm failed/invisible variants
+# Variant cleanup delegated to cleanup-variants.sh
 GC_AFTER_RUN="${GC_AFTER_RUN:-1}"                  # 1=final pass GC
 
 # Optional base-model filters for discovery
@@ -196,21 +196,11 @@ WantedBy=multi-user.target
 UNIT
 }
 
-# Optional clean start of test units
-CLEAN_START_TESTS="${CLEAN_START_TESTS:-1}"
-stop_unit(){ local u="$1"; systemctl stop "$u" 2>/dev/null || true; systemctl disable "$u" 2>/dev/null || true; systemctl reset-failed "$u" 2>/dev/null || true; }
+# Service management delegated to service-cleanup.sh
 
 # Ensure service user and models dir ownership
 ensure_service_user(){ if ! id -u ollama >/dev/null 2>&1; then warn "Creating system user 'ollama'"; groupadd --system ollama 2>/dev/null || true; useradd --system --no-create-home --gid ollama --groups video,render --shell /usr/sbin/nologin ollama 2>/dev/null || true; fi; }
 prep_models_dir(){ mkdir -p "$OLLAMA_MODELS_DIR" "$LOG_DIR"; chown -R ollama:ollama "$OLLAMA_MODELS_DIR" 2>/dev/null || true; }
-
-restart_ep(){
-  local ep="$1" u; u="$(unit_for_ep "$ep")"
-  [ -n "$u" ] || return 0
-  systemctl daemon-reload || true
-  systemctl enable --now "$u" || true
-  systemctl restart "$u" || true
-}
 
 gpu_table(){ nvidia-smi --query-gpu=name,uuid,memory.total --format=csv,noheader 2>/dev/null || true; }
 
@@ -300,10 +290,8 @@ suffix_for_ep(){
 bench_base_as_is(){ # ep baseTag
   local ep="$1" base="$2" gpu_lbl; gpu_lbl="$(gpu_label_for_ep "$ep")"
   if ! curl_tags "$ep" >/dev/null 2>&1; then
-    warn "Endpoint ${ep} not responding; restarting unit."
-    restart_ep "$ep" || true
-    wait_api "$ep" || true
-    sleep 2
+    warn "Endpoint ${ep} not responding; skipping."
+    return 1
   fi
   bench_once "$ep" "$base" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
 }
@@ -342,11 +330,7 @@ bake_variant(){ # newname base num_gpu
   return 0
 }
 
-rm_variant_tag(){ # name[:tag]
-  local full="$1"
-  info "Removing variant tag: $full"
-  OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" rm "$full" 2>/dev/null || true
-}
+# Variant cleanup delegated to cleanup-variants.sh
 
 wait_variant_visible(){ # ep variant secs
   local ep="$1" variant="$2" secs="${3:-12}" i=0
@@ -487,9 +471,7 @@ bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
   # num_gpu (8), then explicitly leave num_ctx (9), batch (10), num_predict (11) empty
   append_csv_row "${TS},${ep},${unit},${sfx},${base},${label},${model},${ng:-},,,,${tokps},${gpu_lbl},${gname},${guid},${gmem}"
 
-  if [ "$label" = "optimized" ] && [ "$model" != "$base" ] && awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
-    [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "$model" || true
-  fi
+  # Variant cleanup delegated to cleanup-variants.sh
 
   echo "$tokps"
 }
@@ -557,15 +539,13 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
       if ! bake_variant "$newname" "$base" "$ng"; then
         warn "Variant bake failed: ${newname}"
-        [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
+        # Variant cleanup delegated to cleanup-variants.sh
         continue
       fi
       wait_variant_visible "$ep" "${newname}:latest" 12 || true
       local tokps
       if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then :; else tokps="0.00"; fi
-      if awk -v t="$tokps" 'BEGIN{exit !(t+0==0)}'; then
-        [ "${KEEP_FAILED_VARIANTS}" -eq 0 ] && rm_variant_tag "${newname}:latest" || true
-      fi
+      # Variant cleanup delegated to cleanup-variants.sh
       awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
       # Mark that at least one optimized run succeeded
       if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then first_ok=1; fi
@@ -612,17 +592,12 @@ tune_and_bench_one(){ # ep baseTag aliasBase
 gc_created_tags(){
   [ "${GC_AFTER_RUN}" -eq 1 ] || return 0
   [ -s "$CREATED_LIST" ] || { info "GC summary: nothing created."; return 0; }
-  local removed=0 kept=0
+  # Variant cleanup delegated to cleanup-variants.sh
+  local total=0
   while IFS= read -r tag; do
-    # if tag never produced a CSV row with tokens_per_sec>0, purge it
-    if ! awk -F',' -v t="${tag}:latest" 'NR>1 && $7==t && $12+0>0 {found=1} END{exit !found}' "$CSV_FILE"; then
-      rm_variant_tag "${tag}:latest"
-      removed=$((removed+1))
-    else
-      kept=$((kept+1))
-    fi
+    total=$((total+1))
   done < "$CREATED_LIST"
-  info "GC created variants: removed=${removed} kept=${kept}"
+  info "GC created variants: total=${total} (cleanup delegated to cleanup-variants.sh)"
 }
 
 # ------------------------------------------------------------------------------
@@ -683,7 +658,7 @@ else
     info "Multi-GPU mode detected: CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}, OLLAMA_SCHED_SPREAD=${OLLAMA_SCHED_SPREAD}"
     # Create a single multi-GPU service using all specified GPUs
     TEST_PORT_MULTI="${TEST_PORT_MULTI:-11437}"
-    if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-multi.service; fi
+    # Service management delegated to service-cleanup.sh
     write_unit "ollama-test-multi.service" "$TEST_PORT_MULTI" "$CUDA_VISIBLE_DEVICES" "Ollama (Multi-GPU on :${TEST_PORT_MULTI})"
     systemctl daemon-reload || true
     systemctl enable --now ollama-test-multi.service || true
@@ -693,14 +668,14 @@ else
   # Original single-GPU per service logic (always available unless multi-GPU replaces it)
   if [[ ! ("${CUDA_VISIBLE_DEVICES:-}" == *","* && "${OLLAMA_SCHED_SPREAD:-0}" -eq 1) ]]; then
     if [ -n "${uuid_a:-}" ]; then
-      if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-a.service; fi
+      # Service management delegated to service-cleanup.sh
       write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
       systemctl daemon-reload || true
       systemctl enable --now ollama-test-a.service || true
       ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
     fi
     if [ -n "${uuid_b:-}" ]; then
-      if [ "${CLEAN_START_TESTS}" -eq 1 ]; then stop_unit ollama-test-b.service; fi
+      # Service management delegated to service-cleanup.sh
       write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
       systemctl daemon-reload || true
       systemctl enable --now ollama-test-b.service || true
@@ -727,10 +702,9 @@ if [ "${#MODELS[@]}" -eq 0 ]; then
   warn "Nothing to do (no base models)."
 fi
 
-# Make sure test endpoints are freshly restarted (skip if using persistent only)
+# Service management delegated to service-cleanup.sh - endpoints should be ready
 if [ "$SKIP_TEST_UNITS" -eq 0 ]; then
   for ep in "${ENDPOINTS[@]}"; do
-    restart_ep "$ep" || true
     wait_api "$ep" || warn "API $ep is not up yet (continuing)"
   done
 fi
