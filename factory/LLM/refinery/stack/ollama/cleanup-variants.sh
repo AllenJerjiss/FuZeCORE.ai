@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # cleanup-variants.sh
-# Remove benchmark-created Ollama variants named like: <alias>-nvidia-<gpu>-ng<NUM>[:tag]
+# Remove benchmark-created Ollama variants named like: LLM-FuZe-model-env-nvidia-gpu-ng<NUM>[:tag]
+# Updated for multi-GPU support: handles gpu labels like nvidia-3090ti+nvidia-5090+nvidia-3090ti
 # Safe by default (dry-run). Use --force to actually delete.
 
 set -euo pipefail
@@ -8,8 +9,8 @@ set -euo pipefail
 ###############################################################################
 # Defaults (override via flags)
 ###############################################################################
-HOSTS="127.0.0.1:11434"                       # space-separated list
-MATCH_RE='.*-nvidia-.*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete
+HOSTS="127.0.0.1:11434 127.0.0.1:11435 127.0.0.1:11436 127.0.0.1:11437"  # space-separated list
+MATCH_RE='^LLM-FuZe-.*-(explore|preprod|prod)-nvidia-[^-]+(\+[^-]+)*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete
 KEEP_RE=''                                     # exclude anything matching this
 CREATED_LIST=''                                # optional file: only delete names listed here
 FORCE=0                                        # 0=dry-run, 1=delete
@@ -33,7 +34,7 @@ Options:
   -h|--help                   This help
 
 Examples:
-  Dry run (show what would be removed on local daemon):
+  Dry run (show what would be removed on all test endpoints):
     $(basename "$0")
 
   Actually delete on local + another host, but keep any "golden" variants:
@@ -42,6 +43,9 @@ Examples:
 
   Remove only variants previously created by the benchmark:
     $(basename "$0") --from-created /path/to/ollama_created_*.txt --force --yes
+
+  Remove only from main endpoint (skip test services):
+    $(basename "$0") --hosts "127.0.0.1:11434" --force --yes
 USAGE
 }
 
