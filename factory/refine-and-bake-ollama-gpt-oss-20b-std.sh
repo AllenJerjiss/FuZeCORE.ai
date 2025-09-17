@@ -24,7 +24,7 @@ echo "Step 1: Cleaning all artifacts..."
 
 # Clean baked models directory
 echo "Cleaning baked models..."
-rm -rf /FuZe/baked/llm/*
+rm -rf /FuZe/baked/ollama/*
 
 # Step 2: Install Ollama stack
 echo
@@ -40,7 +40,7 @@ echo
 echo "=== Workflow Complete ==="
 echo "Results available in:"
 echo "  Logs/CSVs: /var/log/fuze-stack/"
-echo "  Baked models: /FuZe/baked/llm/"
+echo "  Baked models: /FuZe/baked/ollama/"
 echo
 
 # Run analysis on the latest CSV

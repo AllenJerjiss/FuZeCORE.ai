@@ -162,7 +162,7 @@ export_one(){ # model_tag -> status
   if [ "$ns" = "$base" ]; then ns="library"; name_tag="$base"; fi
   name="${name_tag%%:*}"
   ver="${name_tag#*:}"
-  mfroot="/FuZe/models/ollama/manifests/registry.ollama.ai"
+  mfroot="/FuZe/ollama/manifests/registry.ollama.ai"
   if [ "$ver" = "$name_tag" ]; then
     mfpath="${mfroot}/${ns}/${name}"
   else
@@ -178,7 +178,7 @@ export_one(){ # model_tag -> status
                  | sed -n 's/.*"digest":"sha256:\([0-9a-f]\{64\}\)".*/\1/p' | head -n1)"
     fi
     if [ -n "$digest" ]; then
-      blob="/FuZe/models/ollama/blobs/sha256-${digest}"
+      blob="/FuZe/ollama/blobs/sha256-${digest}"
       if [ -f "$blob" ]; then
         if head -c 4 "$blob" 2>/dev/null | grep -q '^GGUF'; then
           if [ "$DRY_RUN" -eq 1 ]; then

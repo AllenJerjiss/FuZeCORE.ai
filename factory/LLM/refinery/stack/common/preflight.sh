@@ -80,7 +80,7 @@ section_services(){
 
 section_models(){
   info "Model Stores"
-  local om=/FuZe/models/ollama gg=/FuZe/models/gguf
+  local om=/FuZe/ollama gg=/FuZe/models/gguf
   if [ -d "$om" ]; then
     local o; o=$(stat -c '%U:%G %a' "$om" 2>/dev/null || true)
     ok "Ollama store : $om ($o)"

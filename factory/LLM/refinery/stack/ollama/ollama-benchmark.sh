@@ -33,7 +33,7 @@ TEST_PORT_B="${TEST_PORT_B:-11436}"          # test instance B
 TEST_PORT_MULTI="${TEST_PORT_MULTI:-11437}"  # multi-GPU instance
 
 # Persistent model store (used by :11434)
-OLLAMA_MODELS_DIR="${OLLAMA_MODELS_DIR:-/FuZe/models/ollama}"
+OLLAMA_MODELS_DIR="${OLLAMA_MODELS_DIR:-/FuZe/ollama}"
 
 # num_gpu sweep (high -> low)
 NUM_GPU_CANDIDATES="${NUM_GPU_CANDIDATES:-80 72 64 56 48 40 32 24 16}"
@@ -128,7 +128,7 @@ create_ollama_service_template() {
     # Get default ollama user/group from stock service
     local ollama_user="ollama"
     local ollama_group="ollama"
-    local models_dir="${OLLAMA_MODELS_DIR:-/FuZe/models/ollama}"
+    local models_dir="${OLLAMA_MODELS_DIR:-/FuZe/ollama}"
     
     # Create service file
     cat > "/etc/systemd/system/$service_name" <<EOF
