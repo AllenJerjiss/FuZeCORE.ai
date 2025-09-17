@@ -307,7 +307,8 @@ gpu_label_for_ep(){
         if [ -n "$gpu_name" ]; then
           gpu_labels+=("$(normalize_gpu_label "$gpu_name")")
         else
-          gpu_labels+=("nvidia-unknown")
+          echo "ERROR: Failed to get GPU name for device index $idx" >&2
+          exit 1
         fi
       done
       # Join labels with +
@@ -321,7 +322,8 @@ gpu_label_for_ep(){
     # Original single-GPU logic
     IFS=',' read -r name uuid mem <<<"$(offload_triplet "$unit")"
     if [ -z "${name:-}" ]; then
-      echo "nvidia-unknown"
+      echo "ERROR: Failed to get GPU name for single GPU service $unit" >&2
+      exit 1
     else
       echo "$(normalize_gpu_label "$name")"
     fi
