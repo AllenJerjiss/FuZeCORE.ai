@@ -294,12 +294,11 @@ get_hostname() {
 # ============================================================================
 
 # Generate dynamic environment file for multi-GPU benchmarking
-# Usage: generate_dynamic_env <model_pattern> <gpu_config> [env_mode] [log_dir]
+# Usage: generate_dynamic_env <model_pattern> <gpu_config> [log_dir]
 generate_dynamic_env() {
     local model_pattern="$1"
     local gpu_config="$2"
-    local env_mode="${3:-explore}"
-    local log_dir="${4:-${LOG_DIR_DEFAULT}}"
+    local log_dir="${3:-${LOG_DIR_DEFAULT}}"
     
     if [ -z "$model_pattern" ] || [ -z "$gpu_config" ]; then
         error_exit "generate_dynamic_env requires model_pattern and gpu_config"
@@ -322,14 +321,12 @@ generate_dynamic_env() {
 # Dynamic multi-GPU environment file generated $(date)
 # GPU Configuration: $gpu_config
 # Model Pattern: $model_pattern
-# Environment Mode: $env_mode
 
 # Logs
 LOG_DIR=$log_dir
 
 # Naming
 ALIAS_PREFIX=LLM-FuZe-
-ALIAS_SUFFIX=-${env_mode}
 
 # Scope to one model tag
 INCLUDE_MODELS='^${model_pattern//[-]/[-]}$'

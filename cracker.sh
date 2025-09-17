@@ -26,7 +26,6 @@ OPTIONS:
     --model PATTERN         Model pattern/regex to match
     --gpu LIST              GPU specification (e.g., "0,1" for multi-GPU)
     --combined LIST         Multi-GPU model splitting (e.g., "0,1,2")
-    --env MODE              Environment mode: explore | preprod | prod
     --num-predict N         Number of tokens to predict (default: varies by env)
     --num-ctx N             Context window size (default: varies by env)
     --temperature FLOAT     Temperature for generation (0.0-2.0, default: varies by env)
@@ -54,7 +53,6 @@ EXAMPLES:
     $0 --stack ollama --gpu 0,1 --debug                    # Multi-GPU Ollama with debug
     $0 --stack ollama --combined 0,1,2 --model deepseek    # Multi-GPU model splitting
     $0 --clean --stack llama.cpp                           # Clean then benchmark llama.cpp
-    $0 --stack ollama --env preprod --num-predict 256      # Use preprod env with custom prediction
     $0 --stack ollama --temperature 0.7 --num-ctx 8192     # Custom temperature and context
     $0 --stack ollama --fast-mode --exhaustive             # Fast exhaustive benchmarking
     $0 --stack ollama --auto-ng --debug                    # Enable AUTO_NG optimization with debug
@@ -121,7 +119,6 @@ STACK=""
 MODEL=""
 GPU=""
 COMBINED=""
-ENV_MODE=""
 NUM_PREDICT=""
 NUM_CTX=""
 TEMPERATURE=""
@@ -160,8 +157,6 @@ while [ $# -gt 0 ]; do
             COMBINED="$2"
             shift 2
             ;;
-        --env)
-            ENV_MODE="$2"
             shift 2
             ;;
         --num-predict)
@@ -373,13 +368,10 @@ else
     
     # Auto-select environment file based on model pattern and env mode
     ENV_FILE=""
-    if [ -n "$MODEL" ] && [ -n "$ENV_MODE" ]; then
-        ENV_FILE=$(find_environment_file "$MODEL" "$ENV_MODE" || true)
         if [ -n "$ENV_FILE" ]; then
             echo "Using environment file: $(basename "$ENV_FILE")"
             UST_ARGS=("@$ENV_FILE" "$STACK" "benchmark")
         else
-            echo "No specific environment file found for model '$MODEL' in mode '$ENV_MODE', using defaults"
             UST_ARGS=("$STACK" "benchmark")
         fi
     else
@@ -435,9 +427,6 @@ if [ "$DEBUG" -eq 1 ]; then
 fi
 
 # Handle advanced configuration options
-if [ -n "$ENV_MODE" ]; then
-    ENV_VARS+=("ENV_MODE=$ENV_MODE")
-    echo "Environment mode: $ENV_MODE"
 fi
 
 if [ -n "$NUM_PREDICT" ]; then
@@ -482,8 +471,6 @@ fi
 if [ -n "$MODEL" ]; then
     export MODEL="$MODEL"
 fi
-if [ -n "$ENV_MODE" ]; then
-    export ENV_MODE="$ENV_MODE"
 fi
 if [ -n "$NUM_PREDICT" ]; then
     export NUM_PREDICT="$NUM_PREDICT"

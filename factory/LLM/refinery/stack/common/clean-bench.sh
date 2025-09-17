@@ -13,7 +13,6 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 UST="${ROOT_DIR}/stack/ust.sh"
 
 LOG_DIR="${LOG_DIR:-$LOG_DIR_DEFAULT}"
-ENV_MODE=""
 DO_LOGS=1
 DO_REPO=1
 DO_ENVS=0        # only true for explore mode unless forced
@@ -47,7 +46,6 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 UST="${ROOT_DIR}/stack/ust.sh"
 
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
-ENV_MODE=""
 DO_LOGS=1
 DO_REPO=1
 DO_ENVS=0        # only true for explore mode unless forced
@@ -77,7 +75,6 @@ USAGE
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --env) ENV_MODE="$2"; shift 2;;
     --no-logs) DO_LOGS=0; shift 1;;
     --no-repo) DO_REPO=0; shift 1;;
     --envs) DO_ENVS=1; shift 1;;
@@ -95,18 +92,13 @@ if [ -n "$KEEP_LATEST" ]; then
 fi
 
 # Environment detection
-if [ -z "${ENV_MODE}" ]; then
-  ENV_MODE="$(branch_to_env)"
 fi
 
 # Validate environment
-case "$ENV_MODE" in
     explore|preprod|prod) ;;
-    *) error_exit "Invalid environment: $ENV_MODE (must be explore, preprod, or prod)";;
 esac
 
 # Safety check for production
-if [ "$ENV_MODE" = "prod" ] && [ "$DO_ENVS" -eq 1 ] && [ "$YES" -eq 1 ]; then
     error "WARNING: You are about to delete environment files in PRODUCTION!"
     error "This could break running systems. Are you absolutely sure?"
     read -p "Type 'DELETE PROD ENVS' to confirm: " confirm
@@ -118,8 +110,6 @@ fi
 show_dry_run_status
 
 echo "== Clean plan =="
-echo "Branch : $(branch)"
-echo "Env    : ${ENV_MODE}"
 echo "Logs   : ${LOG_DIR} (clean=${DO_LOGS}, keep-latest=${KEEP_LATEST})"
 echo "Repo   : ${ROOT_DIR}/benchmarks*.csv (clean=${DO_REPO})"
 echo "Envs   : ${ROOT_DIR}/stack/env (clean=${DO_ENVS})"
@@ -160,7 +150,6 @@ fi
 
 # Clean envs
 if [ "$DO_ENVS" -eq 1 ]; then
-  case "$ENV_MODE" in
     explore)
       echo "-- Env files (explore) to remove:"
       do_rm "${ROOT_DIR}/stack/env/explore"/*.env ;;
