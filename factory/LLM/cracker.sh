@@ -7,7 +7,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UST="${ROOT_DIR}/factory/LLM/refinery/stack/ust.sh"
+UST="${ROOT_DIR}/refinery/stack/ust.sh"
 
 # Verify ust.sh exists
 if [ ! -f "$UST" ]; then

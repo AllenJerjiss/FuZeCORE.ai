@@ -12,7 +12,7 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           USER INTERFACE LAYER                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  cracker.sh (387-line CLI Frontend)                                        │
+│  factory/LLM/cracker.sh (387-line CLI Frontend)                            │
 │  ├─ Multi-GPU Configuration (--gpu, --combined)                            │
 │  ├─ Dynamic Configuration Management                    │
 │  ├─ Performance Optimization (--fast-mode, --exhaustive, --auto-ng)       │
@@ -93,22 +93,22 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 ### **Basic Benchmarking**
 ```bash
 # Benchmark Ollama with all available models
-./cracker.sh --stack ollama
+factory/LLM/cracker.sh --stack ollama
 
 # Benchmark specific models with debug information
-./cracker.sh --stack vLLM --model gemma3 --debug
+factory/LLM/cracker.sh --stack vLLM --model gemma3 --debug
 
 # Clean then benchmark llama.cpp
-./cracker.sh --clean --stack llama.cpp
+factory/LLM/cracker.sh --clean --stack llama.cpp
 ```
 
 ### **Multi-GPU Operations**
 ```bash
 # Multi-GPU Ollama benchmarking
-./cracker.sh --stack ollama --gpu 0,1 --debug
+factory/LLM/cracker.sh --stack ollama --gpu 0,1 --debug
 
 # Multi-GPU model splitting across all 3 GPUs
-./cracker.sh --stack ollama --combined 0,1,2 --model deepseek
+factory/LLM/cracker.sh --stack ollama --combined 0,1,2 --model deepseek
 ```
 
 ### **Performance Optimization**
@@ -117,27 +117,27 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 ### **Performance Optimization**
 ```bash
 # Fast mode with no tag baking
-./cracker.sh --stack ollama --fast-mode --model gemma3
+factory/LLM/cracker.sh --stack ollama --fast-mode --model gemma3
 
 # Exhaustive candidate exploration
-./cracker.sh --stack ollama --exhaustive --debug
+factory/LLM/cracker.sh --stack ollama --exhaustive --debug
 
 # Automatic GPU layer optimization
-./cracker.sh --stack ollama --auto-ng --debug
+factory/LLM/cracker.sh --stack ollama --auto-ng --debug
 
 # Combined performance optimizations
-./cracker.sh --stack ollama --fast-mode --exhaustive --auto-ng
+factory/LLM/cracker.sh --stack ollama --fast-mode --exhaustive --auto-ng
 ```
 
 ### **Stack Management**
 ```bash
 # Install specific stacks
-./cracker.sh --stack vLLM --install --debug
-./cracker.sh --stack llama.cpp --install
+factory/LLM/cracker.sh --stack vLLM --install --debug
+factory/LLM/cracker.sh --stack llama.cpp --install
 
 # Service management operations
-./cracker.sh --stack ollama --service-cleanup
-./cracker.sh --stack ollama --store-cleanup
+factory/LLM/cracker.sh --stack ollama --service-cleanup
+factory/LLM/cracker.sh --stack ollama --store-cleanup
 ```
 ```
 
