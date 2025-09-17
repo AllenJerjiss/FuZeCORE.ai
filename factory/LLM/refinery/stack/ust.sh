@@ -127,7 +127,7 @@ case "$stack" in
           generate_dynamic_env "$MODEL" "$COMBINED"
         fi
         exec "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;
-      install)                   exec "${STACK_ROOT}/ollama/install.sh" "$@" ;;
+      install)                   exec "${STACK_ROOT}/common/install.sh" --stack ollama "$@" ;;
       service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
       store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
       export-gguf|export)        exec "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;
