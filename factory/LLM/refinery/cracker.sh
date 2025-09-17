@@ -7,7 +7,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UST="${ROOT_DIR}/refinery/stack/ust.sh"
+UST="${ROOT_DIR}/stack/ust.sh"
 
 # Verify ust.sh exists
 if [ ! -f "$UST" ]; then
@@ -340,17 +340,8 @@ ENV_VARS=()
 
 # Handle GPU specification
 if [ -n "$GPU" ]; then
-    # Convert GPU list to CUDA_VISIBLE_DEVICES format
-    CUDA_GPUS="$GPU"
-    ENV_VARS+=("CUDA_VISIBLE_DEVICES=$CUDA_GPUS")
-    
-    # For multi-GPU setups, enable Ollama spreading
-    if [[ "$GPU" == *","* ]] && [ "$STACK" = "ollama" ]; then
-        ENV_VARS+=("OLLAMA_SCHED_SPREAD=1")
-        echo "Multi-GPU mode: $CUDA_GPUS (OLLAMA_SCHED_SPREAD enabled)"
-    else
-        echo "GPU mode: $CUDA_GPUS"
-    fi
+    ENV_VARS+=("GPU_DEVICES=$GPU")
+    echo "GPU mode: $GPU"
 fi
 
 # Handle combined GPU mode (multi-GPU model splitting)
@@ -360,14 +351,8 @@ if [ -n "$COMBINED" ]; then
         exit 1
     fi
     
-    # Convert gpu list format
-    CUDA_GPUS="$COMBINED"
-    ENV_VARS+=("CUDA_VISIBLE_DEVICES=$CUDA_GPUS")
-    ENV_VARS+=("OLLAMA_SCHED_SPREAD=1")
-    ENV_VARS+=("FUZE_COMBINED_MODE=1")
-    ENV_VARS+=("FUZE_GPU_CONFIG=$COMBINED")
-    
-    echo "Multi-GPU model splitting: $CUDA_GPUS (model: $MODEL)"
+    ENV_VARS+=("COMBINED_DEVICES=$COMBINED")
+    echo "Multi-GPU model splitting: $COMBINED (model: $MODEL)"
 fi
 
 # Handle model pattern

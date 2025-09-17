@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 # ollama/benchmark.sh
 # One-at-a-time model tuning + benchmarking with an always-on puller on :11434
@@ -12,9 +13,10 @@
 set -euo pipefail
 
 # ------------------------------------------------------------------------------
-# Paths & logging
+# Load common GPU service management
 # ------------------------------------------------------------------------------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/common/gpu-services.sh"
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 # Ensure writable log dir; fall back to per-user location if repo logs are root-owned
 if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
@@ -114,6 +116,53 @@ IS_ROOT=$([ "$(id -u)" -eq 0 ] && echo 1 || echo 0)
 SKIP_TEST_UNITS="${SKIP_TEST_UNITS:-$([ "$IS_ROOT" -eq 1 ] && echo 0 || echo 1)}"
 
 # ------------------------------------------------------------------------------
+# GPU Service Management
+# ------------------------------------------------------------------------------
+
+# Ollama service template function
+create_ollama_service_template() {
+    local service_name="$1"
+    local port="$2" 
+    local gpu_spec="$3"
+    
+    # Get default ollama user/group from stock service
+    local ollama_user="ollama"
+    local ollama_group="ollama"
+    
+    # Create service file
+    cat > "/etc/systemd/system/$service_name" <<EOF
+[Unit]
+Description=Ollama GPU Test Service ($gpu_spec)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/ollama serve
+User=$ollama_user
+Group=$ollama_group
+Restart=always
+RestartSec=3
+Environment=OLLAMA_HOST=0.0.0.0:$port
+Environment=OLLAMA_MODELS=$OLLAMA_MODELS_DIR
+Environment=CUDA_VISIBLE_DEVICES=$gpu_spec
+Environment=OLLAMA_SCHED_SPREAD=1
+
+[Install]
+WantedBy=default.target
+EOF
+}
+
+# Setup GPU services if GPU configuration is provided
+setup_ollama_gpu_services() {
+    if [ -n "${GPU_DEVICES:-}${COMBINED_DEVICES:-}" ]; then
+        info "Setting up Ollama GPU services"
+        setup_gpu_services "ollama" "create_ollama_service_template"
+    else
+        info "No GPU configuration provided, using default service only"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # UI helpers
 # ------------------------------------------------------------------------------
 c_bold="\033[1m"; c_red="\033[31m"; c_green="\033[32m"; c_yellow="\033[33m"; c_reset="\033[0m"
@@ -166,12 +215,25 @@ wait_api(){
 }
 
 unit_for_ep(){
-  case "$1" in
-    *:${TEST_PORT_A}) echo "ollama-test-a.service" ;;
-    *:${TEST_PORT_B}) echo "ollama-test-b.service" ;;
-    *:${TEST_PORT_MULTI:-11437}) echo "ollama-test-multi.service" ;;
-    *:${PERSISTENT_PORT}) echo "ollama-persist.service" ;;
-    *) echo "" ;;
+  local ep="$1"
+  local port="${ep##*:}"
+  
+  case "$port" in
+    "${PERSISTENT_PORT}") echo "ollama-persist.service" ;;
+    *) 
+      # Check for dynamic GPU services
+      for service_file in /etc/systemd/system/ollama-test-*.service; do
+        if [ -f "$service_file" ]; then
+          local service_name="$(basename "$service_file")"
+          local service_port="$(systemctl show "$service_name" --property=Environment | grep -o 'OLLAMA_HOST=[^[:space:]]*' | cut -d: -f3 || echo "")"
+          if [ "$service_port" = "$port" ]; then
+            echo "$service_name"
+            return
+          fi
+        fi
+      done
+      echo ""
+      ;;
   esac
 }
 
@@ -540,7 +602,9 @@ tune_and_bench_one(){ # ep baseTag aliasBase
   for ng in ${ng_list}; do
     if [ "$FAST_MODE" -eq 1 ]; then
       # No baking; bench base with runtime option
-      local tokps; tokps="$(bench_once "$ep" "$base" "$base" "optimized" "$ng" "$gpu_lbl" || echo 0.00)"
+      local enhanced_fast_label
+      enhanced_fast_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
+      local tokps; tokps="$(bench_once "$ep" "$base" "$base" "$enhanced_fast_label" "$ng" "$gpu_lbl" || echo 0.00)"
       # Track best and optional early-stop on marginal gain
       if awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}'; then
         best_ng="$ng"; best_tokps="$tokps"; best_name="${alias_base}+ng${ng}"; no_improve_run=0
@@ -661,6 +725,9 @@ if [ "$IS_ROOT" -eq 1 ]; then
 fi
 log "$(gpu_table | sed 's/^/GPU: /')"
 
+# Setup GPU services based on configuration
+setup_ollama_gpu_services
+
 # Make sure :11434 is up (stock "ollama.service" _or_ our "ollama-persist.service")
 if ! curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
   # Prefer stock unit if present; else create our persist unit
@@ -687,44 +754,22 @@ if [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then
   uuid_b="$(echo "$all_gpus" | awk -F',' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}')"
 fi
 
-# Build endpoints array dynamically (single-GPU friendly)
+# Build endpoints array dynamically using GPU services
 ENDPOINTS=()
 if [ "$SKIP_TEST_UNITS" -eq 1 ]; then
   ENDPOINTS+=("127.0.0.1:${PERSISTENT_PORT}")
 else
-  # Check if CUDA_VISIBLE_DEVICES contains multiple GPUs (multi-GPU mode)
-  if [[ "${CUDA_VISIBLE_DEVICES:-}" == *","* ]] && [ "${OLLAMA_SCHED_SPREAD:-0}" -eq 1 ]; then
-    info "Multi-GPU mode detected: CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}, OLLAMA_SCHED_SPREAD=${OLLAMA_SCHED_SPREAD}"
-    # Create a single multi-GPU service using all specified GPUs
-    TEST_PORT_MULTI="${TEST_PORT_MULTI:-11437}"
-    # Service management delegated to service-cleanup.sh
-    write_unit "ollama-test-multi.service" "$TEST_PORT_MULTI" "$CUDA_VISIBLE_DEVICES" "Ollama (Multi-GPU on :${TEST_PORT_MULTI})"
-    systemctl daemon-reload || true
-    systemctl enable --now ollama-test-multi.service || true
-    ENDPOINTS+=("127.0.0.1:${TEST_PORT_MULTI}")
-  fi
+  # Get GPU service endpoints from common function
+  while IFS= read -r endpoint; do
+    ENDPOINTS+=("$endpoint")
+  done < <(get_gpu_service_endpoints "ollama")
   
-  # Original single-GPU per service logic (always available unless multi-GPU replaces it)
-  if [[ ! ("${CUDA_VISIBLE_DEVICES:-}" == *","* && "${OLLAMA_SCHED_SPREAD:-0}" -eq 1) ]]; then
-    if [ -n "${uuid_a:-}" ]; then
-      # Service management delegated to service-cleanup.sh
-      write_unit "ollama-test-a.service" "$TEST_PORT_A" "$uuid_a" "Ollama (TEST A on :${TEST_PORT_A})"
-      systemctl daemon-reload || true
-      systemctl enable --now ollama-test-a.service || true
-      ENDPOINTS+=("127.0.0.1:${TEST_PORT_A}")
-    fi
-    if [ -n "${uuid_b:-}" ]; then
-      # Service management delegated to service-cleanup.sh
-      write_unit "ollama-test-b.service" "$TEST_PORT_B" "$uuid_b" "Ollama (TEST B on :${TEST_PORT_B})"
-      systemctl daemon-reload || true
-      systemctl enable --now ollama-test-b.service || true
-      ENDPOINTS+=("127.0.0.1:${TEST_PORT_B}")
-    fi
-  fi
+  # Always include persistent service for model management
+  ENDPOINTS+=("127.0.0.1:${PERSISTENT_PORT}")
 fi
 
-info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS || true)"
-info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS || true)"
+info "TEST A OLLAMA_MODELS: $(service_env ollama-test-a.service OLLAMA_MODELS 2>/dev/null || echo "N/A")"
+info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS 2>/dev/null || echo "N/A")"
 
 info "Waiting for APIs"
 wait_api "127.0.0.1:${PERSISTENT_PORT}" || warn "API :${PERSISTENT_PORT} not reachable yet"
