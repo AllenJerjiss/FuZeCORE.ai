@@ -71,37 +71,39 @@ need(){ command -v "$1" >/dev/null 2>&1 || { err "Missing dependency: $1"; exit 
 need curl; need jq; need awk; need sed; need nvidia-smi; need "${PYTHON_BIN}"
 
 gpu_table(){ nvidia-smi --query-gpu=index,uuid,name,memory.total --format=csv,noheader | sed 's/, /,/g'; }
-normalize_gpu_label(){
-  local raw="$1" s
-  s="$(echo "$raw" | tr '[:upper:]' '[:lower:]')"
-  s="$(echo "$s" | sed -E 's/(nvidia|geforce|rtx)//g')"
-  s="$(echo "$s" | tr -cd '[:alnum:] \n' | tr -s ' ')"
-  s="$(echo "$s" | sed -E 's/ ti$/ti/; s/ super$/super/; s/ //g')"
-  echo "nvidia-$s"
+
+pick_uuid_by_index(){
+  local idx="$1"
+  gpu_table | awk -F',' -v i="$idx" '$1==i{print $2; exit}'
 }
-pick_uuid_by_name_substr(){
-  local needle="$1"
-  gpu_table | while IFS=',' read -r _idx uuid name _mem; do
-    echo "$name" | grep -qi "$needle" && { echo "$uuid"; return 0; }
-  done
-}
+
 discover_uuid_pair(){
-  local all; all="$(gpu_table)"
   local ua ub
-  ua="$(pick_uuid_by_name_substr "$MATCH_GPU_A" || true)"
-  ub="$(pick_uuid_by_name_substr "$MATCH_GPU_B" || true)"
-  if [ -z "$ua" ] || [ -z "$ub" ] || [ "$ua" = "$ub" ]; then
-    warn "GPU name match failed/identical — falling back to index order."
-    ua="$(echo "$all" | awk -F',' 'NR==1{print $2}')"
-    ub="$(echo "$all" | awk -F',' 'NR==2{print $2}')"
+  ua="$(pick_uuid_by_index 0 || true)"
+  ub="$(pick_uuid_by_index 1 || true)"
+  if [ -z "$ua" ] || [ -z "$ub" ]; then
+    err "Failed to get UUID for GPU indices 0,1"
+    exit 1
   fi
   echo "$ua,$ub"
 }
+
 gpu_label_for_uuid(){
   local uuid="$1"
-  local row; row="$(gpu_table | awk -F',' -v u="$uuid" '$2==u{print $0}')"
-  local _idx u name mem; IFS=',' read -r _idx u name mem <<<"$row"
-  normalize_gpu_label "$name"
+  local row; row="$(gpu_table | awk -F',' -v u="$uuid" '$2==u{print $1}')"
+  if [ -n "$row" ]; then
+    # Get GPU model name and normalize it
+    local gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader --id="$row" 2>/dev/null | head -1)"
+    if [ -n "$gpu_name" ]; then
+      echo "$gpu_name" | awk '{s = tolower($0); gsub(/nvidia|geforce|rtx|[[:space:]]/, "", s); print s}'
+    else
+      err "Failed to get GPU name for index $row"
+      exit 1
+    fi
+  else
+    err "Failed to find GPU index for UUID $uuid"
+    exit 1
+  fi
 }
 
 wait_api(){

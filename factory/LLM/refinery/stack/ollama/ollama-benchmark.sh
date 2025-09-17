@@ -217,7 +217,7 @@ unit_for_ep(){
       for service_file in /etc/systemd/system/ollama-test-*.service; do
         if [ -f "$service_file" ]; then
           local service_name="$(basename "$service_file")"
-          local service_port="$(systemctl show "$service_name" --property=Environment | grep -o 'OLLAMA_HOST=[^[:space:]]*' | cut -d: -f3 || echo "")"
+          local service_port="$(systemctl show "$service_name" --property=Environment | grep -o 'OLLAMA_HOST=[^[:space:]]*' | cut -d: -f2 || echo "")"
           if [ "$service_port" = "$port" ]; then
             echo "$service_name"
             return
@@ -277,55 +277,55 @@ offload_triplet(){ # name,uuid,memmib for an ollama-test-* unit
   fi
 }
 
-normalize_gpu_label(){
-  # "NVIDIA GeForce RTX 5090" -> nvidia-5090 ; "NVIDIA GeForce RTX 3090 Ti" -> nvidia-3090ti
-  local raw="$1" s
-  s="$(echo "$raw" | tr '[:upper:]' '[:lower:]')"
-  s="${s//nvidia /}"
-  s="${s//geforce /}"
-  s="${s//rtx /}"
-  s="${s// /}"
-  s="${s//ti/ti}"
-  echo "nvidia-${s//super/super}"
-}
-
 gpu_label_for_ep(){
-  local ep="$1" unit lbl name uuid mem
+  local ep="$1" unit
   unit="$(unit_for_ep "$ep")"
+  
+  # Special case for persistent service (no CUDA_VISIBLE_DEVICES)
+  if [[ "$unit" == "ollama-persist.service" ]]; then
+    echo "persistent"
+    return 0
+  fi
+  
+  # Helper function to get GPU model name for an index
+  get_gpu_model_label() {
+    local idx="$1"
+    local gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
+    if [ -n "$gpu_name" ]; then
+      # Normalize: "NVIDIA GeForce RTX 3090 Ti" -> "3090ti"
+      echo "$gpu_name" | awk '{s = tolower($0); gsub(/nvidia|geforce|rtx|[[:space:]]/, "", s); print s}'
+    else
+      echo "ERROR: Failed to get GPU name for device index $idx" >&2
+      exit 1
+    fi
+  }
   
   # Check if this is a multi-GPU service
   if [[ "$unit" == "ollama-test-multi.service" ]]; then
-    # For multi-GPU, generate combined label from CUDA_VISIBLE_DEVICES
-    local gpu_indices gpu_labels=()
-    gpu_indices="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
+    # For multi-GPU, get indices and map to model-based labels
+    local gpu_indices="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
     if [ -n "$gpu_indices" ]; then
       IFS=',' read -ra indices <<< "$gpu_indices"
+      local gpu_labels=()
       for idx in "${indices[@]}"; do
-        # Get GPU name for this index
-        local gpu_name
-        gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
-        if [ -n "$gpu_name" ]; then
-          gpu_labels+=("$(normalize_gpu_label "$gpu_name")")
-        else
-          echo "ERROR: Failed to get GPU name for device index $idx" >&2
-          exit 1
-        fi
+        gpu_labels+=("$(get_gpu_model_label "$idx")")
       done
       # Join labels with +
       local combined_label
       printf -v combined_label '%s+' "${gpu_labels[@]}"
       echo "${combined_label%+}"  # Remove trailing +
     else
-      echo "nvidia-multi-unknown"
+      echo "ERROR: No CUDA_VISIBLE_DEVICES found for multi-GPU service" >&2
+      exit 1
     fi
   else
-    # Original single-GPU logic
-    IFS=',' read -r name uuid mem <<<"$(offload_triplet "$unit")"
-    if [ -z "${name:-}" ]; then
-      echo "ERROR: Failed to get GPU name for single GPU service $unit" >&2
-      exit 1
+    # For single-GPU, get the device index and use model-based label
+    local gpu_idx="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
+    if [ -n "$gpu_idx" ]; then
+      get_gpu_model_label "$gpu_idx"
     else
-      echo "$(normalize_gpu_label "$name")"
+      echo "ERROR: No CUDA_VISIBLE_DEVICES found for single GPU service $unit" >&2
+      exit 1
     fi
   fi
 }

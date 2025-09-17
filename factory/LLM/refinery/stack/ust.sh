@@ -122,6 +122,16 @@ case "$stack" in
   ollama|Ollama)
     case "$cmd" in
       bench|benchmark)           
+        # Generate GPU labels: 3090ti, 5090, etc. based on model names
+        if command -v nvidia-smi >/dev/null 2>&1; then
+          export GPU_LABELS="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | awk 'BEGIN{ORS=""} {
+            if(NR>1) print ","; 
+            # Normalize GPU names: "NVIDIA GeForce RTX 3090 Ti" -> "3090ti"
+            s = tolower($0);
+            gsub(/nvidia|geforce|rtx|[[:space:]]/, "", s); 
+            print s
+          }')"
+        fi
         # Handle combined mode with dynamic environment generation
         if [[ -n "${COMBINED:-}" ]]; then
           generate_dynamic_env "$MODEL" "$COMBINED"
