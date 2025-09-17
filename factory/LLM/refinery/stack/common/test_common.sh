@@ -86,11 +86,6 @@ test_logging() {
 test_utilities() {
     echo "Testing utility functions..."
     
-    # Test branch_to_env
-    assert_equals "explore" "$(branch_to_env "main")" "branch_to_env(main) -> explore"
-    assert_equals "preprod" "$(branch_to_env "preprod")" "branch_to_env(preprod) -> preprod" 
-    assert_equals "prod" "$(branch_to_env "prod")" "branch_to_env(prod) -> prod"
-    assert_equals "explore" "$(branch_to_env "feature-xyz")" "branch_to_env(unknown) -> explore"
     
     # Test have_cmd
     assert_true "have_cmd bash" "have_cmd detects existing command"

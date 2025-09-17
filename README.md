@@ -14,7 +14,7 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  cracker.sh (387-line CLI Frontend)                                        │
 │  ├─ Multi-GPU Configuration (--gpu, --combined)                            │
-│  ├─ Environment Management (--env explore|preprod|prod)                    │
+│  ├─ Dynamic Configuration Management                    │
 │  ├─ Performance Optimization (--fast-mode, --exhaustive, --auto-ng)       │
 │  ├─ Stack Operations (--install, --cleanup, --analyze)                     │
 │  └─ Parameter Control (--num-predict, --num-ctx, --temperature, --timeout) │
@@ -109,9 +109,6 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 
 # Multi-GPU model splitting across all 3 GPUs
 ./cracker.sh --stack ollama --combined 0,1,2 --model deepseek
-
-# Environment-specific multi-GPU testing
-./cracker.sh --stack ollama --gpu 0,1 --env preprod --num-predict 256
 ```
 
 ### **Performance Optimization**
@@ -204,7 +201,7 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 - **Trend Analysis**: Historical performance tracking and regression detection
 
 ### **Environment Management System**
-- **Three-Tier Environments**: `explore` (development) → `preprod` (staging) → `prod` (production)
+- **Dynamic Configuration System
 - **Automatic Selection**: Model and stack-aware environment file discovery
 - **Parameter Inheritance**: Environment-specific defaults with override capability
 - **Configuration Validation**: Comprehensive parameter validation and sanitization
@@ -246,7 +243,6 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 --model PATTERN         # Model pattern/regex to match
 --gpu LIST              # GPU specification (e.g., "0,1" for multi-GPU)
 --combined LIST         # Multi-GPU model splitting (e.g., "0,1,2")
---env MODE              # Environment mode: explore | preprod | prod
 ```
 
 ### **Performance Tuning**
@@ -360,9 +356,6 @@ The system underwent comprehensive restoration to recover sophisticated multi-GP
 ```
 └── factory/LLM/refinery/stack/env/
     ├── templates/                 # Environment templates
-    ├── explore/                   # Aggressive exploration configs
-    ├── preprod/                   # Conservative pre-production configs
-    └── prod/                      # Production-ready configs
 ```
 
 ## 🔧 Advanced Usage
@@ -381,7 +374,6 @@ cd factory/LLM/refinery/stack
 ```bash
 # Generate environment files
 cd factory/LLM/refinery/stack/env
-./generate-envs.sh --mode explore --include "gemma3|llama"
 
 # Use custom environment files
 ./ust.sh @custom.env ollama benchmark
@@ -430,9 +422,6 @@ FuZeCORE.ai/
 │   │   └── summarize-benchmarks.sh # Report generation
 │   │
 │   ├── env/                        # Environment configurations
-│   │   ├── explore/                # Development environment files
-│   │   ├── preprod/                # Staging environment files
-│   │   └── prod/                   # Production environment files
 │   │
 │   ├── ollama/                     # Ollama stack implementation
 │   │   ├── install.sh              # Ollama installation script
@@ -511,8 +500,6 @@ Total GPU Memory: ~81GB
 ./benchmark.sh --stack ollama --install     # Ensure stack is installed
 ./benchmark.sh --stack ollama --auto-ng --fast-mode --analyze  # Optimized benchmark with analysis
 
-# Production deployment
-./benchmark.sh --stack vLLM --env prod --gpu 0,1,2 --exhaustive  # Production multi-GPU
 ./benchmark.sh --collect-results            # Aggregate all results
 ./benchmark.sh --summarize                  # Generate reports
 ```
@@ -543,7 +530,6 @@ Total GPU Memory: ~81GB
 
 ### **Production Readiness**
 - ✅ **Hardware Detection**: Automatic multi-GPU configuration
-- ✅ **Environment Management**: Three-tier environment system (explore/preprod/prod)
 - ✅ **Performance Optimization**: Advanced tuning with automatic optimization
 - ✅ **Service Management**: Complete installation, cleanup, and maintenance
 - ✅ **Analysis Integration**: Real-time metrics and comprehensive reporting

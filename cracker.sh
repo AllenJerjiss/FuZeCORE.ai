@@ -26,10 +26,10 @@ OPTIONS:
     --model PATTERN         Model pattern/regex to match
     --gpu LIST              GPU specification (e.g., "0,1" for multi-GPU)
     --combined LIST         Multi-GPU model splitting (e.g., "0,1,2")
-    --num-predict N         Number of tokens to predict (default: varies by env)
-    --num-ctx N             Context window size (default: varies by env)
-    --temperature FLOAT     Temperature for generation (0.0-2.0, default: varies by env)
-    --timeout N             Timeout in seconds for generation (default: varies by env)
+    --num-predict N         Number of tokens to predict (default: 60)
+    --num-ctx N             Context window size (default: 4096)
+    --temperature FLOAT     Temperature for generation (0.0-2.0, default: 0.7)
+    --timeout N             Timeout in seconds for generation (default: 60)
     --fast-mode             Enable fast mode (no tag baking during search)
     --exhaustive            Try all candidates for broader coverage
     --auto-ng               Enable AUTO_NG optimization (derive layers from model)
@@ -81,39 +81,6 @@ For more control, use ust.sh directly:
 USAGE
 }
 
-# Function to find appropriate environment file based on model pattern and env mode
-find_environment_file() {
-    local model_pattern="$1"
-    local env_mode="${2:-explore}"
-    local env_dir="${ROOT_DIR}/factory/LLM/refinery/stack/env/${env_mode}"
-    
-    if [ -z "$model_pattern" ]; then
-        return 0  # No specific model pattern, use default behavior
-    fi
-    
-    # Look for environment files matching the model pattern
-    if [ -d "$env_dir" ]; then
-        # Search for files containing the model pattern in their name
-        local env_file
-        env_file=$(find "$env_dir" -name "*${model_pattern}*" -name "*.env" | head -1)
-        
-        if [ -n "$env_file" ]; then
-            echo "$env_file"
-            return 0
-        fi
-        
-        # Fallback: look for partial matches (e.g., "gemma3" matches "gemma3:4b-it-fp16")
-        env_file=$(find "$env_dir" -name "*.env" | grep -E "${model_pattern//[:.]/[-.]}" | head -1)
-        
-        if [ -n "$env_file" ]; then
-            echo "$env_file"
-            return 0
-        fi
-    fi
-    
-    return 1  # No matching environment file found
-}
-
 # Parse arguments
 STACK=""
 MODEL=""
@@ -155,8 +122,6 @@ while [ $# -gt 0 ]; do
             ;;
         --combined)
             COMBINED="$2"
-            shift 2
-            ;;
             shift 2
             ;;
         --num-predict)
@@ -367,16 +332,7 @@ else
     echo "=== Running $STACK benchmark ==="
     
     # Auto-select environment file based on model pattern and env mode
-    ENV_FILE=""
-        if [ -n "$ENV_FILE" ]; then
-            echo "Using environment file: $(basename "$ENV_FILE")"
-            UST_ARGS=("@$ENV_FILE" "$STACK" "benchmark")
-        else
-            UST_ARGS=("$STACK" "benchmark")
-        fi
-    else
-        UST_ARGS=("$STACK" "benchmark")
-    fi
+    UST_ARGS=("$STACK" "benchmark")
 fi
 
 # Build environment variables and parameters
@@ -426,9 +382,6 @@ if [ "$DEBUG" -eq 1 ]; then
     echo "Debug mode enabled"
 fi
 
-# Handle advanced configuration options
-fi
-
 if [ -n "$NUM_PREDICT" ]; then
     ENV_VARS+=("BENCH_NUM_PREDICT=$NUM_PREDICT")
     echo "Number of tokens to predict: $NUM_PREDICT"
@@ -470,7 +423,6 @@ if [ -n "$COMBINED" ]; then
 fi
 if [ -n "$MODEL" ]; then
     export MODEL="$MODEL"
-fi
 fi
 if [ -n "$NUM_PREDICT" ]; then
     export NUM_PREDICT="$NUM_PREDICT"

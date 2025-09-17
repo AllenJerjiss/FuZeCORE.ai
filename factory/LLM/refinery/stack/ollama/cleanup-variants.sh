@@ -10,7 +10,7 @@ set -euo pipefail
 # Defaults (override via flags)
 ###############################################################################
 HOSTS="127.0.0.1:11434 127.0.0.1:11435 127.0.0.1:11436 127.0.0.1:11437"  # space-separated list
-MATCH_RE='^LLM-FuZe-.*-(explore|preprod|prod)-nvidia-[^-]+(\+[^-]+)*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete
+MATCH_RE='^LLM-FuZe-.*-nvidia-[^-]+(\+[^-]+)*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete
 KEEP_RE=''                                     # exclude anything matching this
 CREATED_LIST=''                                # optional file: only delete names listed here
 FORCE=0                                        # 0=dry-run, 1=delete

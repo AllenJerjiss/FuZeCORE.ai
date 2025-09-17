@@ -32,7 +32,7 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 **Problem**: Lost comprehensive CLI options for benchmarking control
 **Solution**: Restored full parameter set in `cracker.sh`
 **Code Changes**:
-- Added `--gpu`, `--combined`, `--env` flags
+- Added `--gpu, --combined flags (environment mode eliminated)
 - Restored `--num-predict`, `--num-ctx`, `--temperature`, `--timeout`
 - Environment-aware parameter defaults
 
@@ -57,7 +57,7 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 **Solution**: Restored `find_environment_file()` function
 **Code Changes**:
 - Automatic selection based on model name and stack
-- explore/preprod/prod environment hierarchy
+- ELIMINATED - environment mode removed per Point 1
 - Smart fallback mechanisms
 
 ### Point 6: CSV Output and Analysis ✅
@@ -151,7 +151,6 @@ All 12 regression points have been **successfully restored** with **zero functio
 # Added to cracker.sh
 --gpu LIST              # GPU specification (e.g., "0,1" for multi-GPU)
 --combined LIST         # Multi-GPU model splitting (e.g., "0,1,2")
---env MODE              # Environment mode: explore | preprod | prod
 --num-predict N         # Number of tokens to predict
 --num-ctx N             # Context window size
 --temperature FLOAT     # Temperature for generation (0.0-2.0)
@@ -225,9 +224,6 @@ fi
 **Code Changes**:
 ```bash
 # Integration in cracker.sh
-if [ -n "$ENV_MODE" ]; then
-    ENV_VARS+=("ENV_MODE=$ENV_MODE")
-    echo "Environment mode: $ENV_MODE"
 fi
 
 # Auto-selection based on model pattern and stack requirements
@@ -235,12 +231,12 @@ fi
 
 **Files Modified**:
 - `cracker.sh`: Environment mode parameter handling
-- Integration with `env/` directory structure (explore/preprod/prod)
+- Integration with dynamic configuration generation
 
 **Capabilities Restored**:
 - Automatic environment file discovery
 - Model name and stack-aware configuration
-- Environment hierarchy (explore → preprod → prod)
+- Environment mode ELIMINATED per Point 1 restoration
 
 ### Point 6: CSV Output and Analysis ✅
 **Problem**: Analysis pipeline completely disconnected
@@ -438,7 +434,7 @@ fi
 
 ### Functionality Restoration
 - **Multi-GPU Support**: ✅ 3 GPUs (RTX 3090 Ti x2, RTX 5090) fully supported
-- **Environment System**: ✅ explore/preprod/prod environments operational
+- **Environment System: ✅ ELIMINATED per Point 1 - dynamic configuration only
 - **Cross-Stack Compatibility**: ✅ All 4 stacks (ollama, vLLM, llama.cpp, Triton) operational
 - **Performance Optimization**: ✅ All optimization modes functional
 

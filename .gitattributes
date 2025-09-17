@@ -5,6 +5,3 @@
 factory/LLM/refinery/benchmarks.csv               merge=ours
 factory/LLM/refinery/benchmarks.best*.csv         merge=ours
 factory/LLM/refinery/stack/llama.cpp/models.env   merge=ours
-factory/LLM/refinery/stack/env/explore/*.env      merge=ours
-factory/LLM/refinery/stack/env/preprod/*.env      merge=ours
-factory/LLM/refinery/stack/env/prod/*.env         merge=ours

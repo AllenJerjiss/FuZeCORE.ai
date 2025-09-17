@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# clean-bench.sh — Safely clean benchmark artifacts by env/branch
-# - Defaults env based on current git branch: main=explore, preprod=preprod, prod=prod
+# clean-bench.sh — Safely clean benchmark artifacts
 # - Dry-run by default; requires --yes to actually delete
 # - Can also run stack-level variant cleanup (Ollama) if requested
 
@@ -15,7 +14,6 @@ UST="${ROOT_DIR}/stack/ust.sh"
 LOG_DIR="${LOG_DIR:-$LOG_DIR_DEFAULT}"
 DO_LOGS=1
 DO_REPO=1
-DO_ENVS=0        # only true for explore mode unless forced
 DO_VARIANTS=0
 KEEP_LATEST=0
 YES=0
@@ -23,53 +21,15 @@ DRY_RUN=1        # Safe default - require explicit --yes
 
 usage(){
   cat <<USAGE
-Usage: $(basename "$0") [--env explore|preprod|prod] [--no-logs] [--no-repo] [--envs] [--variants] [--keep-latest N] [--yes]
+Usage: $(basename "$0") [--no-logs] [--no-repo] [--variants] [--keep-latest N] [--yes]
 Defaults:
-  - env inferred from branch: main=explore, preprod=preprod, prod=prod
   - removes bench logs under LOG_DIR and repo aggregates under factory/LLM/refinery (dry-run unless --yes)
-  - does NOT remove env files unless --envs (and only for explore by default)
 Options:
-  --env MODE         : explore | preprod | prod (override branch mapping)
   --no-logs          : skip LOG_DIR cleanup
   --no-repo          : skip repo CSV cleanup
-  --envs             : also clean env files (dangerous in prod!)
   --variants         : also run Ollama variant cleanup
   --keep-latest N    : keep N most recent files in each category
   --yes              : actually execute (default is dry-run)
-USAGE
-}
-
-set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-UST="${ROOT_DIR}/stack/ust.sh"
-
-LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
-DO_LOGS=1
-DO_REPO=1
-DO_ENVS=0        # only true for explore mode unless forced
-DO_VARIANTS=0
-KEEP_LATEST=0
-YES=0
-
-usage(){
-  cat <<USAGE
-Usage: $(basename "$0") [--env explore|preprod|prod] [--no-logs] [--no-repo] [--envs] [--variants] [--keep-latest N] [--yes]
-Defaults:
-  - env inferred from branch: main=explore, preprod=preprod, prod=prod
-  - removes bench logs under LOG_DIR and repo aggregates under factory/LLM/refinery (dry-run unless --yes)
-  - does NOT remove env files unless --envs (and only for explore by default)
-Options:
-  --env MODE         : explore | preprod | prod (override branch mapping)
-  --no-logs          : skip cleaning LOG_DIR artifacts
-  --no-repo          : skip cleaning repo aggregates
-  --envs             : also remove env files (only explore by default)
-  --variants         : run Ollama cleanup-variants (requires sudo)
-  --keep-latest N    : keep latest N bench CSVs in LOG_DIR
-  --yes              : perform deletions; without this it's a dry-run
-Env:
-  LOG_DIR            : default /var/log/fuze-stack
 USAGE
 }
 
@@ -77,7 +37,6 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --no-logs) DO_LOGS=0; shift 1;;
     --no-repo) DO_REPO=0; shift 1;;
-    --envs) DO_ENVS=1; shift 1;;
     --variants) DO_VARIANTS=1; shift 1;;
     --keep-latest) KEEP_LATEST="$2"; shift 2;;
     --yes|-y) YES=1; DRY_RUN=0; shift 1;;
@@ -90,29 +49,11 @@ done
 if [ -n "$KEEP_LATEST" ]; then
     validate_number "$KEEP_LATEST" "keep-latest" 0
 fi
-
-# Environment detection
-fi
-
-# Validate environment
-    explore|preprod|prod) ;;
-esac
-
-# Safety check for production
-    error "WARNING: You are about to delete environment files in PRODUCTION!"
-    error "This could break running systems. Are you absolutely sure?"
-    read -p "Type 'DELETE PROD ENVS' to confirm: " confirm
-    if [ "$confirm" != "DELETE PROD ENVS" ]; then
-        error_exit "Aborted. Production environment files preserved."
-    fi
-fi
-
 show_dry_run_status
 
 echo "== Clean plan =="
 echo "Logs   : ${LOG_DIR} (clean=${DO_LOGS}, keep-latest=${KEEP_LATEST})"
 echo "Repo   : ${ROOT_DIR}/benchmarks*.csv (clean=${DO_REPO})"
-echo "Envs   : ${ROOT_DIR}/stack/env (clean=${DO_ENVS})"
 echo "Variants: ${DO_VARIANTS}"
 echo "Mode   : $([ "$YES" -eq 1 ] && echo EXECUTE || echo DRY-RUN)"
 
@@ -146,20 +87,6 @@ fi
 if [ "$DO_REPO" -eq 1 ]; then
   echo "-- Repo aggregates to remove:"
   do_rm "${ROOT_DIR}/benchmarks.csv" "${ROOT_DIR}"/benchmarks.best*.csv
-fi
-
-# Clean envs
-if [ "$DO_ENVS" -eq 1 ]; then
-    explore)
-      echo "-- Env files (explore) to remove:"
-      do_rm "${ROOT_DIR}/stack/env/explore"/*.env ;;
-    preprod)
-      echo "-- Env files (preprod) requested, skipping by default (safer). Use FORCE_PREPROD_ENVS=1 to allow."
-      [ "${FORCE_PREPROD_ENVS:-0}" -eq 1 ] && do_rm "${ROOT_DIR}/stack/env/preprod"/*.env || true ;;
-    prod)
-      echo "-- Env files (prod) requested, skipping by default (safer). Use FORCE_PROD_ENVS=1 to allow."
-      [ "${FORCE_PROD_ENVS:-0}" -eq 1 ] && do_rm "${ROOT_DIR}/stack/env/prod"/*.env || true ;;
-  esac
 fi
 
 # Variants cleanup

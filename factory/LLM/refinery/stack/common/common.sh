@@ -262,17 +262,6 @@ get_git_branch() {
     fi
 }
 
-# Convert branch to environment
-branch_to_env() {
-    local branch="${1:-$(get_git_branch)}"
-    case "$branch" in
-        main) echo "explore" ;;
-        preprod) echo "preprod" ;;
-        prod) echo "prod" ;;
-        *) echo "explore" ;;
-    esac
-}
-
 # Check if NVIDIA GPU is present
 has_nvidia_gpu() {
     if have_cmd nvidia-smi && nvidia-smi >/dev/null 2>&1; then
