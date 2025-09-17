@@ -273,7 +273,7 @@ offload_triplet(){ # name,uuid,memmib for an ollama-test-* unit
   gi="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
   if [ -n "${gi:-}" ] && command -v nvidia-smi >/dev/null 2>&1; then
     nvidia-smi --query-gpu=name,uuid,memory.total --format=csv,noheader 2>/dev/null \
-      | awk -F',' -v id="$gi" 'index($2,id){gsub(/^[[:space:]]+|[[:space:]]+$/,"",$1); gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); gsub(/ MiB/,"",$3); print $1","$2","$3; exit}'
+      | awk -F',' -v id="$gi" 'NR==(id+1){gsub(/^[[:space:]]+|[[:space:]]+$/,"",$1); gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); gsub(/ MiB/,"",$3); print $1","$2","$3; exit}'
   fi
 }
 
