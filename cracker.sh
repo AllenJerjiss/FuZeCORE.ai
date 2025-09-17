@@ -376,6 +376,11 @@ if [ -n "$MODEL" ]; then
     echo "Model pattern: $MODEL"
 fi
 
+# Pass stack name for enhanced alias generation
+if [ -n "$STACK" ]; then
+    ENV_VARS+=("FUZE_STACK_NAME=$STACK")
+fi
+
 # Handle debug mode
 if [ "$DEBUG" -eq 1 ]; then
     ENV_VARS+=("VERBOSE=1" "DEBUG=1")

@@ -298,12 +298,13 @@ suffix_for_ep(){
 }
 
 bench_base_as_is(){ # ep baseTag
-  local ep="$1" base="$2" gpu_lbl; gpu_lbl="$(gpu_label_for_ep "$ep")"
+  local ep="$1" base="$2" gpu_lbl enhanced_base_label; gpu_lbl="$(gpu_label_for_ep "$ep")"
   if ! curl_tags "$ep" >/dev/null 2>&1; then
     warn "Endpoint ${ep} not responding; skipping."
     return 1
   fi
-  bench_once "$ep" "$base" "$base" "base-as-is" "" "$gpu_lbl" >/dev/null || return 1
+  enhanced_base_label="$(enhanced_alias "$base" "$gpu_lbl" "0")"
+  bench_once "$ep" "$base" "$base" "$enhanced_base_label" "" "$gpu_lbl" >/dev/null || return 1
 }
 
 # Discover model layer count (layers.model) by scraping recent unit logs
@@ -365,6 +366,31 @@ base_alias(){ # "llama4:16x17b" -> "llama4-16x17b" with compact suffixes
   s="${s//-fp16/-f16}"
   s="${s//-bf16/-b16}"
   echo "$s"
+}
+
+# Enhanced alias with complete configuration details
+enhanced_alias(){ # base_model_tag gpu_label num_gpu -> enhanced alias
+  local base_tag="$1" gpu_label="$2" ng="$3"
+  local alias stack_name pred_short ctx_short temp_short exhaustive_short
+  
+  # Base model alias
+  alias="$(base_alias "$base_tag")"
+  
+  # Stack name
+  stack_name="${FUZE_STACK_NAME:-ollama}"
+  case "$stack_name" in
+    llama.cpp) stack_name="llama" ;;
+    Triton) stack_name="triton" ;;
+  esac
+  
+  # Parameters
+  pred_short="p${BENCH_NUM_PREDICT:-64}"
+  ctx_short="c$((${BENCH_NUM_CTX:-4096} / 1000))k"
+  temp_short="t$(printf "%02d" "$((${TEMPERATURE%%.*}0 + ${TEMPERATURE#*.}))")"
+  exhaustive_short="$( [ "${EXHAUSTIVE:-0}" -eq 1 ] && echo "ex" || echo "std" )"
+  
+  # Construct enhanced alias
+  echo "${ALIAS_PREFIX}${alias}-${stack_name}-${gpu_label}-ng${ng}-${pred_short}-${ctx_short}-${temp_short}-${exhaustive_short}"
 }
 
 discover_models(){
@@ -545,7 +571,9 @@ tune_and_bench_one(){ # ep baseTag aliasBase
         fi
       fi
     else
-      local newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
+      local newname enhanced_label
+      newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
+      enhanced_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
       info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
       if ! bake_variant "$newname" "$base" "$ng"; then
         warn "Variant bake failed: ${newname}"
@@ -554,7 +582,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       fi
       wait_variant_visible "$ep" "${newname}:latest" 12 || true
       local tokps
-      if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "optimized" "$ng" "$gpu_lbl")"; then :; else tokps="0.00"; fi
+      if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "$enhanced_label" "$ng" "$gpu_lbl")"; then :; else tokps="0.00"; fi
       # Variant cleanup delegated to cleanup-variants.sh
       awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
       # Mark that at least one optimized run succeeded
@@ -572,8 +600,9 @@ tune_and_bench_one(){ # ep baseTag aliasBase
 
   # Optionally publish the best variant tag (even when FAST_MODE=1)
   if [ "$PUBLISH_BEST" -eq 1 ] && awk -v b="$best_tokps" 'BEGIN{exit !(b>0)}'; then
-    local pub_name
+    local pub_name enhanced_pub_label
     pub_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${best_ng}"
+    enhanced_pub_label="$(enhanced_alias "$base" "$gpu_lbl" "$best_ng")"
     info " Publishing best variant tag: ${pub_name} (FROM ${base} num_gpu=${best_ng})"
     if bake_variant "$pub_name" "$base" "$best_ng"; then
       wait_variant_visible "$ep" "${pub_name}:latest" 12 || true
@@ -587,7 +616,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       fi
       # Re-bench the published tag so CSV contains an explicit row for it
       local pub_tokps
-      pub_tokps="$(bench_once "$ep" "$base" "${pub_name}:latest" "published" "$best_ng" "$gpu_lbl" || echo 0.00)"
+      pub_tokps="$(bench_once "$ep" "$base" "${pub_name}:latest" "$enhanced_pub_label" "$best_ng" "$gpu_lbl" || echo 0.00)"
       if awk -v a="$pub_tokps" 'BEGIN{exit !(a>0)}'; then
         ok " Published variant performance: ${pub_tokps} tok/s"
       else
