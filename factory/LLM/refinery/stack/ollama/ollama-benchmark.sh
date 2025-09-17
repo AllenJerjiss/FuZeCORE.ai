@@ -42,7 +42,7 @@ NUM_GPU_CANDIDATES="${NUM_GPU_CANDIDATES:-80 72 64 56 48 40 32 24 16}"
 PROMPT="${PROMPT:-Tell me a 1-sentence fun fact about GPUs.}"
 EXHAUSTIVE="${EXHAUSTIVE:-0}"  # 0 = stop at first working optimized variant per (endpoint,base)
 # Fast mode: skip baking variants; just pass options at runtime.
-FAST_MODE="${FAST_MODE:-1}"
+FAST_MODE="${FAST_MODE:-0}"
 # Auto-NG selection: derive candidates from observed layers.model in logs.
 AUTO_NG="${AUTO_NG:-1}"
 # Percent steps (only used if AUTO_NG=1 and FAST_MODE=1)
@@ -616,7 +616,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
       enhanced_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
       info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
-      if ! factory/LLM/bakery/fuze-vanilla-llm.sh "$newname" "$base" "$ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
+      if ! "$ROOT_DIR/../../bakery/fuze-vanilla-llm.sh" "$newname" "$base" "$ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
         warn "Variant bake failed: ${newname}"
         # Variant cleanup delegated to cleanup-variants.sh
         continue
@@ -645,7 +645,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     pub_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${best_ng}"
     enhanced_pub_label="$(enhanced_alias "$base" "$gpu_lbl" "$best_ng")"
     info " Publishing best variant tag: ${pub_name} (FROM ${base} num_gpu=${best_ng})"
-    if factory/LLM/bakery/fuze-vanilla-llm.sh "$pub_name" "$base" "$best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
+    if "$ROOT_DIR/../../bakery/fuze-vanilla-llm.sh" "$pub_name" "$base" "$best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
       wait_variant_visible "$ep" "${pub_name}:latest" 12 || true
       ok " Published: ${pub_name}:latest"
       # Optional warm-up request to reduce cold-start skew

@@ -366,48 +366,37 @@ install_ollama() {
         use_cached=0
     fi
     
-    # Download and cache binary if needed
+    # Use official installer (with caching consideration)
     if [ "$use_cached" -eq 0 ]; then
         if [ "$DRY_RUN" -eq 1 ]; then
-            info "DRY RUN: Would download Ollama binary to cache: $cached_binary"
+            info "DRY RUN: Would run official Ollama installer"
         else
-            # Create cache directory
-            mkdir -p "$CACHE_DIR"
-            
-            # Download binary (detect architecture)
-            local arch
-            case "$(uname -m)" in
-                x86_64) arch="amd64" ;;
-                aarch64) arch="arm64" ;;
-                armv7l) arch="arm" ;;
-                *) error "Unsupported architecture: $(uname -m)"; exit 1 ;;
-            esac
-            
-            local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-            local download_url="https://ollama.com/download/ollama-${os}-${arch}"
-            
-            info "Downloading Ollama binary from: $download_url"
-            if curl -fsSL "$download_url" -o "$cached_binary"; then
-                chmod +x "$cached_binary"
-                ok "Downloaded and cached Ollama binary: $cached_binary"
+            # Use official installer - this ensures proper setup of all dependencies
+            if ! command -v ollama >/dev/null 2>&1; then
+                info "Installing Ollama via official installer"
+                curl -fsSL https://ollama.com/install.sh | sh
             else
-                error "Failed to download Ollama binary"
-                exit 1
+                info "Upgrading Ollama via official installer"
+                OLLAMA_UPGRADE=1 curl -fsSL https://ollama.com/install.sh | sh || true
+            fi
+            
+            # Cache the installed binary for future use
+            mkdir -p "$CACHE_DIR"
+            if [ -f "/usr/local/bin/ollama" ]; then
+                cp "/usr/local/bin/ollama" "$cached_binary"
+                chmod +x "$cached_binary"
+                ok "Cached Ollama binary for future use: $cached_binary"
             fi
         fi
-    fi
-    
-    # Install binary from cache
-    if [ "$DRY_RUN" -eq 1 ]; then
-        if [ "$use_cached" -eq 1 ]; then
+    else
+        # Install from cache
+        if [ "$DRY_RUN" -eq 1 ]; then
             info "DRY RUN: Would install from cached binary: $cached_binary -> /usr/local/bin/ollama"
         else
-            info "DRY RUN: Would install from downloaded binary: $cached_binary -> /usr/local/bin/ollama"
+            cp "$cached_binary" /usr/local/bin/ollama
+            chmod +x /usr/local/bin/ollama
+            ok "Installed Ollama from cache: $cached_binary"
         fi
-    else
-        cp "$cached_binary" /usr/local/bin/ollama
-        chmod +x /usr/local/bin/ollama
-        ok "Installed Ollama binary to /usr/local/bin/ollama"
     fi
     
     # Rest of Ollama-specific setup (from original ollama/install.sh)
@@ -428,11 +417,10 @@ install_ollama() {
         done
         
         # Setup FuZe model directory
-        local canon="/FuZe/models/ollama"
-        mkdir -p /FuZe /FuZe/models "$canon"
-        chmod 755 /FuZe /FuZe/models "$canon"
+        local canon="/FuZe/ollama"
+        mkdir -p /FuZe "$canon"
+        chmod 755 /FuZe "$canon"
         chown -R ollama:ollama "$canon"
-        [ -e /FuZe/ollama ] || ln -s "$canon" /FuZe/ollama || true
         
         # Stop ALL ollama* services (stock & custom)
         info "Stopping ALL ollama* services"
@@ -494,7 +482,7 @@ install_ollama() {
 User=ollama
 Group=ollama
 SupplementaryGroups=video render
-Environment=OLLAMA_MODELS=/FuZe/models/ollama
+Environment=OLLAMA_MODELS=/FuZe/ollama
 # ExecStart provided by package; defaults to port 11434
 DROPIN
         

@@ -13,18 +13,33 @@ ollama_bin="$5"
 create_log="$6"
 created_list="$7"
 
-# Create baked output directory if it doesn't exist
-baked_dir="/FuZe/baked/llm"
+ # Always create baked output directory
+baked_dir="/FuZe/baked/ollama"
 mkdir -p "$baked_dir"
+if [ ! -w "$baked_dir" ]; then
+    echo "ERROR: Cannot write to baked directory: $baked_dir" >&2
+    exit 1
+fi
 
-# Create Modelfile content directly (no temp file)
-modelfile_content="FROM ${base}
-PARAMETER num_gpu ${ng}"
+# Ensure directory is accessible
+if [ ! -w "$baked_dir" ]; then
+    echo "ERROR: Cannot write to baked directory: $baked_dir" >&2
+    exit 1
+fi
+
+# Create Modelfile content in a temp file
+temp_modelfile="/tmp/modelfile.$$"
+cat > "$temp_modelfile" <<EOF
+FROM ${base}
+PARAMETER num_gpu ${ng}
+EOF
 
 # Create the variant
-if echo "$modelfile_content" | OLLAMA_HOST="http://${pull_from}" "$ollama_bin" create "$newname" -f - >>"$create_log" 2>&1; then
+if OLLAMA_HOST="http://${pull_from}" "$ollama_bin" create "$newname" -f "$temp_modelfile" >>"$create_log" 2>&1; then
+    rm -f "$temp_modelfile"
     echo "$newname" >> "$created_list"
     exit 0
 else
+    rm -f "$temp_modelfile"
     exit 1
 fi
