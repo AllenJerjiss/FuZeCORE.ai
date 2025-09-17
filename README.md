@@ -12,7 +12,7 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           USER INTERFACE LAYER                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  benchmark.sh (387-line CLI Frontend)                                      │
+│  cracker.sh (387-line CLI Frontend)                                        │
 │  ├─ Multi-GPU Configuration (--gpu, --combined)                            │
 │  ├─ Environment Management (--env explore|preprod|prod)                    │
 │  ├─ Performance Optimization (--fast-mode, --exhaustive, --auto-ng)       │
@@ -93,40 +93,55 @@ FuZeCORE.ai provides a comprehensive, production-ready platform for benchmarking
 ### **Basic Benchmarking**
 ```bash
 # Benchmark Ollama with all available models
-./benchmark.sh --stack ollama
+./cracker.sh --stack ollama
 
 # Benchmark specific models with debug information
-./benchmark.sh --stack vLLM --model gemma3 --debug
+./cracker.sh --stack vLLM --model gemma3 --debug
 
 # Clean then benchmark llama.cpp
-./benchmark.sh --clean --stack llama.cpp
+./cracker.sh --clean --stack llama.cpp
 ```
 
 ### **Multi-GPU Operations**
 ```bash
 # Multi-GPU Ollama benchmarking
-./benchmark.sh --stack ollama --gpu 0,1 --debug
+./cracker.sh --stack ollama --gpu 0,1 --debug
 
 # Multi-GPU model splitting across all 3 GPUs
-./benchmark.sh --stack ollama --combined 0,1,2 --model deepseek
+./cracker.sh --stack ollama --combined 0,1,2 --model deepseek
 
 # Environment-specific multi-GPU testing
-./benchmark.sh --stack ollama --gpu 0,1 --env preprod --num-predict 256
+./cracker.sh --stack ollama --gpu 0,1 --env preprod --num-predict 256
 ```
 
 ### **Performance Optimization**
 ```bash
 # Fast mode with no tag baking
-./benchmark.sh --stack ollama --fast-mode --model gemma3
+### **Performance Optimization**
+```bash
+# Fast mode with no tag baking
+./cracker.sh --stack ollama --fast-mode --model gemma3
 
 # Exhaustive candidate exploration
-./benchmark.sh --stack ollama --exhaustive --debug
+./cracker.sh --stack ollama --exhaustive --debug
 
 # Automatic GPU layer optimization
-./benchmark.sh --stack ollama --auto-ng --debug
+./cracker.sh --stack ollama --auto-ng --debug
 
 # Combined performance optimizations
-./benchmark.sh --stack ollama --fast-mode --exhaustive --auto-ng
+./cracker.sh --stack ollama --fast-mode --exhaustive --auto-ng
+```
+
+### **Stack Management**
+```bash
+# Install specific stacks
+./cracker.sh --stack vLLM --install --debug
+./cracker.sh --stack llama.cpp --install
+
+# Service management operations
+./cracker.sh --stack ollama --service-cleanup
+./cracker.sh --stack ollama --store-cleanup
+```
 ```
 
 ### **Stack Management**

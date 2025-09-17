@@ -6,13 +6,13 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 ## Architecture Before vs After
 
 ### Before Restoration (Broken State)
-- **benchmark.sh**: 160 lines, broken multi-GPU support
+- **cracker.sh**: 160 lines, broken multi-GPU support (now renamed to cracker.sh)
 - **Missing Features**: Dynamic environments, model aliasing, analysis pipeline
 - **Multi-GPU**: Non-functional
 - **Cross-Stack**: Limited compatibility
 
 ### After Restoration (Fully Functional)
-- **benchmark.sh**: 387 lines, sophisticated CLI frontend  
+- **cracker.sh**: 387 lines, sophisticated CLI frontend  
 - **ust.sh**: Core orchestrator with full stack routing
 - **All Features**: Restored and operational
 - **Multi-GPU**: Full 3-GPU support (RTX 3090 Ti x2, RTX 5090)
@@ -30,7 +30,7 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 
 ### Point 2: Advanced Configuration Options ✅
 **Problem**: Lost comprehensive CLI options for benchmarking control
-**Solution**: Restored full parameter set in `benchmark.sh`
+**Solution**: Restored full parameter set in `cracker.sh`
 **Code Changes**:
 - Added `--gpu`, `--combined`, `--env` flags
 - Restored `--num-predict`, `--num-ctx`, `--temperature`, `--timeout`
@@ -46,7 +46,7 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 
 ### Point 4: Model Tag Aliasing System ✅
 **Problem**: Lost intelligent model discovery and partial name matching
-**Solution**: Restored sophisticated model resolution in `benchmark.sh`
+**Solution**: Restored sophisticated model resolution in `cracker.sh`
 **Code Changes**:
 - Environment-based candidate selection
 - Fallback mechanisms for model discovery
@@ -62,7 +62,7 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 
 ### Point 6: CSV Output and Analysis ✅
 **Problem**: Lost comprehensive benchmarking analysis pipeline
-**Solution**: Restored analysis integration in `benchmark.sh`
+**Solution**: Restored analysis integration in `cracker.sh`
 **Code Changes**:
 - `--analyze` flag integration
 - `--collect-results` and `--summarize` functionality
@@ -119,13 +119,13 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 ## Code Refactoring Summary
 
 ### Files Modified
-1. **`benchmark.sh`**: 160 → 387 lines, comprehensive CLI restoration
+1. **`cracker.sh`**: 160 → 387 lines, comprehensive CLI restoration
 2. **`factory/LLM/refinery/stack/common/common.sh`**: Added `generate_dynamic_env()` (67 lines)
 3. **`factory/LLM/refinery/stack/ust.sh`**: Enhanced routing and error handling
 4. **Permission fixes**: Made shell scripts executable across all stacks
 
 ### Architecture Improvements
-- **Two-layer design**: CLI frontend (`benchmark.sh`) + Core orchestrator (`ust.sh`)
+- **Two-layer design**: CLI frontend (`cracker.sh`) + Core orchestrator (`ust.sh`)
 - **Unified interface**: Consistent behavior across all 4 AI stacks
 - **Shared infrastructure**: Common environment handling and configuration
 - **Performance optimization**: Sophisticated tuning parameters restored
@@ -133,7 +133,7 @@ During infrastructure "modernization," a sophisticated 382-line orchestrator was
 ## Final Architecture State
 
 The system now consists of:
-1. **User-friendly CLI** (`benchmark.sh`) - 387 lines
+1. **User-friendly CLI** (`cracker.sh`) - 387 lines
 2. **Core orchestrator** (`ust.sh`) - Routes to stack-specific operations
 3. **Stack implementations** - ollama, vLLM, llama.cpp, Triton
 4. **Shared infrastructure** - Common environment handling, analysis tools
@@ -148,7 +148,7 @@ All 12 regression points have been **successfully restored** with **zero functio
 
 **Code Changes**:
 ```bash
-# Added to benchmark.sh
+# Added to cracker.sh
 --gpu LIST              # GPU specification (e.g., "0,1" for multi-GPU)
 --combined LIST         # Multi-GPU model splitting (e.g., "0,1,2")
 --env MODE              # Environment mode: explore | preprod | prod
@@ -159,7 +159,7 @@ All 12 regression points have been **successfully restored** with **zero functio
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Lines 25-75 (help documentation), 125-140 (variable initialization), 160-220 (argument parsing), 440-500 (environment setup)
+- `cracker.sh`: Lines 25-75 (help documentation), 125-140 (variable initialization), 160-220 (argument parsing), 440-500 (environment setup)
 
 **Capabilities Restored**:
 - Environment-aware parameter defaults
@@ -172,7 +172,7 @@ All 12 regression points have been **successfully restored** with **zero functio
 
 **Code Changes**:
 ```bash
-# Enhanced in benchmark.sh
+# Enhanced in cracker.sh
 --install               # Install the specified stack instead of benchmarking
 
 # Stack routing in ust.sh
@@ -185,7 +185,7 @@ esac
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Installation flag handling and routing
+- `cracker.sh`: Installation flag handling and routing
 - `ust.sh`: Stack-specific installation delegation
 - Fixed permissions on all `install.sh` scripts across stacks
 
@@ -200,7 +200,7 @@ esac
 
 **Code Changes**:
 ```bash
-# In benchmark.sh - enhanced model pattern handling
+# In cracker.sh - enhanced model pattern handling
 if [ -n "$MODEL_PATTERN" ]; then
     ENV_VARS+=("MODEL_PATTERN=$MODEL_PATTERN")
     echo "Model pattern: $MODEL_PATTERN"
@@ -210,7 +210,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Model pattern parameter processing
+- `cracker.sh`: Model pattern parameter processing
 - Environment file integration for model-specific configurations
 
 **Capabilities Restored**:
@@ -224,7 +224,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Integration in benchmark.sh
+# Integration in cracker.sh
 if [ -n "$ENV_MODE" ]; then
     ENV_VARS+=("ENV_MODE=$ENV_MODE")
     echo "Environment mode: $ENV_MODE"
@@ -234,7 +234,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Environment mode parameter handling
+- `cracker.sh`: Environment mode parameter handling
 - Integration with `env/` directory structure (explore/preprod/prod)
 
 **Capabilities Restored**:
@@ -248,7 +248,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Added to benchmark.sh
+# Added to cracker.sh
 --analyze               # Run analysis after benchmarking
 --collect-results       # Collect and aggregate benchmark results
 --summarize             # Generate comprehensive benchmark reports
@@ -261,7 +261,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Analysis flags and post-benchmark integration
+- `cracker.sh`: Analysis flags and post-benchmark integration
 - Connected to existing `analyze.sh`, `collect-results.sh`, `summarize-benchmarks.sh`
 
 **Capabilities Restored**:
@@ -275,7 +275,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Added to benchmark.sh
+# Added to cracker.sh
 --export-gguf           # Export models from Ollama to GGUF format
 --import-gguf           # Import GGUF models from Ollama for llama.cpp
 
@@ -286,7 +286,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Import/export flag handling
+- `cracker.sh`: Import/export flag handling
 - `ust.sh`: Routing to stack-specific GGUF operations
 
 **Capabilities Restored**:
@@ -300,7 +300,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Added to benchmark.sh
+# Added to cracker.sh
 --service-cleanup       # Setup persistent Ollama service
 --store-cleanup         # Normalize Ollama model storage
 
@@ -311,7 +311,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Service management flag handling
+- `cracker.sh`: Service management flag handling
 - `ust.sh`: Service operation delegation
 
 **Capabilities Restored**:
@@ -325,7 +325,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Added to benchmark.sh
+# Added to cracker.sh
 --cleanup-variants      # Remove benchmark-created variants
 --clean                 # Clean before benchmarking
 --clean-all             # Comprehensive cleanup: logs, CSVs, variants
@@ -337,7 +337,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Cleanup flag handling with dry-run support
+- `cracker.sh`: Cleanup flag handling with dry-run support
 - `ust.sh`: Cleanup operation routing
 
 **Capabilities Restored**:
@@ -351,7 +351,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Enhanced debug handling in benchmark.sh
+# Enhanced debug handling in cracker.sh
 if [ "$DEBUG" -eq 1 ]; then
     ENV_VARS+=("DEBUG=1" "VERBOSE=1")
     echo "Debug mode enabled"
@@ -364,7 +364,7 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Enhanced debug flag handling and environment reporting
+- `cracker.sh`: Enhanced debug flag handling and environment reporting
 - `common/common.sh`: Debug logging integration
 
 **Capabilities Restored**:
@@ -383,7 +383,7 @@ fi
 - **Triton**: ✅ Docker setup working, interface operational
 
 **Files Modified**:
-- Fixed permissions on all stack `install.sh` and `benchmark.sh` scripts
+- Fixed permissions on all stack `install.sh` and `cracker.sh` scripts
 - Verified consistent CLI interface across all stacks
 
 **Capabilities Restored**:
@@ -397,7 +397,7 @@ fi
 
 **Code Changes**:
 ```bash
-# Added to benchmark.sh
+# Added to cracker.sh
 --fast-mode             # Enable fast mode (no tag baking during search)
 --exhaustive            # Try all candidates for broader coverage
 --auto-ng               # Enable AUTO_NG optimization (derive layers from model)
@@ -420,8 +420,8 @@ fi
 ```
 
 **Files Modified**:
-- `benchmark.sh`: Performance optimization flags and environment passing
-- Verified integration with existing `ollama-benchmark.sh` performance features
+- `cracker.sh`: Performance optimization flags and environment passing
+- Verified integration with existing `ollama-cracker.sh` performance features
 
 **Capabilities Restored**:
 - Runtime optimization without tag baking (FAST_MODE)
@@ -443,7 +443,7 @@ fi
 - **Performance Optimization**: ✅ All optimization modes functional
 
 ### File Impact Summary
-- **Primary**: `benchmark.sh` - Complete CLI restoration
+- **Primary**: `cracker.sh` - Complete CLI restoration
 - **Core**: `ust.sh` - Stack routing verification
 - **Infrastructure**: `common/common.sh` - Multi-GPU environment generation
 - **Permissions**: Fixed executable permissions across all stack scripts

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# benchmark.sh — Lightweight CLI for FuZe stack benchmarking
+#!/usr/bin/env bash
+# cracker.sh — Lightweight CLI for FuZe stack benchmarking
+# Comprehensive frontend for multi-GPU model benchmarking across AI stacks
 # Simple interface that delegates to ust.sh orchestrator for actual work
 
 set -euo pipefail
