@@ -57,8 +57,14 @@ create_gpu_service_file() {
     local stack="$4"
     local service_template_func="$5"
     
-    # Call stack-specific service template function
-    "$service_template_func" "$service_name" "$port" "$gpu_spec"
+    # Check if we need sudo for service creation
+    if [ "$(id -u)" -ne 0 ] && [ ! -w "/etc/systemd/system/" ]; then
+        info "GPU service creation requires root privileges"
+        sudo bash -c "$(declare -f "$service_template_func"); $service_template_func '$service_name' '$port' '$gpu_spec'"
+    else
+        # Call stack-specific service template function
+        "$service_template_func" "$service_name" "$port" "$gpu_spec"
+    fi
 }
 
 # Setup all GPU services based on configuration
@@ -66,6 +72,12 @@ setup_gpu_services() {
     local stack="$1"
     local service_template_func="$2"
     local configs
+    
+    # Validate GPU configuration is provided
+    if [ -z "${GPU_DEVICES:-}${COMBINED_DEVICES:-}" ]; then
+        warn "GPU configuration required. Use --gpu X or --combined X,Y,Z flags."
+        return 1
+    fi
     
     info "Setting up GPU services for $stack"
     
@@ -84,10 +96,16 @@ setup_gpu_services() {
         
         create_gpu_service_file "$service_name" "$port" "$gpu_spec" "$stack" "$service_template_func"
         
-        # Enable and start the service
-        systemctl daemon-reload
-        systemctl enable "$service_name"
-        systemctl start "$service_name"
+        # Enable and start the service (with sudo if needed)
+        if [ "$(id -u)" -ne 0 ]; then
+            sudo systemctl daemon-reload
+            sudo systemctl enable "$service_name"
+            sudo systemctl start "$service_name"
+        else
+            systemctl daemon-reload
+            systemctl enable "$service_name"
+            systemctl start "$service_name"
+        fi
         
         # Wait for service to be ready
         local max_wait=30
@@ -118,20 +136,29 @@ cleanup_gpu_services() {
     for service_file in /etc/systemd/system/${stack}-test-*.service; do
         if [ -f "$service_file" ]; then
             local service_name="$(basename "$service_file")"
-            systemctl stop "$service_name" 2>/dev/null || true
-            systemctl disable "$service_name" 2>/dev/null || true
-            rm -f "$service_file"
+            if [ "$(id -u)" -ne 0 ]; then
+                sudo systemctl stop "$service_name" 2>/dev/null || true
+                sudo systemctl disable "$service_name" 2>/dev/null || true
+                sudo rm -f "$service_file"
+            else
+                systemctl stop "$service_name" 2>/dev/null || true
+                systemctl disable "$service_name" 2>/dev/null || true
+                rm -f "$service_file"
+            fi
             ok "Removed $service_name"
         fi
     done
     
-    systemctl daemon-reload
+    if [ "$(id -u)" -ne 0 ]; then
+        sudo systemctl daemon-reload
+    else
+        systemctl daemon-reload
+    fi
 }
 
 # Get list of active GPU service endpoints for a stack
 get_gpu_service_endpoints() {
     local stack="$1"
-    local base_port="${GPU_SERVICE_BASE_PORT:-11435}"
     
     # Check which services are active for this stack
     for service_file in /etc/systemd/system/${stack}-test-*.service; do
@@ -139,8 +166,8 @@ get_gpu_service_endpoints() {
             local service_name="$(basename "$service_file")"
             if systemctl is-active "$service_name" >/dev/null 2>&1; then
                 # Extract port from service environment
-                local service_port="$(systemctl show "$service_name" --property=Environment | grep -o 'OLLAMA_HOST=[^[:space:]]*' | cut -d: -f3 || echo "")"
-                if [ -n "$service_port" ] && curl -sf "http://127.0.0.1:$service_port/api/tags" >/dev/null 2>&1; then
+                local service_port="$(systemctl show "$service_name" --property=Environment | sed -n 's/.*OLLAMA_HOST=[^:]*:\([0-9]*\).*/\1/p')"
+                if [ -n "$service_port" ]; then
                     echo "127.0.0.1:$service_port"
                 fi
             fi

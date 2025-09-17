@@ -128,6 +128,7 @@ create_ollama_service_template() {
     # Get default ollama user/group from stock service
     local ollama_user="ollama"
     local ollama_group="ollama"
+    local models_dir="${OLLAMA_MODELS_DIR:-/FuZe/models/ollama}"
     
     # Create service file
     cat > "/etc/systemd/system/$service_name" <<EOF
@@ -143,7 +144,7 @@ Group=$ollama_group
 Restart=always
 RestartSec=3
 Environment=OLLAMA_HOST=0.0.0.0:$port
-Environment=OLLAMA_MODELS=$OLLAMA_MODELS_DIR
+Environment=OLLAMA_MODELS=$models_dir
 Environment=CUDA_VISIBLE_DEVICES=$gpu_spec
 Environment=OLLAMA_SCHED_SPREAD=1
 
@@ -152,15 +153,6 @@ WantedBy=default.target
 EOF
 }
 
-# Setup GPU services if GPU configuration is provided
-setup_ollama_gpu_services() {
-    if [ -n "${GPU_DEVICES:-}${COMBINED_DEVICES:-}" ]; then
-        info "Setting up Ollama GPU services"
-        setup_gpu_services "ollama" "create_ollama_service_template"
-    else
-        info "No GPU configuration provided, using default service only"
-    fi
-}
 
 # ------------------------------------------------------------------------------
 # UI helpers
@@ -584,7 +576,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     warn "Base ${base} NOT visible on ${ep}. Build happens on :${PERSISTENT_PORT}; benches will run via ${ep}."
   fi
 
-  bench_base_as_is "$ep" "$base" || warn "base-as-is bench skipped for $base on $ep"
+  # Skip base-as-is bench here - handled separately for vanilla metrics
 
   local best_tokps="0.00" best_name="" best_ng="" first_ok=0
   local zero_run=0 no_improve_run=0
@@ -726,7 +718,7 @@ fi
 log "$(gpu_table | sed 's/^/GPU: /')"
 
 # Setup GPU services based on configuration
-setup_ollama_gpu_services
+setup_gpu_services "ollama" "create_ollama_service_template"
 
 # Make sure :11434 is up (stock "ollama.service" _or_ our "ollama-persist.service")
 if ! curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
@@ -793,9 +785,29 @@ if [ "$SKIP_TEST_UNITS" -eq 0 ]; then
   done
 fi
 
+# Separate vanilla and tuned benchmarking
+PERSISTENT_EP="127.0.0.1:${PERSISTENT_PORT}"
+GPU_ENDPOINTS=()
+
+# Build GPU endpoints array (exclude persistent service)
+if [ "$SKIP_TEST_UNITS" -eq 0 ]; then
+  while IFS= read -r endpoint; do
+    GPU_ENDPOINTS+=("$endpoint")
+  done < <(get_gpu_service_endpoints "ollama")
+fi
+
+info "DEBUG: GPU_ENDPOINTS count=${#GPU_ENDPOINTS[@]}, values=[${GPU_ENDPOINTS[*]}]"
+
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"
-  for ep in "${ENDPOINTS[@]}"; do
+  
+  # Vanilla benchmarking on persistent service (base-as-is only)
+  log "=== Vanilla metrics on ${PERSISTENT_EP} — base: ${base} (alias ${alias_base}) ==="
+  bench_base_as_is "$PERSISTENT_EP" "$base" || warn "vanilla bench skipped for $base"
+  
+  # Parameter tuning on GPU services
+  info "DEBUG: Starting GPU tuning loop for ${#GPU_ENDPOINTS[@]} endpoints"
+  for ep in "${GPU_ENDPOINTS[@]}"; do
     log "=== Tuning on ${ep} — base: ${base} (alias ${alias_base}) ==="
     tune_and_bench_one "$ep" "$base" "$alias_base"
   done
