@@ -380,21 +380,6 @@ ng_candidates_from_layers(){ # layers -> echo list high->low unique >=1
   echo "${out[*]}"
 }
 
-bake_variant(){ # newname base num_gpu
-  local newname="$1" base="$2" ng="$3" tf
-  tf="$(mktemp)"
-  {
-    echo "FROM ${base}"
-    echo "PARAMETER num_gpu ${ng}"
-  } >"$tf"
-  OLLAMA_HOST="http://${PULL_FROM}" \
-    "$OLLAMA_BIN" create "$newname" -f "$tf" >>"$CREATE_LOG" 2>&1 || {
-      rm -f "$tf"; return 1; }
-  rm -f "$tf"
-  echo "$newname" >> "$CREATED_LIST"
-  return 0
-}
-
 # Variant cleanup delegated to cleanup-variants.sh
 
 wait_variant_visible(){ # ep variant secs
@@ -631,7 +616,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
       enhanced_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
       info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
-      if ! bake_variant "$newname" "$base" "$ng"; then
+      if ! factory/LLM/bakery/fuze-vanilla-llm.sh "$newname" "$base" "$ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
         warn "Variant bake failed: ${newname}"
         # Variant cleanup delegated to cleanup-variants.sh
         continue
@@ -660,7 +645,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
     pub_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${best_ng}"
     enhanced_pub_label="$(enhanced_alias "$base" "$gpu_lbl" "$best_ng")"
     info " Publishing best variant tag: ${pub_name} (FROM ${base} num_gpu=${best_ng})"
-    if bake_variant "$pub_name" "$base" "$best_ng"; then
+    if factory/LLM/bakery/fuze-vanilla-llm.sh "$pub_name" "$base" "$best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
       wait_variant_visible "$ep" "${pub_name}:latest" 12 || true
       ok " Published: ${pub_name}:latest"
       # Optional warm-up request to reduce cold-start skew
@@ -790,13 +775,12 @@ PERSISTENT_EP="127.0.0.1:${PERSISTENT_PORT}"
 GPU_ENDPOINTS=()
 
 # Build GPU endpoints array (exclude persistent service)
-if [ "$SKIP_TEST_UNITS" -eq 0 ]; then
+# If GPU configuration was provided and services were set up, discover them regardless of SKIP_TEST_UNITS
+if [ -n "${GPU_DEVICES:-}${COMBINED_DEVICES:-}" ]; then
   while IFS= read -r endpoint; do
     GPU_ENDPOINTS+=("$endpoint")
   done < <(get_gpu_service_endpoints "ollama")
 fi
-
-info "DEBUG: GPU_ENDPOINTS count=${#GPU_ENDPOINTS[@]}, values=[${GPU_ENDPOINTS[*]}]"
 
 for m in "${MODELS[@]}"; do
   base="${m%%|*}"; alias_base="${m##*|}"
@@ -806,7 +790,6 @@ for m in "${MODELS[@]}"; do
   bench_base_as_is "$PERSISTENT_EP" "$base" || warn "vanilla bench skipped for $base"
   
   # Parameter tuning on GPU services
-  info "DEBUG: Starting GPU tuning loop for ${#GPU_ENDPOINTS[@]} endpoints"
   for ep in "${GPU_ENDPOINTS[@]}"; do
     log "=== Tuning on ${ep} — base: ${base} (alias ${alias_base}) ==="
     tune_and_bench_one "$ep" "$base" "$alias_base"

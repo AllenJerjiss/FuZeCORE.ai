@@ -22,17 +22,32 @@ fi
 echo "Step 1: Cleaning all artifacts..."
 "$CRACKER" --clean-all --stack ollama
 
+# Clean baked models directory
+echo "Cleaning baked models..."
+rm -rf /FuZe/baked/llm/*
+
 # Step 2: Install Ollama stack
 echo
 echo "Step 2: Installing Ollama stack..."
 "$CRACKER" --stack ollama --install
 
-# Step 3: Run benchmark with standard mode (baking enabled)
+# Step 3: Run benchmark with standard mode (baking enabled, GPU 0)
 echo
-echo "Step 3: Running benchmark with baking (standard mode)..."
-"$CRACKER" --stack ollama --model gpt-oss-20b
+echo "Step 3: Running benchmark with baking (standard mode, GPU 0)..."
+"$CRACKER" --stack ollama --gpu 0 --model gpt-oss-20b
 
 echo
 echo "=== Workflow Complete ==="
-echo "Results available in: /var/log/fuze-stack/"
-echo "Analysis: $SCRIPT_DIR/LLM/refinery/stack/common/analyze.sh --stack ollama"
+echo "Results available in:"
+echo "  Logs/CSVs: /var/log/fuze-stack/"
+echo "  Baked models: /FuZe/baked/llm/"
+echo
+
+# Run analysis on the latest CSV
+echo "=== Analysis Results ==="
+LATEST_CSV=$(ls -t /var/log/fuze-stack/ollama_bench_*.csv 2>/dev/null | head -1)
+if [ -n "$LATEST_CSV" ]; then
+    "$SCRIPT_DIR/LLM/refinery/stack/common/analyze.sh" --stack ollama --csv "$LATEST_CSV"
+else
+    echo "No CSV files found for analysis"
+fi

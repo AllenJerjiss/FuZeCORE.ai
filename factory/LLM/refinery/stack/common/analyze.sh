@@ -139,9 +139,9 @@ if [ -n "$MODEL_RE" ]; then
   debug "Created filtered CSV with $(wc -l < "$TMP_CSV") lines"
 fi
 
-# Baseline map per (endpoint|model)
+# Baseline map per (endpoint|model) - identify by empty or zero num_gpu
 BASEMAP="$(mktemp)"
-awk -F',' 'NR>1 && $6=="base-as-is" {k=$2"|"$5; if(($12+0)>b[k]) b[k]=$12+0} END{for(k in b) print k","b[k]}' "$TMP_CSV" >"$BASEMAP"
+awk -F',' 'NR>1 && ($8=="" || $8+0==0) {k=$2"|"$5; if(($12+0)>b[k]) b[k]=$12+0} END{for(k in b) print k","b[k]}' "$TMP_CSV" >"$BASEMAP"
 
 if [ "$NO_TOP" -eq 0 ]; then
   echo
@@ -199,8 +199,8 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR>1 {
     k=$2"|"$5
-    if ($6=="base-as-is"){base[k]=$12+0}
-    else if ($6=="optimized" && $12+0>0){ if ($12+0>best[k]) {best[k]=$12+0; tag[k]=$7; ng[k]=$8; ts[k]=$1; gl_map[k]=$13; ep[k]=$2} }
+    if ($8=="" || $8+0==0){base[k]=$12+0}
+    else if ($8!="" && $8+0>0 && $12+0>0){ if ($12+0>best[k]) {best[k]=$12+0; tag[k]=$7; ng[k]=$8; ts[k]=$1; gl_map[k]=$13; ep[k]=$2} }
   }
   END{
     if (length(best)==0){print "| (none)            |"; exit}
@@ -238,8 +238,8 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   NR==1{next}
   {
     key=$2"|"$5
-    if ($6=="base-as-is"){base[key]=$12+0; tsb[key]=$1; gl[key]=$13}
-    else if ($6=="optimized"){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=($8+0>0?aliasify($5) "+ng" $8:aliasify($7)); ng[key]=$8; tso[key]=$1; gl[key]=$13} }
+    if ($8=="" || $8+0==0){base[key]=$12+0; tsb[key]=$1; gl[key]=$13}
+    else if ($8!="" && $8+0>0){ if ($12+0>opt[key]){opt[key]=$12+0; optname[key]=($8+0>0?aliasify($5) "+ng" $8:aliasify($7)); ng[key]=$8; tso[key]=$1; gl[key]=$13} }
   }
   END{
     for (k in base){
@@ -277,8 +277,8 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
   NR>1 {
     k=$5
-    if($6=="base-as-is" && $12+0>bb[k]){ bb[k]=$12+0; tsb[k]=$1 }
-    if(($6=="optimized"||$6=="published") && $12+0>oo[k]){ oo[k]=$12+0; ng[k]=$8; tso[k]=$1; ep[k]=$2; gl[k]=$13 }
+    if(($8=="" || $8+0==0) && $12+0>bb[k]){ bb[k]=$12+0; tsb[k]=$1 }
+    if(($8!="" && $8+0>0) && $12+0>oo[k]){ oo[k]=$12+0; ng[k]=$8; tso[k]=$1; ep[k]=$2; gl[k]=$13 }
   }
   END{
     for (m in bb){
