@@ -1,6 +1,0 @@
-model,stack,host,optimal_tokps,baseline_tokps,optimal_variant,gpu_label,gpu_name,num_gpu,run_ts,csv_file
-gemma3:27b-it-fp16,ollama,fuze-bakery,18.47,18.40,gemma3:27b-it-fp16,nvidia-3090ti+nvidia-5090+nvidia-3090ti,,63,20250916_075548,/var/log/fuze-stack/ollama_bench_20250916_075548.csv
-gemma3:4b-it-fp16,ollama,fuze-bakery,147.19,138.64,gemma3:4b-it-fp16,nvidia-5090,NVIDIA GeForce RTX 5090,34,20250916_000211,/var/log/fuze-stack/ollama_bench_20250916_000211.csv
-llama3.1:8b-text-fp16,ollama,fuze-bakery,56.84,56.43,llama3.1:8b-text-fp16,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,33,20250914_220605,/var/log/fuze-stack/ollama_bench_20250914_220605.csv
-qwen3:30b-a3b-thinking-2507-q4_K_M,ollama,fuze-bakery,144.13,143.41,qwen3:30b-a3b-thinking-2507-q4_K_M,nvidia-3090ti,NVIDIA GeForce RTX 3090 Ti,32,20250914_215359,/var/log/fuze-stack/ollama_bench_20250914_215359.csv
-gpt-oss:20b,ollama,fuze-bakery,152.88,150.01,gpt-oss:20b,nvidia-5070ti,NVIDIA GeForce RTX 5070 Ti,12,20250914_212502,/var/log/fuze-stack/ollama_bench_20250914_212502.csv

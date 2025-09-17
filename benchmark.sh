@@ -20,24 +20,60 @@ Usage: $(basename "$0") [OPTIONS]
 A lightweight CLI for FuZe stack benchmarking that delegates to the ust.sh orchestrator.
 
 OPTIONS:
-    --stack STACK       Target stack: ollama | vLLM | llama.cpp | Triton
-    --model PATTERN     Model pattern/regex to match
-    --gpu LIST          GPU specification (e.g., "0,1" for multi-GPU)
-    --combined LIST     Multi-GPU model splitting (e.g., "0,1,2")
-    --debug             Enable debug mode
-    --clean             Clean before benchmarking
-    -h, --help          Show this help
+    --stack STACK           Target stack: ollama | vLLM | llama.cpp | Triton
+    --model PATTERN         Model pattern/regex to match
+    --gpu LIST              GPU specification (e.g., "0,1" for multi-GPU)
+    --combined LIST         Multi-GPU model splitting (e.g., "0,1,2")
+    --env MODE              Environment mode: explore | preprod | prod
+    --num-predict N         Number of tokens to predict (default: varies by env)
+    --num-ctx N             Context window size (default: varies by env)
+    --temperature FLOAT     Temperature for generation (0.0-2.0, default: varies by env)
+    --timeout N             Timeout in seconds for generation (default: varies by env)
+    --fast-mode             Enable fast mode (no tag baking during search)
+    --exhaustive            Try all candidates for broader coverage
+    --auto-ng               Enable AUTO_NG optimization (derive layers from model)
+    --install               Install the specified stack instead of benchmarking
+    --analyze               Run analysis after benchmarking
+    --collect-results       Collect and aggregate benchmark results
+    --summarize             Generate comprehensive benchmark reports
+    --debug                 Enable debug mode
+    --export-gguf           Export models from Ollama to GGUF format
+    --import-gguf           Import GGUF models from Ollama for llama.cpp
+    --service-cleanup       Setup persistent Ollama service (requires --stack ollama)
+    --store-cleanup         Normalize Ollama model storage (requires --stack ollama)
+    --cleanup-variants      Remove benchmark-created variants (requires --stack ollama)
+    --clean                 Clean before benchmarking
+    --clean-all             Comprehensive cleanup: logs, CSVs, variants (dry-run with --debug)
+    -h, --help              Show this help
 
 EXAMPLES:
-    $0 --stack ollama                           # Benchmark Ollama with defaults
-    $0 --stack vLLM --model gemma3             # Benchmark vLLM with gemma3 models
-    $0 --stack ollama --gpu 0,1 --debug        # Multi-GPU Ollama with debug
-    $0 --stack ollama --combined 0,1,2 --model deepseek   # Multi-GPU model splitting
-    $0 --clean --stack llama.cpp               # Clean then benchmark llama.cpp
+    $0 --stack ollama                                       # Benchmark Ollama with defaults
+    $0 --stack vLLM --model gemma3                         # Benchmark vLLM with gemma3 models
+    $0 --stack ollama --gpu 0,1 --debug                    # Multi-GPU Ollama with debug
+    $0 --stack ollama --combined 0,1,2 --model deepseek    # Multi-GPU model splitting
+    $0 --clean --stack llama.cpp                           # Clean then benchmark llama.cpp
+    $0 --stack ollama --env preprod --num-predict 256      # Use preprod env with custom prediction
+    $0 --stack ollama --temperature 0.7 --num-ctx 8192     # Custom temperature and context
+    $0 --stack ollama --fast-mode --exhaustive             # Fast exhaustive benchmarking
+    $0 --stack ollama --auto-ng --debug                    # Enable AUTO_NG optimization with debug
+    $0 --stack vLLM --install                               # Install vLLM stack
+    $0 --stack llama.cpp --install --debug                 # Install llama.cpp with debug output
+    $0 --stack ollama --export-gguf                         # Export Ollama models to GGUF format
+    $0 --stack llama.cpp --import-gguf                      # Import GGUF models from Ollama
+    $0 --stack ollama --service-cleanup                     # Setup persistent Ollama service
+    $0 --stack ollama --store-cleanup                       # Normalize Ollama model storage
+    $0 --stack ollama --cleanup-variants --debug            # Preview variant cleanup (dry-run)
+    $0 --clean-all --debug                                  # Preview comprehensive cleanup
+    $0 --clean-all                                          # Full cleanup: logs, CSVs, variants
+    $0 --stack ollama --analyze                             # Benchmark then analyze results
+    $0 --collect-results                                    # Aggregate all benchmark results
+    $0 --summarize                                          # Generate comprehensive reports
 
 WORKFLOW:
     1. Optional: --clean runs cleanup via ust.sh clean-bench
-    2. Runs benchmark via ust.sh <stack> benchmark with specified parameters
+    2. With --install: Runs installation via ust.sh <stack> install
+    3. Default: Runs benchmark via ust.sh <stack> benchmark with specified parameters
+    4. All actual work delegated to ust.sh orchestrator
     3. All actual work delegated to ust.sh orchestrator
 
 For more control, use ust.sh directly:
@@ -45,13 +81,64 @@ For more control, use ust.sh directly:
 USAGE
 }
 
+# Function to find appropriate environment file based on model pattern and env mode
+find_environment_file() {
+    local model_pattern="$1"
+    local env_mode="${2:-explore}"
+    local env_dir="${ROOT_DIR}/factory/LLM/refinery/stack/env/${env_mode}"
+    
+    if [ -z "$model_pattern" ]; then
+        return 0  # No specific model pattern, use default behavior
+    fi
+    
+    # Look for environment files matching the model pattern
+    if [ -d "$env_dir" ]; then
+        # Search for files containing the model pattern in their name
+        local env_file
+        env_file=$(find "$env_dir" -name "*${model_pattern}*" -name "*.env" | head -1)
+        
+        if [ -n "$env_file" ]; then
+            echo "$env_file"
+            return 0
+        fi
+        
+        # Fallback: look for partial matches (e.g., "gemma3" matches "gemma3:4b-it-fp16")
+        env_file=$(find "$env_dir" -name "*.env" | grep -E "${model_pattern//[:.]/[-.]}" | head -1)
+        
+        if [ -n "$env_file" ]; then
+            echo "$env_file"
+            return 0
+        fi
+    fi
+    
+    return 1  # No matching environment file found
+}
+
 # Parse arguments
 STACK=""
 MODEL=""
 GPU=""
 COMBINED=""
+ENV_MODE=""
+NUM_PREDICT=""
+NUM_CTX=""
+TEMPERATURE=""
+TIMEOUT=""
+FAST_MODE=0
+EXHAUSTIVE=0
+AUTO_NG=0
+INSTALL=0
+ANALYZE=0
+COLLECT_RESULTS=0
+SUMMARIZE=0
 DEBUG=0
 CLEAN=0
+EXPORT_GGUF=0
+IMPORT_GGUF=0
+SERVICE_CLEANUP=0
+STORE_CLEANUP=0
+CLEANUP_VARIANTS=0
+CLEAN_ALL=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -60,7 +147,7 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --model)
-            MODEL="$2" 
+            MODEL="$2"
             shift 2
             ;;
         --gpu)
@@ -71,12 +158,84 @@ while [ $# -gt 0 ]; do
             COMBINED="$2"
             shift 2
             ;;
+        --env)
+            ENV_MODE="$2"
+            shift 2
+            ;;
+        --num-predict)
+            NUM_PREDICT="$2"
+            shift 2
+            ;;
+        --num-ctx)
+            NUM_CTX="$2"
+            shift 2
+            ;;
+        --temperature)
+            TEMPERATURE="$2"
+            shift 2
+            ;;
+        --timeout)
+            TIMEOUT="$2"
+            shift 2
+            ;;
+        --fast-mode)
+            FAST_MODE=1
+            shift
+            ;;
+        --exhaustive)
+            EXHAUSTIVE=1
+            shift
+            ;;
+        --auto-ng)
+            AUTO_NG=1
+            shift
+            ;;
+        --install)
+            INSTALL=1
+            shift
+            ;;
+        --analyze)
+            ANALYZE=1
+            shift
+            ;;
+        --collect-results)
+            COLLECT_RESULTS=1
+            shift
+            ;;
+        --summarize)
+            SUMMARIZE=1
+            shift
+            ;;
         --debug)
             DEBUG=1
             shift
             ;;
         --clean)
             CLEAN=1
+            shift
+            ;;
+        --export-gguf)
+            EXPORT_GGUF=1
+            shift
+            ;;
+        --import-gguf)
+            IMPORT_GGUF=1
+            shift
+            ;;
+        --service-cleanup)
+            SERVICE_CLEANUP=1
+            shift
+            ;;
+        --store-cleanup)
+            STORE_CLEANUP=1
+            shift
+            ;;
+        --cleanup-variants)
+            CLEANUP_VARIANTS=1
+            shift
+            ;;
+        --clean-all)
+            CLEAN_ALL=1
             shift
             ;;
         -h|--help)
@@ -91,21 +250,34 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Validate required parameters
-if [ -z "$STACK" ]; then
-    echo "ERROR: --stack is required" >&2
+# Handle analysis-only operations (don't require stack)
+if [ "$COLLECT_RESULTS" -eq 1 ]; then
+    echo "=== Collecting and aggregating benchmark results ==="
+    exec "$UST" collect-results "$@"
+fi
+
+if [ "$SUMMARIZE" -eq 1 ]; then
+    echo "=== Generating comprehensive benchmark reports ==="
+    exec "$UST" summarize-benchmarks "$@"
+fi
+
+# Validate required parameters for stack operations
+if [ -z "$STACK" ] && [ "$CLEAN_ALL" -eq 0 ]; then
+    echo "ERROR: --stack is required for benchmark, install, and analysis operations" >&2
     echo "Use --help for usage information." >&2
     exit 1
 fi
 
-# Validate stack
-case "$STACK" in
-    ollama|vLLM|llama.cpp|Triton) ;;
-    *) 
-        echo "ERROR: Invalid stack '$STACK'. Must be: ollama | vLLM | llama.cpp | Triton" >&2
-        exit 1 
-        ;;
-esac
+# Validate stack if provided
+if [ -n "$STACK" ]; then
+    case "$STACK" in
+        ollama|vLLM|llama.cpp|Triton) ;;
+        *) 
+            echo "ERROR: Invalid stack '$STACK'. Must be: ollama | vLLM | llama.cpp | Triton" >&2
+            exit 1 
+            ;;
+    esac
+fi
 
 # Build ust.sh arguments
 UST_ARGS=()
@@ -121,11 +293,97 @@ if [ "$CLEAN" -eq 1 ]; then
     echo
 fi
 
-# Step 2: Prepare benchmark arguments for the specific stack
-echo "=== Running $STACK benchmark ==="
+# Step 1.5: Model Import/Export operations
+if [ "$EXPORT_GGUF" -eq 1 ]; then
+    if [ "$STACK" != "ollama" ]; then
+        echo "ERROR: --export-gguf requires --stack ollama" >&2
+        exit 1
+    fi
+    echo "=== Exporting GGUF models from Ollama ==="
+    # Build export arguments
+    EXPORT_ARGS=()
+    [ "$DEBUG" -eq 1 ] && EXPORT_ARGS+=("--dry-run")  # Use dry-run for debug mode
+    exec "$UST" ollama export-gguf "${EXPORT_ARGS[@]}"
+fi
 
-# Add stack
-UST_ARGS=("$STACK" "benchmark")
+if [ "$IMPORT_GGUF" -eq 1 ]; then
+    if [ "$STACK" != "llama.cpp" ]; then
+        echo "ERROR: --import-gguf requires --stack llama.cpp" >&2
+        exit 1
+    fi
+    echo "=== Importing GGUF models from Ollama to llama.cpp ==="
+    # Build import arguments  
+    IMPORT_ARGS=()
+    [ "$DEBUG" -eq 1 ] && IMPORT_ARGS+=("--dry-run")  # Use dry-run for debug mode
+    exec "$UST" llama.cpp import-gguf "${IMPORT_ARGS[@]}"
+fi
+
+# Step 1.6: Service Management operations
+if [ "$SERVICE_CLEANUP" -eq 1 ]; then
+    if [ "$STACK" != "ollama" ]; then
+        echo "ERROR: --service-cleanup requires --stack ollama" >&2
+        exit 1
+    fi
+    echo "=== Setting up persistent Ollama service ==="
+    exec "$UST" ollama service-cleanup
+fi
+
+if [ "$STORE_CLEANUP" -eq 1 ]; then
+    if [ "$STACK" != "ollama" ]; then
+        echo "ERROR: --store-cleanup requires --stack ollama" >&2
+        exit 1
+    fi
+    echo "=== Normalizing Ollama model storage ==="
+    exec "$UST" ollama store-cleanup
+fi
+
+if [ "$CLEANUP_VARIANTS" -eq 1 ]; then
+    if [ "$STACK" != "ollama" ]; then
+        echo "ERROR: --cleanup-variants requires --stack ollama" >&2
+        exit 1
+    fi
+    echo "=== Cleaning up benchmark-created model variants ==="
+    # Build cleanup arguments
+    CLEANUP_ARGS=()
+    [ "$DEBUG" -eq 1 ] || CLEANUP_ARGS+=("--force" "--yes")  # Use force mode unless debug
+    exec "$UST" ollama cleanup-variants "${CLEANUP_ARGS[@]}"
+fi
+
+# Step 1.7: Comprehensive Cleanup operations  
+if [ "$CLEAN_ALL" -eq 1 ]; then
+    echo "=== Comprehensive cleanup: logs, CSVs, and variants ==="
+    # Build comprehensive cleanup arguments
+    CLEAN_ALL_ARGS=("--variants")  # Always include variant cleanup
+    if [ "$DEBUG" -eq 1 ]; then
+        echo "Debug mode: Running dry-run preview"
+    else
+        CLEAN_ALL_ARGS+=("--yes")  # Use force mode unless debug
+    fi
+    exec "$UST" clean-bench "${CLEAN_ALL_ARGS[@]}"
+fi
+
+# Step 2: Prepare arguments for the specific stack
+if [ "$INSTALL" -eq 1 ]; then
+    echo "=== Installing $STACK stack ==="
+    UST_ARGS=("$STACK" "install")
+else
+    echo "=== Running $STACK benchmark ==="
+    
+    # Auto-select environment file based on model pattern and env mode
+    ENV_FILE=""
+    if [ -n "$MODEL" ] && [ -n "$ENV_MODE" ]; then
+        ENV_FILE=$(find_environment_file "$MODEL" "$ENV_MODE" || true)
+        if [ -n "$ENV_FILE" ]; then
+            echo "Using environment file: $(basename "$ENV_FILE")"
+            UST_ARGS=("@$ENV_FILE" "$STACK" "benchmark")
+        else
+            echo "No specific environment file found for model '$MODEL' in mode '$ENV_MODE', using defaults"
+            UST_ARGS=("$STACK" "benchmark")
+        fi
+    else
+        UST_ARGS=("$STACK" "benchmark")
+    fi
+fi
 
 # Build environment variables and parameters
 ENV_VARS=()
@@ -174,12 +432,77 @@ if [ "$DEBUG" -eq 1 ]; then
     echo "Debug mode enabled"
 fi
 
+# Handle advanced configuration options
+if [ -n "$ENV_MODE" ]; then
+    ENV_VARS+=("ENV_MODE=$ENV_MODE")
+    echo "Environment mode: $ENV_MODE"
+fi
+
+if [ -n "$NUM_PREDICT" ]; then
+    ENV_VARS+=("BENCH_NUM_PREDICT=$NUM_PREDICT")
+    echo "Number of tokens to predict: $NUM_PREDICT"
+fi
+
+if [ -n "$NUM_CTX" ]; then
+    ENV_VARS+=("BENCH_NUM_CTX=$NUM_CTX")
+    echo "Context window size: $NUM_CTX"
+fi
+
+if [ -n "$TEMPERATURE" ]; then
+    ENV_VARS+=("TEMPERATURE=$TEMPERATURE")
+    echo "Temperature: $TEMPERATURE"
+fi
+
+if [ -n "$TIMEOUT" ]; then
+    ENV_VARS+=("TIMEOUT_GEN=$TIMEOUT")
+    echo "Generation timeout: $TIMEOUT seconds"
+fi
+
+if [ "$FAST_MODE" -eq 1 ]; then
+    ENV_VARS+=("FAST_MODE=1")
+    echo "Fast mode enabled (no tag baking during search)"
+fi
+
+if [ "$EXHAUSTIVE" -eq 1 ]; then
+    ENV_VARS+=("EXHAUSTIVE=1")
+    echo "Exhaustive mode enabled (try all candidates)"
+fi
+
+if [ "$AUTO_NG" -eq 1 ]; then
+    ENV_VARS+=("AUTO_NG=1")
+    echo "AUTO_NG optimization enabled (derive layers from model)"
+fi
+
 # Export variables for ust.sh access
 if [ -n "$COMBINED" ]; then
     export COMBINED="$COMBINED"
 fi
 if [ -n "$MODEL" ]; then
     export MODEL="$MODEL"
+fi
+if [ -n "$ENV_MODE" ]; then
+    export ENV_MODE="$ENV_MODE"
+fi
+if [ -n "$NUM_PREDICT" ]; then
+    export NUM_PREDICT="$NUM_PREDICT"
+fi
+if [ -n "$NUM_CTX" ]; then
+    export NUM_CTX="$NUM_CTX"
+fi
+if [ -n "$TEMPERATURE" ]; then
+    export TEMPERATURE="$TEMPERATURE"
+fi
+if [ -n "$TIMEOUT" ]; then
+    export TIMEOUT="$TIMEOUT"
+fi
+if [ "$FAST_MODE" -eq 1 ]; then
+    export FAST_MODE="$FAST_MODE"
+fi
+if [ "$EXHAUSTIVE" -eq 1 ]; then
+    export EXHAUSTIVE="$EXHAUSTIVE"
+fi
+if [ "$AUTO_NG" -eq 1 ]; then
+    export AUTO_NG="$AUTO_NG"
 fi
 
 # Execute the benchmark via ust.sh
@@ -189,4 +512,15 @@ if [ ${#ENV_VARS[@]} -gt 0 ]; then
     env "${ENV_VARS[@]}" "$UST" "${UST_ARGS[@]}"
 else
     "$UST" "${UST_ARGS[@]}"
+fi
+
+# Post-benchmark analysis if requested
+if [ "$ANALYZE" -eq 1 ] && [ "$INSTALL" -eq 0 ]; then
+    echo ""
+    echo "=== Post-benchmark analysis ==="
+    # First collect results to ensure latest benchmarks are included
+    echo "Collecting latest results..."
+    "$UST" collect-results >/dev/null 2>&1 || true
+    # Then run analysis
+    "$UST" analyze --stack "$STACK"
 fi

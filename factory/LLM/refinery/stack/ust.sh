@@ -123,7 +123,7 @@ case "$stack" in
     case "$cmd" in
       bench|benchmark)           
         # Handle combined mode with dynamic environment generation
-        if [[ -n "$COMBINED" ]]; then
+        if [[ -n "${COMBINED:-}" ]]; then
           generate_dynamic_env "$MODEL" "$COMBINED"
         fi
         exec "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;

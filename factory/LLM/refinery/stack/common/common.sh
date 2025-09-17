@@ -338,13 +338,13 @@ INCLUDE_MODELS='^${model_pattern//[-]/[-]}$'
 CUDA_VISIBLE_DEVICES=$gpu_config
 OLLAMA_SCHED_SPREAD=1
 
-# Bench behavior (aggressive for multi-GPU)
-FAST_MODE=1            # no tag baking during search; pass options at runtime
-EXHAUSTIVE=1           # try all candidates for broader coverage
-BENCH_NUM_PREDICT=128
-BENCH_NUM_CTX=4096
-TEMPERATURE=0.0
-TIMEOUT_GEN=300        # allow extra time for first gen
+# Bench behavior (configurable based on CLI options)
+FAST_MODE=\${FAST_MODE:-1}            # no tag baking during search; pass options at runtime
+EXHAUSTIVE=\${EXHAUSTIVE:-1}           # try all candidates for broader coverage
+BENCH_NUM_PREDICT=\${NUM_PREDICT:-\${BENCH_NUM_PREDICT:-128}}
+BENCH_NUM_CTX=\${NUM_CTX:-\${BENCH_NUM_CTX:-4096}}
+TEMPERATURE=\${TEMPERATURE:-0.0}
+TIMEOUT_GEN=\${TIMEOUT:-\${TIMEOUT_GEN:-300}}        # allow extra time for first gen
 VERBOSE=\${VERBOSE:-1}
 
 # Debugging / publishing (aggressive)
