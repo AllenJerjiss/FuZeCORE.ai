@@ -56,10 +56,10 @@ TEMPERATURE="${TEMPERATURE:-0.0}"
 # Verbose log toggle
 VERBOSE="${VERBOSE:-1}"
 
-# Timeouts (seconds)
-WAIT_API_SECS="${WAIT_API_SECS:-60}"
-TIMEOUT_GEN="${TIMEOUT_GEN:-90}"
-TIMEOUT_TAGS="${TIMEOUT_TAGS:-10}"
+# Timeouts (seconds) - fallbacks only if dynamic environment doesn't set them
+WAIT_API_SECS="${WAIT_API_SECS:-30}"
+TIMEOUT_GEN="${TIMEOUT_GEN:-60}"     # fallback for dynamic environment
+TIMEOUT_TAGS="${TIMEOUT_TAGS:-30}"
 
 SERVICE_HOME="${SERVICE_HOME:-/root}"   # only used for unit templates (not $HOME)
 MATCH_GPU_A="${MATCH_GPU_A:-5090}"
@@ -72,6 +72,16 @@ GC_AFTER_RUN="${GC_AFTER_RUN:-1}"                  # 1=final pass GC
 # Example: EXCLUDE_MODELS='^(tiny|sd3:)'   INCLUDE_MODELS='^llama4:'
 EXCLUDE_MODELS="${EXCLUDE_MODELS:-}"
 INCLUDE_MODELS="${INCLUDE_MODELS:-}"  # if set, only names matching this are kept
+
+# Convert MODEL_PATTERN to INCLUDE_MODELS if provided
+if [ -n "${MODEL_PATTERN:-}" ] && [ -z "${INCLUDE_MODELS:-}" ]; then
+    # Convert pattern like "gpt-oss-20b" to match "gpt-oss:20b"
+    # Replace last dash with colon for ollama tag format
+    converted_pattern="${MODEL_PATTERN%-*}:${MODEL_PATTERN##*-}"
+    # Also try exact match and partial matches
+    INCLUDE_MODELS="(^${MODEL_PATTERN}(:|$)|^${converted_pattern}(:|$)|${MODEL_PATTERN})"
+    echo "Filtering models with pattern: ${MODEL_PATTERN} -> regex: ${INCLUDE_MODELS}"
+fi
 
 # Optional alias prefix/suffix for variant naming and logs
 ALIAS_PREFIX="${ALIAS_PREFIX:-LLM-FuZe-}"

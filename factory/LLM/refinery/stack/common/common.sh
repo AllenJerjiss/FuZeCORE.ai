@@ -339,17 +339,22 @@ CUDA_VISIBLE_DEVICES=$gpu_config
 OLLAMA_SCHED_SPREAD=1
 
 # Bench behavior (configurable based on CLI options)
-FAST_MODE=\${FAST_MODE:-1}            # no tag baking during search; pass options at runtime
-EXHAUSTIVE=\${EXHAUSTIVE:-1}           # try all candidates for broader coverage
+FAST_MODE=\${FAST_MODE:-1}
+EXHAUSTIVE=\${EXHAUSTIVE:-1}
 BENCH_NUM_PREDICT=\${NUM_PREDICT:-\${BENCH_NUM_PREDICT:-128}}
 BENCH_NUM_CTX=\${NUM_CTX:-\${BENCH_NUM_CTX:-4096}}
 TEMPERATURE=\${TEMPERATURE:-0.0}
-TIMEOUT_GEN=\${TIMEOUT:-\${TIMEOUT_GEN:-300}}        # allow extra time for first gen
+
+# Timeout configuration (unified single source of truth)
+TIMEOUT_GEN=\${TIMEOUT:-\${TIMEOUT_GEN:-60}}
+TIMEOUT_TAGS=\${TIMEOUT_TAGS:-30}
+WAIT_API_SECS=\${WAIT_API_SECS:-30}
+
 VERBOSE=\${VERBOSE:-1}
 
-# Debugging / publishing (aggressive)
-DEBUG_BENCH=\${DEBUG_BENCH:-1}      # capture request/response/metrics, probe, journal on 0 t/s
-PUBLISH_BEST=1         # bake the best variant tag after the run
+# Debugging / publishing
+DEBUG_BENCH=\${DEBUG_BENCH:-1}
+PUBLISH_BEST=1
 
 # Ollama service handling
 CLEAN_START_TESTS=1
