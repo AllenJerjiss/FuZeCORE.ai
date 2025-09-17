@@ -12,10 +12,11 @@ CACHE_DIR="/FuZe/installer-cache"
 DRY_RUN=0
 TRY_CACHE=0
 UPGRADE=0
+STACKS=()
 
 usage() {
     cat <<USAGE
-Usage: $(basename "$0") [--dry-run] [--try-cache] [--upgrade] [--help]
+Usage: $(basename "$0") [--dry-run] [--try-cache] [--upgrade] [--help] [stack...]
 
 Options:
   --dry-run         Show what would be done without making changes
@@ -23,13 +24,19 @@ Options:
   --upgrade         Force fresh downloads, ignoring cache
   --help            Show this help message
 
-This script installs the FuZe stack common utilities and Ollama.
+Arguments:
+  stack...          Stack names to install (ollama, vllm, llama.cpp, triton)
+                    Default: ollama (if no stacks specified)
+
+This script installs the FuZe stack common utilities and specified stacks.
 Binary cache location: $CACHE_DIR
 
 Examples:
   $(basename "$0")                    # Install utilities + Ollama (download fresh)
   $(basename "$0") --try-cache        # Install utilities + Ollama (use cache if available)
-  $(basename "$0") --upgrade          # Force fresh downloads and upgrade
+  $(basename "$0") --try-cache ollama # Install utilities + Ollama (use cache if available)
+  $(basename "$0") ollama vllm        # Install utilities + Ollama + vLLM (when supported)
+  $(basename "$0") --upgrade ollama   # Force fresh downloads and upgrade Ollama
   $(basename "$0") --dry-run          # Show what would be done
   
 Requires root privileges for system installation.
@@ -42,7 +49,9 @@ while [ $# -gt 0 ]; do
         --try-cache) TRY_CACHE=1; shift ;;
         --upgrade) UPGRADE=1; shift ;;
         -h|--help) usage; exit 0 ;;
-        *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
+        --) shift; STACKS+=("$@"); break ;;
+        -*) echo "Unknown option: $1" >&2; usage; exit 2 ;;
+        *) STACKS+=("$1"); shift ;;
     esac
 done
 
@@ -514,7 +523,32 @@ main() {
     install_awk_files
     install_scripts
     create_config
-    install_ollama
+    
+    # Install specified stacks (default to ollama if none specified)
+    if [ ${#STACKS[@]} -eq 0 ]; then
+        STACKS=(ollama)
+    fi
+    
+    for stack in "${STACKS[@]}"; do
+        case "$stack" in
+            ollama)
+                install_ollama
+                ;;
+            vllm)
+                info "vLLM stack installation not yet implemented"
+                ;;
+            llama.cpp)
+                info "llama.cpp stack installation not yet implemented"
+                ;;
+            triton)
+                info "Triton stack installation not yet implemented"
+                ;;
+            *)
+                error "Unknown stack: $stack"
+                ;;
+        esac
+    done
+    
     run_tests
     show_usage_info
 }
