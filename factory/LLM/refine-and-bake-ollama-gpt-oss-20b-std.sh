@@ -6,7 +6,7 @@ set -euo pipefail
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRACKER="${SCRIPT_DIR}/LLM/refinery/cracker.sh"
+CRACKER="${SCRIPT_DIR}/refinery/cracker.sh"
 
 echo "=== GPT-OSS-20B Standard Mode Refinement & Baking ==="
 echo "Workflow: Clean → Install → Benchmark with Baking"
@@ -29,7 +29,7 @@ rm -rf /FuZe/baked/ollama/*
 # Step 2: Install Ollama stack
 echo
 echo "Step 2: Installing Ollama stack..."
-"$CRACKER" --stack ollama --install
+sudo "$CRACKER" --stack ollama --install
 
 # Step 3: Run benchmark with standard mode (baking enabled, GPU 0)
 echo
@@ -47,7 +47,7 @@ echo
 echo "=== Analysis Results ==="
 LATEST_CSV=$(ls -t /var/log/fuze-stack/ollama_bench_*.csv 2>/dev/null | head -1)
 if [ -n "$LATEST_CSV" ]; then
-    "$SCRIPT_DIR/LLM/refinery/stack/common/analyze.sh" --stack ollama --csv "$LATEST_CSV"
+    "$SCRIPT_DIR/refinery/stack/common/analyze.sh" --stack ollama --csv "$LATEST_CSV"
 else
     echo "No CSV files found for analysis"
 fi

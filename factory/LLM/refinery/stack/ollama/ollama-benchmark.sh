@@ -400,6 +400,8 @@ wait_variant_visible(){ # ep variant secs
 base_alias(){ # "llama4:16x17b" -> "llama4-16x17b" with compact suffixes
   local s
   s="$(echo "$1" | sed -E 's#[/:]+#-#g')"
+  # Strip existing LLM-FuZe- prefix to prevent recursive nesting
+  s="${s#LLM-FuZe-}"
   # Compact common tokens: it->i, fp16->f16, bf16->b16
   s="${s//-it-/-i-}"
   s="${s%-it}"; s="${s%-i}"; # no-op cleanup if ends with -it, we transform below
@@ -614,24 +616,84 @@ tune_and_bench_one(){ # ep baseTag aliasBase
         fi
       fi
     else
-      local newname enhanced_label
-      newname="${alias_base}-$(gpu_label_for_ep "$ep")-ng${ng}"
-      enhanced_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
-      info " Bake variant ${newname} (FROM ${base} num_gpu=${ng})"
-      if ! "$ROOT_DIR/../../bakery/fuze-vanilla-llm.sh" "$newname" "$base" "$ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
-        warn "Variant bake failed: ${newname}"
-        # Variant cleanup delegated to cleanup-variants.sh
-        continue
+      # Smart baking: Test all variants first to find optimal, then bake only the best if needed
+      info " Testing variants to find optimal num_gpu..."
+      local test_best_tokps="0.00" test_best_ng="" test_first_ok=0
+      local test_zero_run=0 test_no_improve_run=0
+      
+      # Phase 1: Test all candidates without baking
+      for ng in ${ng_list}; do
+        local enhanced_test_label
+        enhanced_test_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
+        local tokps; tokps="$(bench_once "$ep" "$base" "$base" "$enhanced_test_label" "$ng" "$gpu_lbl" || echo 0.00)"
+        
+        # Track best performer
+        if awk -v a="$tokps" -v b="$test_best_tokps" 'BEGIN{exit !(a>b)}'; then
+          test_best_ng="$ng"; test_best_tokps="$tokps"; test_no_improve_run=0
+        else
+          test_no_improve_run=$((test_no_improve_run+1))
+        fi
+        
+        # Count consecutive zero tok/s
+        if awk -v a="$tokps" 'BEGIN{exit !(a+0==0)}'; then
+          test_zero_run=$((test_zero_run+1))
+        else
+          test_zero_run=0
+        fi
+        
+        # Mark if at least one worked
+        if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then test_first_ok=1; fi
+        
+        # Early stop logic (same as FAST_MODE)
+        if [ "$EXHAUSTIVE" -eq 0 ]; then
+          if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then 
+            ok "     First working: ng=${ng} at ${tokps} tok/s"; test_first_ok=1; break; 
+          fi
+        else
+          if [ "${ZERO_TOKPS_BREAK:-0}" -gt 0 ] && [ "$test_zero_run" -ge "${ZERO_TOKPS_BREAK}" ]; then
+            warn "     Breaking after ${test_zero_run} consecutive zero tok/s trials"
+            break
+          fi
+          if [ "${NO_IMPROVE_LIMIT:-0}" -gt 0 ] && [ "$test_no_improve_run" -ge "${NO_IMPROVE_LIMIT}" ] && awk -v b="$test_best_tokps" 'BEGIN{exit !(b>0)}'; then
+            warn "     Breaking after ${test_no_improve_run} non-improving trials (best=${test_best_tokps} tok/s)"
+            break
+          fi
+        fi
+      done
+      
+      # Phase 2: Bake only the optimal variant if it doesn't already exist
+      if awk -v b="$test_best_tokps" 'BEGIN{exit !(b>0)}' && [ -n "$test_best_ng" ]; then
+        local optimal_name optimal_label
+        optimal_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${test_best_ng}"
+        optimal_label="$(enhanced_alias "$base" "$gpu_lbl" "$test_best_ng")"
+        
+        # Check if optimal variant already exists
+        if curl_tags "$ep" | jq -r '.models[].name' 2>/dev/null | grep -Fxq "${optimal_name}:latest"; then
+          info " Optimal variant already exists: ${optimal_name}:latest (ng=${test_best_ng}, ${test_best_tokps} tok/s)"
+          best_tokps="$test_best_tokps"; best_name="$optimal_name"; best_ng="$test_best_ng"; first_ok="$test_first_ok"
+        else
+          info " Baking optimal variant: ${optimal_name} (ng=${test_best_ng}, ${test_best_tokps} tok/s)"
+          if "$ROOT_DIR/../../bakery/fuze-vanilla-llm.sh" "$optimal_name" "$base" "$test_best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
+            wait_variant_visible "$ep" "${optimal_name}:latest" 12 || true
+            # Re-bench the baked variant to verify performance
+            local baked_tokps
+            if baked_tokps="$(bench_once "$ep" "$base" "${optimal_name}:latest" "$optimal_label" "$test_best_ng" "$gpu_lbl")"; then
+              best_tokps="$baked_tokps"; best_name="$optimal_name"; best_ng="$test_best_ng"; first_ok=1
+              ok "     Baked variant performance: ${baked_tokps} tok/s"
+            else
+              warn "     Baked variant bench failed, using test result: ${test_best_tokps} tok/s"
+              best_tokps="$test_best_tokps"; best_name="$optimal_name"; best_ng="$test_best_ng"; first_ok="$test_first_ok"
+            fi
+          else
+            warn "Optimal variant bake failed: ${optimal_name}"
+            # Fall back to test results
+            best_tokps="$test_best_tokps"; best_name="${alias_base}+ng${test_best_ng}"; best_ng="$test_best_ng"; first_ok="$test_first_ok"
+          fi
+        fi
+      else
+        warn " No working variants found during testing"
+        best_tokps="0.00"; best_name=""; best_ng=""; first_ok=0
       fi
-      wait_variant_visible "$ep" "${newname}:latest" 12 || true
-      local tokps
-      if tokps="$(bench_once "$ep" "$base" "${newname}:latest" "$enhanced_label" "$ng" "$gpu_lbl")"; then :; else tokps="0.00"; fi
-      # Variant cleanup delegated to cleanup-variants.sh
-      awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}' && { best_tokps="$tokps"; best_name="$newname"; best_ng="$ng"; }
-      # Mark that at least one optimized run succeeded
-      if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then first_ok=1; fi
-      if [ "$EXHAUSTIVE" -eq 0 ] && awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then
-        ok "     First working: ${newname} at ${tokps} tok/s"; first_ok=1; break; fi
     fi
   done
 
