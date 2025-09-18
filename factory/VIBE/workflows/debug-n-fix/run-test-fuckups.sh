@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Parse command line arguments
 RE_DO_MODE=false
