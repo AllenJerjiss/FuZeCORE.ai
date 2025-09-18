@@ -6,25 +6,17 @@ set -euo pipefail
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRACKER="${SCRIPT_DIR}/refinery/cracker.sh"
+CRACKER="${SCRIPT_DIR}/REFINERY/cracker.sh"
 
 echo "=== GPT-OSS-20B Standard Mode Refinement & Baking ==="
 echo "Workflow: Clean → Install → Benchmark with Baking"
 echo
 
-# Verify cracker exists
+# Step 1:Verify cracker exists
 if [ ! -f "$CRACKER" ]; then
     echo "ERROR: Cracker not found at: $CRACKER" >&2
     exit 1
 fi
-
-# Step 1: Clean everything
-echo "Step 1: Cleaning all artifacts..."
-"$CRACKER" --clean-all --stack ollama
-
-# Clean baked models directory
-echo "Cleaning baked models..."
-rm -rf /FuZe/baked/ollama/*
 
 # Step 2: Install Ollama stack
 echo
@@ -34,7 +26,7 @@ sudo "$CRACKER" --stack ollama --install
 # Step 3: Run benchmark with standard mode (baking enabled, GPU 0)
 echo
 echo "Step 3: Running benchmark with baking (standard mode, GPU 0)..."
-"$CRACKER" --stack ollama --gpu 0 --model gpt-oss-20b
+"$CRACKER" --stack ollama --gpu 1 --model gpt-oss-20b
 
 echo
 echo "=== Workflow Complete ==="
@@ -47,7 +39,13 @@ echo
 echo "=== Analysis Results ==="
 LATEST_CSV=$(ls -t /var/log/fuze-stack/ollama_bench_*.csv 2>/dev/null | head -1)
 if [ -n "$LATEST_CSV" ]; then
-    "$SCRIPT_DIR/refinery/stack/common/analyze.sh" --stack ollama --csv "$LATEST_CSV"
+    # Source ANALYZE_BIN from ollama-benchmark.sh
+    OLLAMA_BENCHMARK_SH="$SCRIPT_DIR/REFINERY/stack/ollama/ollama-benchmark.sh"
+    ANALYZE_BIN="$(grep -E '^ANALYZE_BIN=' "$OLLAMA_BENCHMARK_SH" | cut -d'=' -f2 | tr -d '"')"
+    if [ -z "$ANALYZE_BIN" ]; then
+        ANALYZE_BIN="$SCRIPT_DIR/REFINERY/stack/common/analyze.sh"
+    fi
+    "$ANALYZE_BIN" --stack ollama --csv "$LATEST_CSV"
 else
     echo "No CSV files found for analysis"
 fi

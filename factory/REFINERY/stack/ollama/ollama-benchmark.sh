@@ -16,6 +16,8 @@ set -euo pipefail
 # Load common GPU service management
 # ------------------------------------------------------------------------------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BAKERY_BIN="${ROOT_DIR}/../../BAKERY/fuze-vanilla-llm.sh"
+ANALYZE_BIN="${ROOT_DIR}/stack/common/analyze.sh"
 source "${ROOT_DIR}/common/gpu-services.sh"
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 # Ensure writable log dir; fall back to per-user location if repo logs are root-owned
@@ -439,7 +441,7 @@ enhanced_alias(){ # base_model_tag gpu_label num_gpu -> enhanced alias
 discover_models(){
   info "Discovering base models from persistent daemon (:${PERSISTENT_PORT})"
   local names out=()
-  names="$(OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '($1!="NAME" && $1!=""){print $1}')"
+  names="$(OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '($1!="NAME" && $1!="" && $1 !~ /^FuZe-/){print $1}')"
   while IFS= read -r tag; do
     [ -z "$tag" ] && continue
     # Skip our optimized variants: anything with -nvidia-...-ngNN in the NAME portion
@@ -662,9 +664,10 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       
       # Phase 2: Bake only the optimal variant if it doesn't already exist
       if awk -v b="$test_best_tokps" 'BEGIN{exit !(b>0)}' && [ -n "$test_best_ng" ]; then
-        local optimal_name optimal_label
-        optimal_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${test_best_ng}"
-        optimal_label="$(enhanced_alias "$base" "$gpu_lbl" "$test_best_ng")"
+  local optimal_name optimal_label
+  local stack_prefix="FuZe-${FUZE_STACK_NAME:-ollama}-"
+  optimal_name="${stack_prefix}${alias_base}-$(gpu_label_for_ep "$ep")-ng${test_best_ng}"
+  optimal_label="$(enhanced_alias "$base" "$gpu_lbl" "$test_best_ng")"
         
         # Check if optimal variant already exists
         if curl_tags "$ep" | jq -r '.models[].name' 2>/dev/null | grep -Fxq "${optimal_name}:latest"; then
@@ -672,7 +675,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
           best_tokps="$test_best_tokps"; best_name="$optimal_name"; best_ng="$test_best_ng"; first_ok="$test_first_ok"
         else
           info " Baking optimal variant: ${optimal_name} (ng=${test_best_ng}, ${test_best_tokps} tok/s)"
-          if "$ROOT_DIR/../../bakery/fuze-vanilla-llm.sh" "$optimal_name" "$base" "$test_best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
+          if "$BAKERY_BIN" "$optimal_name" "$base" "$test_best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
             wait_variant_visible "$ep" "${optimal_name}:latest" 12 || true
             # Re-bench the baked variant to verify performance
             local baked_tokps
@@ -705,10 +708,11 @@ tune_and_bench_one(){ # ep baseTag aliasBase
   # Optionally publish the best variant tag (even when FAST_MODE=1)
   if [ "$PUBLISH_BEST" -eq 1 ] && awk -v b="$best_tokps" 'BEGIN{exit !(b>0)}'; then
     local pub_name enhanced_pub_label
-    pub_name="${alias_base}-$(gpu_label_for_ep "$ep")-ng${best_ng}"
+  stack_prefix="FuZe-${FUZE_STACK_NAME:-ollama}-"
+  pub_name="${stack_prefix}${alias_base}-$(gpu_label_for_ep "$ep")-ng${best_ng}"
     enhanced_pub_label="$(enhanced_alias "$base" "$gpu_lbl" "$best_ng")"
     info " Publishing best variant tag: ${pub_name} (FROM ${base} num_gpu=${best_ng})"
-    if "$ROOT_DIR/../../bakery/fuze-vanilla-llm.sh" "$pub_name" "$base" "$best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
+  if "$BAKERY_BIN" "$pub_name" "$base" "$best_ng" "$PULL_FROM" "$OLLAMA_BIN" "$CREATE_LOG" "$CREATED_LIST"; then
       wait_variant_visible "$ep" "${pub_name}:latest" 12 || true
       ok " Published: ${pub_name}:latest"
       # Optional warm-up request to reduce cold-start skew

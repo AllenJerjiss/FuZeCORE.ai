@@ -304,11 +304,26 @@ if [ "$CLEANUP_VARIANTS" -eq 1 ]; then
         echo "ERROR: --cleanup-variants requires --stack ollama" >&2
         exit 1
     fi
-    echo "=== Cleaning up benchmark-created model variants ==="
-    # Build cleanup arguments
-    CLEANUP_ARGS=()
-    [ "$DEBUG" -eq 1 ] || CLEANUP_ARGS+=("--force" "--yes")  # Use force mode unless debug
-    exec "$UST" ollama cleanup-variants "${CLEANUP_ARGS[@]}"
+    echo "=== Cleaning up benchmark-created model variants in Ollama store ==="
+    # List all variants, filter those containing 'FuZe', and remove them
+    OLLAMA_LIST_CMD="ollama list"
+    if ! command -v ollama &>/dev/null; then
+        echo "ERROR: ollama CLI not found. Please install Ollama and ensure it is in your PATH." >&2
+        exit 1
+    fi
+    VARIANTS_TO_REMOVE=$(ollama list | grep "FuZe" | awk '{print $1}')
+    if [ -z "$VARIANTS_TO_REMOVE" ]; then
+        echo "No variants containing 'FuZe' found in Ollama store."
+        exit 0
+    fi
+    for variant in $VARIANTS_TO_REMOVE; do
+        if [ "$DEBUG" -eq 1 ]; then
+            echo "[DRY-RUN] Would remove variant: $variant"
+        else
+            ollama rm "$variant" && echo "Removed variant: $variant"
+        fi
+    done
+    exit 0
 fi
 
 # Step 1.7: Comprehensive Cleanup operations  
