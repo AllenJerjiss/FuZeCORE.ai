@@ -5,15 +5,35 @@
 
 use std::fs;
 use std::process::Command;
+use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== DEBUGGING PLAN GENERATOR ===\n");
     
-    // Read the RCA analysis
-    let rca_content = fs::read_to_string(&std::env::args().nth(1).unwrap_or_else(|| "rca-initial-analysis.txt".to_string()))?;
+    // Get input and output file paths
+    let rca_file = std::env::args().nth(1).unwrap_or_else(|| {
+        eprintln!("ERROR: Missing RCA analysis file argument");
+        eprintln!("Usage: debugging-plan.rs <rca-file> [output-file]");
+        std::process::exit(1);
+    });
+    
+    let output_file = std::env::args().nth(2).unwrap_or_else(|| {
+        eprintln!("ERROR: Missing output file argument");
+        eprintln!("Usage: debugging-plan.rs <rca-file> [output-file]");
+        std::process::exit(1);
+    });
+    
+    // Check if input file exists
+    if !Path::new(&rca_file).exists() {
+        eprintln!("ERROR: RCA analysis file not found: {}", rca_file);
+        std::process::exit(1);
+    }
+    
+    // Read the RCA analysis content
+    let rca_content = fs::read_to_string(&rca_file)?;
     
     // Print what we read to confirm
-    println!("=== CONFIRMING INPUT FROM rca-initial-analysis.txt ===");
+    println!("=== CONFIRMING INPUT FROM {} ===", rca_file);
     println!("{}", rca_content);
     println!("=== END OF INPUT CONFIRMATION ===\n");
     

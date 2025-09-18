@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Parse command line arguments
+RE_DO_MODE=false
+if [[ "$1" == "--re-do" ]]; then
+    RE_DO_MODE=true
+    echo "RE-DO MODE: Looking for re-do.txt in latest .run folder"
+fi
+
 # Install cargo if not already installed
 sudo apt update && sudo apt install -y cargo
 
@@ -25,18 +32,46 @@ fi
 # Install net-tools on ubuntu for tools such as netstat:
 sudo apt install -y net-tools
 
+# Handle --re-do mode: find and move re-do.txt from latest .run folder
+if [[ "$RE_DO_MODE" == "true" ]]; then
+    LATEST_RUN=$(ls -1d .run-* 2>/dev/null | sort | tail -1)
+    if [[ -z "$LATEST_RUN" ]]; then
+        echo "ERROR: No .run folders found for --re-do mode"
+        exit 1
+    fi
+    
+    REDO_FILE="$LATEST_RUN/re-do.txt"
+    if [[ ! -f "$REDO_FILE" ]]; then
+        echo "ERROR: re-do.txt not found in latest run folder: $LATEST_RUN"
+        exit 1
+    fi
+    
+    echo "Found re-do.txt in: $LATEST_RUN"
+fi
+
 # Create unique run directory with timestamp
 RUN_DIR=".run-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$RUN_DIR"
 echo "Created run directory: $RUN_DIR"
 
-# Run the forensic analysis script
-rust-script test-fuckups.rs > "$RUN_DIR/test-fuckups.txt"
-
-# Print the file contents before pause
-echo "=== FORENSIC ANALYSIS OUTPUT ==="
-cat "$RUN_DIR/test-fuckups.txt"
-echo "=== END OF FORENSIC ANALYSIS ==="
+# Move re-do.txt to new run directory if in --re-do mode
+if [[ "$RE_DO_MODE" == "true" ]]; then
+    mv "$REDO_FILE" "$RUN_DIR/re-do.txt"
+    echo "Moved re-do.txt to: $RUN_DIR/re-do.txt"
+    echo "Starting forensic analysis with re-do context..."
+    # Use the re-do.txt content as the problem statement
+    echo "=== RE-DO PROBLEM STATEMENT ==="
+    cat "$RUN_DIR/re-do.txt"
+    echo "=== END OF RE-DO PROBLEM STATEMENT ==="
+else
+    # Run the forensic analysis script
+    rust-script test-fuckups.rs > "$RUN_DIR/test-fuckups.txt"
+    
+    # Print the file contents before pause
+    echo "=== FORENSIC ANALYSIS OUTPUT ==="
+    cat "$RUN_DIR/test-fuckups.txt"
+    echo "=== END OF FORENSIC ANALYSIS ==="
+fi
 
 # Pause and ask for input before proceeding
 echo "Forensic analysis complete. Press Enter to continue with RCA analysis..."
@@ -93,3 +128,50 @@ rust-script run-fix-plan.rs "$RUN_DIR/surgical-fix-plan.sh" > "$RUN_DIR/fix-exec
 echo "=== SURGICAL FIX EXECUTION OUTPUT ==="
 cat "$RUN_DIR/fix-execution.txt"
 echo "=== END OF SURGICAL FIX EXECUTION ==="
+
+# Pause before validation
+echo "Surgical fix execution complete. Press Enter to continue with validation..."
+read
+
+# Run the validation script
+echo "=== VALIDATION ==="
+rust-script validate-fix-plan-run.rs > "$RUN_DIR/validate-fix-plan-run"
+chmod +x "$RUN_DIR/validate-fix-plan-run"
+
+# Pause before testing
+echo "Validation complete. Press Enter to continue with testing..."
+read
+
+# Run the testing script
+echo "=== TESTING APPLIED FIXES ==="
+rust-script test-applied-fix.rs > "$RUN_DIR/test-applied-fix"
+chmod +x "$RUN_DIR/test-applied-fix"
+
+# Run re-do workflow controller to determine next action
+echo "=== RE-DO WORKFLOW ANALYSIS ==="
+rust-script re-do.rs > "$RUN_DIR/re-do-analysis.txt"
+
+# Check if re-do.txt was generated (indicating test failure)
+if [[ -f "re-do.txt" ]]; then
+    mv "re-do.txt" "$RUN_DIR/re-do.txt"
+    echo ""
+    echo "=========================================="
+    echo "❌ FIX VALIDATION FAILED"
+    echo "=========================================="
+    echo "The applied fixes did not resolve all issues."
+    echo "A new problem statement has been generated."
+    echo ""
+    echo "To continue with automated forensic analysis:"
+    echo "  ./run-test-fuckups.sh --re-do"
+    echo ""
+    echo "Problem statement saved to: $RUN_DIR/re-do.txt"
+    echo "=========================================="
+else
+    echo ""
+    echo "=========================================="
+    echo "✅ WORKFLOW COMPLETED SUCCESSFULLY"
+    echo "=========================================="
+    echo "All fixes have been validated and applied."
+    echo "Changes have been committed and pushed."
+    echo "=========================================="
+fi
