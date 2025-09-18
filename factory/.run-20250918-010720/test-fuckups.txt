@@ -1,0 +1,63 @@
+=== FORENSIC ANALYSIS OF MY FUCKUPS ===
+
+1. ANALYZING /FuZe DIRECTORY STRUCTURE:
+1. ANALYZING /FuZe DIRECTORY STRUCTURE:
+   ✓ /FuZe (dir, ~1047.1GB)
+   ✓ /FuZe/ollama (dir, ~1047.0GB)
+     - manifests: 19 files, ~19.4KB
+     - blobs: 48 files, ~1047.0GB
+   ✗ /FuZe/models (missing)
+   ✗ /FuZe/models/ollama (missing)
+   ✗ /FuZe/ollama/models (missing)
+   ✓ /FuZe/baked (dir, ~0B)
+   ✓ /FuZe/baked/ollama (dir, ~0B)
+
+
+2. ANALYZING SYSTEMD SERVICES:
+2. ANALYZING SYSTEMD SERVICES:
+   ollama.service -> inactive (models: /FuZe/ollama)
+   ollama-persist.service -> inactive
+   ollama-test-a.service -> inactive (models: /FuZe/ollama) (GPU: 0)
+   ollama-test-b.service -> inactive
+   ollama-test-multi.service -> inactive
+
+
+3. ANALYZING EXISTING MODEL VARIANTS:
+3. ANALYZING EXISTING MODEL VARIANTS:
+   Searching /FuZe/ollama/manifests:
+     ? unknown pattern: LLM-FuZe-gpt-oss-20b-gpu0-ng80
+     ✓ model pattern: LLM-FuZe-LLM-FuZe-gpt-oss-20b-3090ti-ng80-latest-3090ti-ng80
+     ✓ model pattern: LLM-FuZe-gpt-oss-20b-3090ti-ng80
+     ✓ model pattern: LLM-FuZe-LLM-FuZe-gpt-oss-20b-gpu0-ng80-latest-3090ti-ng80
+     ? unknown pattern: LLM-FuZe-LLM-FuZe-gpt-oss-20b-gpu0-ng80-latest-gpu0-ng80
+   /FuZe/models/ollama/manifests (missing)
+   Searching /FuZe/baked/ollama:
+     (no LLM-FuZe variants found)
+   SUMMARY: 5 total variants
+            0 match nvidia-* pattern
+            3 match model pattern (3090ti, etc)
+
+
+4. VALIDATING MY ASSUMPTIONS:
+4. VALIDATING MY ASSUMPTIONS:
+   Assumption 1 (current model dir is /FuZe/ollama): ✓ LIKELY CORRECT
+   Assumption 2 (GPU names are 3090ti not nvidia-3090ti): ✓ LIKELY CORRECT
+   Assumption 3 (/FuZe/models/ollama is old location): ✓ LIKELY CORRECT
+
+
+5. ANALYZING MY SCRIPT MODIFICATIONS:
+5. ANALYZING MY SCRIPT MODIFICATIONS:
+   ✗ service-cleanup.sh -> MODELDIR path (MISSING!)
+   ✗ store-cleanup.sh -> CANON/ALT_DEFAULT paths (MISSING!)
+   ✗ cleanup-variants.sh -> MATCH_RE regex pattern (MISSING!)
+   ✗ nuke-all.sh -> NEW FILE - nuclear cleanup wrapper (MISSING!)
+
+   RISK ASSESSMENT:
+   - service-cleanup.sh: Could point to wrong model directory
+   - store-cleanup.sh: Could migrate models in wrong direction
+   - cleanup-variants.sh: Regex might not match existing variants
+   - nuke-all.sh: Untested nuclear option - could destroy everything
+
+=== CONCLUSION ===
+This analysis shows what state the system is actually in
+vs what I assumed when making changes.

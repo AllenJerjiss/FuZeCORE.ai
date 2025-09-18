@@ -5,12 +5,14 @@ sudo systemctl stop ollama.service 2>/dev/null || true
 sudo systemctl disable ollama.service 2>/dev/null || true
 
 # Also stop any test services that might conflict
-sudo systemctl stop ollama-test-a.service ollama-test-b.service ollama-test-multi.service 2>/dev/null || trueonsistent persistent Ollama service on :11434 using OLLAMA_HOST
+sudo systemctl stop ollama-test-a.service ollama-test-b.service ollama-test-multi.service 2>/dev/null || true
+
+# Set up consistent persistent Ollama service on :11434 using OLLAMA_HOST
 
 # 0) Vars
 UNIT=/etc/systemd/system/ollama-persist.service
 PORT=11434
-MODELDIR=${MODELDIR:-/FuZe/models/ollama}
+MODELDIR=${MODELDIR:-/FuZe/ollama}
 OLLAMA_BIN=${OLLAMA_BIN:-/usr/local/bin/ollama}
 
 # 1) Unmask (and remove any /dev/null mask symlink)

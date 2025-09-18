@@ -1,0 +1,77 @@
+=== DEBUGGING COMMANDS TO GATHER EVIDENCE ===
+
+# 1. DIRECTORY MIGRATION TIMELINE EVIDENCE:
+# Check filesystem timestamps and modification dates
+stat /FuZe/ollama
+stat /FuZe/baked/ollama
+ls -la /FuZe/ | grep ollama
+find /FuZe -name "*ollama*" -type d -exec stat {} \;
+# Check for old path references in configs
+grep -r "/FuZe/models/ollama" /etc/systemd/system/ 2>/dev/null || echo "No old path refs in systemd"
+grep -r "/FuZe/models/ollama" /home/fuze/ 2>/dev/null | head -10 || echo "No old path refs in home"
+
+# 2. SERVICE CONFIGURATION INVESTIGATION:
+# Check service files and their current state
+systemctl cat ollama.service
+systemctl cat ollama-test-a.service
+systemctl cat ollama-test-b.service
+systemctl cat ollama-test-multi.service
+systemctl cat ollama-persist.service
+# Check service logs for errors
+journalctl -u ollama.service --since "1 hour ago" --no-pager | tail -20
+journalctl -u ollama-test-a.service --since "1 hour ago" --no-pager | tail -20
+# Check what's preventing service startup
+systemctl status ollama.service
+systemctl status ollama-test-a.service
+
+# 3. GPU AND HARDWARE VALIDATION:
+# Verify actual GPU hardware vs service configs
+nvidia-smi --list-gpus
+nvidia-smi --query-gpu=index,name,uuid --format=csv,noheader
+# Check current CUDA_VISIBLE_DEVICES settings
+env | grep CUDA
+# Verify GPU accessibility
+nvidia-smi
+
+# 4. MODEL VARIANT DETAILED ANALYSIS:
+# List all model manifests with timestamps
+ls -la /FuZe/ollama/manifests/
+# Check model sizes and disk usage
+du -sh /FuZe/ollama/blobs/*
+# Analyze model naming patterns in detail
+find /FuZe/ollama/manifests -name "*LLM-FuZe*" -exec basename {} \; | sort
+find /FuZe/ollama/manifests -name "*gpu0*" -exec basename {} \;
+find /FuZe/ollama/manifests -name "*3090ti*" -exec basename {} \;
+
+# 5. PROCESS AND NETWORK ANALYSIS:
+# Check for running ollama processes
+ps aux | grep ollama
+pgrep -f ollama
+# Check network port usage
+netstat -tlnp | grep :11434
+ss -tlnp | grep ollama
+lsof -i :11434 2>/dev/null || echo "Port 11434 not in use"
+
+# 6. DISK SPACE AND PERMISSIONS ANALYSIS:
+# Check disk space issues
+df -h /FuZe
+du -sh /FuZe/ollama
+# Check permissions on critical paths
+ls -ld /FuZe/ollama
+ls -ld /FuZe/ollama/manifests
+ls -ld /FuZe/ollama/blobs
+# Check who owns the ollama directories
+stat -c '%U:%G %n' /FuZe/ollama
+stat -c '%U:%G %n' /FuZe/ollama/manifests
+
+# 7. CONFIGURATION FILE ANALYSIS:
+# Look for ollama config files
+find /etc -name "*ollama*" 2>/dev/null
+find /home/fuze -name "*ollama*" 2>/dev/null | head -10
+# Check environment files
+ls -la /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/env/
+find /home/fuze/GitHub/FuZeCORE.ai -name "*.env*" | head -10
+
+=== END OF DEBUGGING COMMANDS ===
+# Run these commands manually or create a script to execute them
+# Each command provides evidence to answer the RCA questions

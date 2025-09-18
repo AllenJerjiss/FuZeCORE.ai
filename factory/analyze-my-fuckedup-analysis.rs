@@ -1,0 +1,103 @@
+#!/usr/bin/env rust-script
+//! ```cargo
+//! [dependencies]
+//! regex = "1.10"
+//! ```
+
+use std::fs;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== ROOT CAUSE ANALYSIS - DEEPER DIVE ===\n");
+    
+    // Read the initial analysis
+    let analysis_content = fs::read_to_string(&std::env::args().nth(1).unwrap_or_else(|| "test-fuckups.txt".to_string()))?;
+    
+    // Print what we read to confirm
+    println!("=== CONFIRMING INPUT FROM test-fuckups.txt ===");
+    println!("{}", analysis_content);
+    println!("=== END OF INPUT CONFIRMATION ===\n");
+    
+    let mut rca_output = String::new();
+    rca_output.push_str("=== ROOT CAUSE ANALYSIS - INITIAL FINDINGS ===\n\n");
+    
+    // Parse and analyze the forensic data
+    rca_output.push_str("CRITICAL QUESTIONS FOR ROOT CAUSE ANALYSIS:\n\n");
+    
+    // 1. Directory structure analysis
+    rca_output.push_str("1. DIRECTORY MIGRATION TIMELINE:\n");
+    rca_output.push_str("   Q: When did /FuZe/models/ollama stop being used?\n");
+    rca_output.push_str("   Q: What triggered the move to /FuZe/ollama?\n");
+    rca_output.push_str("   Q: Are there any lingering references to the old path?\n");
+    rca_output.push_str("   Q: Why is /FuZe/baked/ollama empty but exists?\n\n");
+    
+    // 2. Service configuration analysis
+    rca_output.push_str("2. SERVICE CONFIGURATION INCONSISTENCIES:\n");
+    rca_output.push_str("   Q: Why are all ollama services inactive?\n");
+    rca_output.push_str("   Q: What was the last known working service configuration?\n");
+    rca_output.push_str("   Q: Are GPU assignments (CUDA_VISIBLE_DEVICES) correctly mapped?\n");
+    rca_output.push_str("   Q: Do service files point to correct model directories?\n\n");
+    
+    // 3. Model variant naming analysis
+    rca_output.push_str("3. MODEL NAMING CONVENTION EVOLUTION:\n");
+    rca_output.push_str("   Q: Why do we have both gpu0 and 3090ti patterns?\n");
+    rca_output.push_str("   Q: What was the exact sequence of renaming operations?\n");
+    rca_output.push_str("   Q: Are there orphaned models with old naming?\n");
+    rca_output.push_str("   Q: Do cleanup scripts handle mixed naming patterns?\n\n");
+    
+    // 4. Script modification risk analysis
+    rca_output.push_str("4. CLEANUP SCRIPT MODIFICATION RISKS:\n");
+    rca_output.push_str("   Q: What would happen if service-cleanup.sh runs with wrong MODELDIR?\n");
+    rca_output.push_str("   Q: Could store-cleanup.sh migrate models to non-existent directories?\n");
+    rca_output.push_str("   Q: Will cleanup-variants.sh regex miss existing model patterns?\n");
+    rca_output.push_str("   Q: What safeguards exist against data loss?\n\n");
+    
+    // 5. System state validation
+    rca_output.push_str("5. SYSTEM STATE VALIDATION:\n");
+    rca_output.push_str("   Q: Are there active ollama processes not managed by systemd?\n");
+    rca_output.push_str("   Q: What disk space issues might exist with 1TB+ models?\n");
+    rca_output.push_str("   Q: Are there permission issues preventing service startup?\n");
+    rca_output.push_str("   Q: Do network ports conflict between service instances?\n\n");
+    
+    // Extract specific data from analysis
+    if analysis_content.contains("✗") {
+        rca_output.push_str("IDENTIFIED FAILURES FROM FORENSIC ANALYSIS:\n");
+        for line in analysis_content.lines() {
+            if line.contains("✗") {
+                rca_output.push_str(&format!("   FAILURE: {}\n", line.trim()));
+            }
+        }
+        rca_output.push_str("\n");
+    }
+    
+    if analysis_content.contains("? unknown pattern") {
+        rca_output.push_str("UNRECOGNIZED PATTERNS DETECTED:\n");
+        for line in analysis_content.lines() {
+            if line.contains("? unknown pattern") {
+                rca_output.push_str(&format!("   UNKNOWN: {}\n", line.trim()));
+            }
+        }
+        rca_output.push_str("\n");
+    }
+    
+    rca_output.push_str("RECOMMENDED IMMEDIATE ACTIONS:\n");
+    rca_output.push_str("1. Validate all service configurations before enabling\n");
+    rca_output.push_str("2. Test cleanup scripts in dry-run mode first\n");
+    rca_output.push_str("3. Backup critical model data before any cleanup\n");
+    rca_output.push_str("4. Verify GPU assignments match actual hardware\n");
+    rca_output.push_str("5. Create rollback plan for all modifications\n\n");
+    
+    rca_output.push_str("RISK ASSESSMENT:\n");
+    rca_output.push_str("HIGH RISK: Data loss from incorrect cleanup operations\n");
+    rca_output.push_str("MEDIUM RISK: Service startup failures from path mismatches\n");
+    rca_output.push_str("LOW RISK: Performance impact from inactive services\n\n");
+    
+    // Write the RCA output
+    let output_file = std::env::args().nth(2).unwrap_or_else(|| "rca-initial-analysis.txt".to_string());
+    fs::write(&output_file, &rca_output)?;
+    println!("Root Cause Analysis written to {}", output_file);
+    
+    // Also print to console for immediate review
+    print!("{}", rca_output);
+    
+    Ok(())
+}

@@ -8,8 +8,8 @@
 
 set -euo pipefail
 
-CANON="${CANON:-/FuZe/models/ollama}"
-ALT_DEFAULT="/FuZe/ollama/models"
+CANON="${CANON:-/FuZe/ollama}"
+ALT_DEFAULT="/FuZe/models/ollama"
 STOP_SERVICES=1
 
 usage() {

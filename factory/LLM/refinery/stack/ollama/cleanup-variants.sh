@@ -10,11 +10,12 @@ set -euo pipefail
 # Defaults (override via flags)
 ###############################################################################
 HOSTS="127.0.0.1:11434 127.0.0.1:11435 127.0.0.1:11436 127.0.0.1:11437"  # space-separated list
-MATCH_RE='^LLM-FuZe-.*-nvidia-[^-]+(\+[^-]+)*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete
+MATCH_RE='^LLM-FuZe-.*-[0-9]+[a-z]*(\+[0-9]+[a-z]*)*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete (updated for model-based GPU naming)
 KEEP_RE=''                                     # exclude anything matching this
 CREATED_LIST=''                                # optional file: only delete names listed here
 FORCE=0                                        # 0=dry-run, 1=delete
 YES=0                                          # suppress prompt if FORCE=1
+NUKEALL=0                                      # 0=normal, 1=remove ALL LLM-FuZe variants regardless of pattern
 OLLAMA_BIN="${OLLAMA_BIN:-$(command -v ollama || true)}"
 
 ###############################################################################
@@ -30,6 +31,7 @@ Options:
                               (lines like: my-variant-name OR my-variant-name:latest)
   --force                     Actually delete (otherwise dry-run)
   --yes                       Don't prompt when --force is set
+  --nukeall                   Remove ALL LLM-FuZe- variants (ignores --match regex)
   --ollama-bin PATH           Path to ollama binary (default: auto-detect)
   -h|--help                   This help
 
@@ -60,6 +62,7 @@ while [ $# -gt 0 ]; do
     --from-created) CREATED_LIST="$2"; shift 2;;
     --force)        FORCE=1; shift;;
     --yes)          YES=1; shift;;
+    --nukeall)      NUKEALL=1; shift;;
     --ollama-bin)   OLLAMA_BIN="$2"; shift 2;;
     -h|--help)      usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
@@ -102,15 +105,21 @@ filter_by_created_list() {
 }
 
 apply_match_keep() { # stdin list -> stdout filtered
-  if [ -n "$MATCH_RE" ]; then
-    grep -E "$MATCH_RE" || true
+  if [ "$NUKEALL" -eq 1 ]; then
+    # NUKEALL: remove ALL LLM-FuZe- variants, ignore match/keep patterns
+    grep -E '^LLM-FuZe-' || true
   else
-    cat
-  fi | if [ -n "$KEEP_RE" ]; then
-        grep -Ev "$KEEP_RE" || true
-      else
-        cat
-      fi
+    # Normal mode: apply match and keep patterns
+    if [ -n "$MATCH_RE" ]; then
+      grep -E "$MATCH_RE" || true
+    else
+      cat
+    fi | if [ -n "$KEEP_RE" ]; then
+          grep -Ev "$KEEP_RE" || true
+        else
+          cat
+        fi
+  fi
 }
 
 confirm_or_die() {
