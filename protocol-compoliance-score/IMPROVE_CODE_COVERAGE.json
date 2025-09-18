@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Analyze Coverage",
+    "prompt": "Review the latest coverage report and list all uncovered lines and branches.",
+    "expected_start": "Uncovered regions:",
+    "forbidden": []
+  },
+  {
+    "name": "Identify Opportunities",
+    "prompt": "For each uncovered region, determine if it is due to missing tests, unreachable code, or error handling.",
+    "expected_start": "Opportunities identified:",
+    "forbidden": []
+  },
+  {
+    "name": "Suggest Improvements",
+    "prompt": "Propose specific changes to code or tests to cover these regions. Prioritize decision/branch coverage.",
+    "expected_start": "Suggested improvements:",
+    "forbidden": []
+  },
+  {
+    "name": "Implement Changes",
+    "prompt": "Add or refactor tests and code to cover the identified gaps. Use property-based, edge case, and integration tests as needed.",
+    "expected_start": "Changes implemented:",
+    "forbidden": []
+  },
+  {
+    "name": "Validate",
+    "prompt": "Re-run coverage tools and confirm that coverage has increased. Report new uncovered regions if any remain.",
+    "expected_start": "Coverage validated:",
+    "forbidden": []
+  },
+  {
+    "name": "Iterate",
+    "prompt": "Repeat steps 1-5 until coverage goals are met or all practical paths are covered.",
+    "expected_start": "Iteration complete:",
+    "forbidden": []
+  }
+]
