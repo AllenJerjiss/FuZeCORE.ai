@@ -22,6 +22,9 @@ else
     echo "PATH updated for current session"
 fi
 
+# Install net-tools on ubuntu for tools such as netstat:
+sudo apt install -y net-tools
+
 # Create unique run directory with timestamp
 RUN_DIR=".run-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$RUN_DIR"
@@ -42,6 +45,11 @@ read
 # Run the deeper RCA analysis
 rust-script analyze-my-fuckedup-analysis.rs "$RUN_DIR/test-fuckups.txt" "$RUN_DIR/rca-initial-analysis.txt"
 
+# Print the RCA analysis output
+echo "=== RCA ANALYSIS OUTPUT ==="
+cat "$RUN_DIR/rca-initial-analysis.txt"
+echo "=== END OF RCA ANALYSIS ==="
+
 # Pause before debugging plan
 echo "RCA analysis complete. Press Enter to continue with debugging plan generation..."
 read
@@ -55,3 +63,20 @@ read
 
 # Run the debugging plan executor  
 rust-script run-debugging-plan.rs "$RUN_DIR/debugging-commands.sh" > "$RUN_DIR/debugging-commands.txt"
+
+# Print the debugging execution output
+echo "=== DEBUGGING EXECUTION OUTPUT ==="
+cat "$RUN_DIR/debugging-commands.txt"
+echo "=== END OF DEBUGGING EXECUTION ==="
+
+# Pause before fix plan generation
+echo "Debugging execution complete. Press Enter to continue with surgical fix plan generation..."
+read
+
+# Run the fix plan generator with all context
+rust-script fix-plan.rs "$RUN_DIR/rca-initial-analysis.txt" "$RUN_DIR/debugging-commands.txt" "$RUN_DIR/surgical-fix-plan.sh"
+
+# Print the fix plan output
+echo "=== SURGICAL FIX PLAN OUTPUT ==="
+cat "$RUN_DIR/surgical-fix-plan.sh"
+echo "=== END OF SURGICAL FIX PLAN ==="

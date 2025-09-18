@@ -123,8 +123,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .output()?;
     
     println!("Debugging commands written to {} (executable)", output_file);
-    
-    // Also print to console for immediate review
     print!("{}", commands);
     
     Ok(())
