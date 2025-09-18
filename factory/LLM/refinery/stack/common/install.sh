@@ -258,7 +258,6 @@ export LOG_DIR="$LOG_DIR"
 export CONFIG_DIR="$CONFIG_DIR"
 
 # Default settings
-export ALIAS_PREFIX="LLM-FuZe-"
 export TOPN_DEFAULT=5
 export TIMEOUT_DEFAULT=30
 

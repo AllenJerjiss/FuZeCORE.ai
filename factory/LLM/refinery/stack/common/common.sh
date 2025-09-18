@@ -10,7 +10,7 @@ set -euo pipefail
 
 # Default directories and paths
 export LOG_DIR_DEFAULT="${LOG_DIR:-/var/log/fuze-stack}"
-export ALIAS_PREFIX_DEFAULT="${ALIAS_PREFIX:-LLM-FuZe-}"
+export ALIAS_PREFIX_DEFAULT="${ALIAS_PREFIX:-FuZe}"
 export SERVICE_HOME_DEFAULT="${SERVICE_HOME:-/root}"
 
 # Default timeouts and limits
@@ -313,9 +313,6 @@ generate_dynamic_env() {
 
 # Logs
 LOG_DIR=$log_dir
-
-# Naming
-ALIAS_PREFIX=LLM-FuZe-
 
 # Scope to one model tag
 INCLUDE_MODELS='^${model_pattern//[-]/[-]}$'

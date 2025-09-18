@@ -433,7 +433,7 @@ enhanced_alias(){ # base_model_tag gpu_label num_gpu -> enhanced alias
   exhaustive_short="$( [ "${EXHAUSTIVE:-0}" -eq 1 ] && echo "ex" || echo "std" )"
   
   # Construct enhanced alias
-  echo "${ALIAS_PREFIX}${alias}-${stack_name}-${gpu_label}-ng${ng}-${pred_short}-${ctx_short}-${temp_short}-${exhaustive_short}"
+  echo "${alias}-${stack_name}-${gpu_label}-ng${ng}-${pred_short}-${ctx_short}-${temp_short}-${exhaustive_short}"
 }
 
 discover_models(){
@@ -457,7 +457,6 @@ discover_models(){
     local alias alias_full
     alias="$(base_alias "$tag")"
     alias_full="${alias}"
-    if [ -n "$ALIAS_PREFIX" ]; then alias_full="${ALIAS_PREFIX}${alias_full}"; fi
     if [ -n "$ALIAS_SUFFIX" ]; then alias_full="${alias_full}${ALIAS_SUFFIX}"; fi
     out+=("$tag|${alias_full}")
   done <<<"$names"
