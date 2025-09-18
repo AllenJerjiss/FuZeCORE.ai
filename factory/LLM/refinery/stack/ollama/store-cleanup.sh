@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# store-cleanup.sh — normalize Ollama model store to /FuZe/models/ollama
+# store-cleanup.sh — normalize Ollama model store to /FuZe/ollama
 # Same-FS: rename/merge with dedupe, progress, USR1 status.
 # Diff-FS: rsync missing files with --remove-source-files, then prune.
 # Idempotent & safe to re-run.
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 CANON="${CANON:-/FuZe/ollama}"
-ALT_DEFAULT="/FuZe/models/ollama"
+ALT_DEFAULT="/FuZe/baked/ollama"
 STOP_SERVICES=1
 
 usage() {

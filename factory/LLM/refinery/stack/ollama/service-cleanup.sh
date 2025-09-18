@@ -12,7 +12,7 @@ sudo systemctl stop ollama-test-a.service ollama-test-b.service ollama-test-mult
 # 0) Vars
 UNIT=/etc/systemd/system/ollama-persist.service
 PORT=11434
-MODELDIR=${MODELDIR:-/FuZe/ollama}
+MODELDIR="/FuZe/ollama"
 OLLAMA_BIN=${OLLAMA_BIN:-/usr/local/bin/ollama}
 
 # 1) Unmask (and remove any /dev/null mask symlink)

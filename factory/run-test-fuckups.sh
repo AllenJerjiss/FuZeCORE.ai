@@ -80,3 +80,16 @@ rust-script fix-plan.rs "$RUN_DIR/rca-initial-analysis.txt" "$RUN_DIR/debugging-
 echo "=== SURGICAL FIX PLAN OUTPUT ==="
 cat "$RUN_DIR/surgical-fix-plan.sh"
 echo "=== END OF SURGICAL FIX PLAN ==="
+
+# Pause before fix execution
+echo "Fix plan generation complete. Press Enter to continue with surgical fix execution..."
+read
+
+# Run the fix plan executor
+echo "=== SURGICAL FIX EXECUTION ==="
+rust-script run-fix-plan.rs "$RUN_DIR/surgical-fix-plan.sh" > "$RUN_DIR/fix-execution.txt"
+
+# Print the fix execution output
+echo "=== SURGICAL FIX EXECUTION OUTPUT ==="
+cat "$RUN_DIR/fix-execution.txt"
+echo "=== END OF SURGICAL FIX EXECUTION ==="

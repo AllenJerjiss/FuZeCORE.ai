@@ -10,7 +10,34 @@ set -euo pipefail
 # Defaults (override via flags)
 ###############################################################################
 HOSTS="127.0.0.1:11434 127.0.0.1:11435 127.0.0.1:11436 127.0.0.1:11437"  # space-separated list
-MATCH_RE='^LLM-FuZe-.*-[0-9]+[a-z]*(\+[0-9]+[a-z]*)*-ng[0-9]+(:[[:alnum:]._-]+)?$'  # what to delete (updated for model-based GPU naming)
+MATCH_RE="^LLM-FuZe-.*"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
 KEEP_RE=''                                     # exclude anything matching this
 CREATED_LIST=''                                # optional file: only delete names listed here
 FORCE=0                                        # 0=dry-run, 1=delete
@@ -57,7 +84,34 @@ USAGE
 while [ $# -gt 0 ]; do
   case "$1" in
     --hosts)        HOSTS="$2"; shift 2;;
-    --match)        MATCH_RE="$2"; shift 2;;
+MATCH_RE="^LLM-FuZe-.*"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
     --keep)         KEEP_RE="$2"; shift 2;;
     --from-created) CREATED_LIST="$2"; shift 2;;
     --force)        FORCE=1; shift;;
