@@ -1,0 +1,26 @@
+# Global ignore for Rust build artifacts and binaries
+**/target/
+**/*.rlib
+**/*.d
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.a
+**/*.lib
+**/*.bin
+**/*.out
+**/*.log
+**/*.lock
+**/*.tmp
+# Ignore cargo specific files
+Cargo.lock
+# Ignore VSCode settings
+.vscode/
+# Ignore Python cache
+__pycache__/
+*.pyc
+# Ignore macOS system files
+.DS_Store
+# Ignore node_modules
+node_modules/
