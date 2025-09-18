@@ -1,0 +1,40 @@
+=== ROOT CAUSE ANALYSIS - INITIAL FINDINGS ===
+
+CRITICAL QUESTIONS FOR RE-DO ROOT CAUSE ANALYSIS:
+
+1. PATH RESOLUTION ANALYSIS:
+   Q: Why is there a double /LLM/LLM/ in the path?
+   Q: Where is the path concatenation logic going wrong?
+   Q: Is this happening in refine-and-bake-ollama-gpt-oss-20b-std.sh?
+   Q: Are there multiple path variables being combined incorrectly?
+
+2. CRACKER.SH LOCATION ANALYSIS:
+   Q: What is the correct path to cracker.sh?
+   Q: Is the script looking for it in the wrong directory?
+   Q: Has the directory structure changed since the script was written?
+
+3. SCRIPT PATH LOGIC VALIDATION:
+   Q: How does the main script determine the path to cracker.sh?
+   Q: Are there hardcoded paths that need updating?
+   Q: Is this a relative vs absolute path issue?
+
+4. PREVIOUS FIX VALIDATION:
+   Q: Which cleanup script issues were actually resolved?
+   Q: Are there any remaining cleanup script problems?
+   Q: Do the original fixes need reverting due to new issues?
+
+IDENTIFIED FAILURES FROM FORENSIC ANALYSIS:
+   FAILURE: ✗ Path resolution - double /LLM/LLM/ construction
+   FAILURE: ✗ cracker.sh location - incorrect path lookup
+   FAILURE: ✗ refine-and-bake-ollama-gpt-oss-20b-std.sh path logic
+
+UNRECOGNIZED PATTERNS DETECTED:
+   UNKNOWN: ? Path concatenation creating /LLM/LLM/ instead of /LLM/
+   UNKNOWN: ? cracker.sh expected location vs actual location mismatch
+
+RECOMMENDED IMMEDIATE ACTIONS FOR RE-DO:
+1. Locate the exact source of double /LLM/LLM/ path construction
+2. Verify the correct path to cracker.sh in current directory structure
+3. Fix path resolution logic in refine-and-bake script
+4. Test path resolution with corrected logic
+

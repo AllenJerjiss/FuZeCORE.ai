@@ -1,0 +1,47 @@
+=== APPLIED FIX TESTING ===
+Testing surgical fixes by running refine-and-bake-ollama-gpt-oss-20b-std.sh
+
+ERROR: Script not found at expected location: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/refine-and-bake-ollama-gpt-oss-20b-std.sh
+Checking for script in alternative locations...
+Found script at: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refine-and-bake-ollama-gpt-oss-20b-std.sh
+# 1. PRE-EXECUTION VALIDATION
+Verifying cleanup scripts are accessible...
+✓ Found: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/service-cleanup.sh
+✓ Found: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/store-cleanup.sh
+✓ Found: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/cleanup-variants.sh
+✓ Found: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/nuke-all.sh
+
+# 2. EXECUTION ENVIRONMENT SETUP
+Changing to target directory: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM
+✓ Target directory exists
+
+# 3. SCRIPT EXECUTION TEST
+Executing: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refine-and-bake-ollama-gpt-oss-20b-std.sh
+Working directory: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM
+Starting execution...
+
+# 4. EXECUTION RESULTS
+Exit code: 1
+
+## STDOUT OUTPUT:
+=== GPT-OSS-20B Standard Mode Refinement & Baking ===
+Workflow: Clean → Install → Benchmark with Baking
+
+
+
+## STDERR OUTPUT:
+ERROR: Cracker not found at: /home/fuze/GitHub/FuZeCORE.ai/factory/LLM/LLM/refinery/cracker.sh
+
+
+# 5. CLEANUP ANALYSIS
+Analyzing output for cleanup script issues...
+✓ No old path references detected
+✓ No regex pattern errors detected
+✓ No service cleanup errors detected
+⚠ WARNING: No clear success indicators found
+
+# 6. OVERALL ASSESSMENT
+✗ Script execution failed
+STATUS: Applied fixes may have issues requiring attention
+
+=== APPLIED FIX TESTING COMPLETED ===

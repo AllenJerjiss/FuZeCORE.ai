@@ -92,50 +92,50 @@ enum FixType {
     RegexPattern,
     PathMismatch,
     ServiceConfig,
+    PathResolution,  // New type for path resolution issues
 }
 
 fn analyze_system_issues(debug_content: &str) -> Result<Vec<SystemIssue>, Box<dyn std::error::Error>> {
     let mut issues = Vec::new();
     
-    // Issue 1: nuke-all.sh missing (from RCA)
-    issues.push(SystemIssue {
-        description: "Missing nuke-all.sh nuclear cleanup wrapper".to_string(),
-        file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/nuke-all.sh".to_string(),
-        fix_type: FixType::MissingFile,
-        evidence: "FAILURE: ✗ nuke-all.sh -> NEW FILE - nuclear cleanup wrapper (MISSING!)".to_string(),
-    });
+    // First, check if there's a re-do.txt file with a specific problem statement
+    if let Ok(redo_content) = fs::read_to_string("re-do.txt") {
+        eprintln!("Found re-do.txt, analyzing specific issues...");
+        return analyze_redo_issues(&redo_content, debug_content);
+    }
     
-    // Issue 2: service-cleanup.sh MODELDIR path issue
-    issues.push(SystemIssue {
-        description: "service-cleanup.sh missing MODELDIR path configuration".to_string(),
-        file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/service-cleanup.sh".to_string(),
-        fix_type: FixType::PathMismatch,
-        evidence: "FAILURE: ✗ service-cleanup.sh -> MODELDIR path (MISSING!)".to_string(),
-    });
+    // Fallback: Analyze from debug content and RCA for initial runs
+    eprintln!("No re-do.txt found, analyzing from debug content...");
     
-    // Issue 3: store-cleanup.sh path configuration
-    issues.push(SystemIssue {
-        description: "store-cleanup.sh missing CANON/ALT_DEFAULT paths".to_string(),
-        file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/store-cleanup.sh".to_string(),
-        fix_type: FixType::PathMismatch,
-        evidence: "FAILURE: ✗ store-cleanup.sh -> CANON/ALT_DEFAULT paths (MISSING!)".to_string(),
-    });
+    // Only add issues if there's actual evidence they exist and aren't already fixed
     
-    // Issue 4: cleanup-variants.sh regex pattern
-    issues.push(SystemIssue {
-        description: "cleanup-variants.sh missing MATCH_RE regex pattern for malformed names".to_string(),
-        file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/cleanup-variants.sh".to_string(),
-        fix_type: FixType::RegexPattern,
-        evidence: "UNKNOWN: ? unknown pattern: LLM-FuZe-LLM-FuZe-gpt-oss-20b-gpu0-ng80-latest-gpu0-ng80".to_string(),
-    });
-    
-    // Issue 5: Mixed GPU naming patterns causing confusion
-    if debug_content.contains("LLM-FuZe-gpt-oss-20b-gpu0-ng80") && debug_content.contains("3090ti") {
+    // Check for missing nuke-all.sh only if we have evidence it's missing
+    if debug_content.contains("nuke-all.sh") && debug_content.contains("MISSING") {
         issues.push(SystemIssue {
-            description: "Mixed GPU naming patterns (gpu0 vs 3090ti vs 5090) breaking cleanup logic".to_string(),
+            description: "Missing nuke-all.sh nuclear cleanup wrapper".to_string(),
+            file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/nuke-all.sh".to_string(),
+            fix_type: FixType::MissingFile,
+            evidence: "FAILURE: ✗ nuke-all.sh -> NEW FILE - nuclear cleanup wrapper (MISSING!)".to_string(),
+        });
+    }
+    
+    // Check for service-cleanup.sh issues only if we have evidence
+    if debug_content.contains("service-cleanup.sh") && debug_content.contains("MODELDIR") {
+        issues.push(SystemIssue {
+            description: "service-cleanup.sh missing MODELDIR path configuration".to_string(),
+            file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/service-cleanup.sh".to_string(),
+            fix_type: FixType::PathMismatch,
+            evidence: "FAILURE: ✗ service-cleanup.sh -> MODELDIR path (MISSING!)".to_string(),
+        });
+    }
+    
+    // Check for cleanup-variants.sh regex issues only if we have evidence of malformed names
+    if debug_content.contains("LLM-FuZe-LLM-FuZe-") || debug_content.contains("unknown pattern") {
+        issues.push(SystemIssue {
+            description: "cleanup-variants.sh missing MATCH_RE regex pattern for malformed names".to_string(),
             file_path: "/home/fuze/GitHub/FuZeCORE.ai/factory/LLM/refinery/stack/ollama/cleanup-variants.sh".to_string(),
             fix_type: FixType::RegexPattern,
-            evidence: "Found mixed patterns: gpu0, 3090ti, 5090 in model names".to_string(),
+            evidence: "UNKNOWN: ? unknown pattern: LLM-FuZe-LLM-FuZe-gpt-oss-20b-gpu0-ng80-latest-gpu0-ng80".to_string(),
         });
     }
     

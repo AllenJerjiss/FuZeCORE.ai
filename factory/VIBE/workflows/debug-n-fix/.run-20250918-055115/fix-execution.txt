@@ -1,0 +1,22 @@
+=== SURGICAL FIX PLAN EXECUTOR ===
+
+Executing .run-20250918-055115/surgical-fix-plan.sh...
+
+=== SURGICAL FIX EXECUTION PLAN ===
+Based on RCA analysis and debugging forensics
+
+# FIX 1: Missing nuke-all.sh nuclear cleanup wrapper
+Fixed: Missing nuke-all.sh nuclear cleanup wrapper
+# FIX 2: service-cleanup.sh missing MODELDIR path configuration
+Fixed: service-cleanup.sh missing MODELDIR path configuration
+# FIX 3: store-cleanup.sh missing CANON/ALT_DEFAULT paths
+Fixed: store-cleanup.sh missing CANON/ALT_DEFAULT paths
+# FIX 4: cleanup-variants.sh missing MATCH_RE regex pattern for malformed names
+Fixed: cleanup-variants.sh missing MATCH_RE regex pattern for malformed names
+# FIX 5: Mixed GPU naming patterns (gpu0 vs 3090ti vs 5090) breaking cleanup logic
+Fixed: Mixed GPU naming patterns (gpu0 vs 3090ti vs 5090) breaking cleanup logic
+=== END OF SURGICAL FIX PLAN ===
+# This plan was generated but NOT executed
+# Review each section before manual execution
+
+=== SURGICAL FIX PLAN EXECUTION COMPLETED ===

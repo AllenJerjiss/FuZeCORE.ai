@@ -1,0 +1,41 @@
+=== ROOT CAUSE ANALYSIS - INITIAL FINDINGS ===
+
+CRITICAL QUESTIONS FOR ROOT CAUSE ANALYSIS:
+
+1. DIRECTORY MIGRATION TIMELINE:
+   Q: When did /FuZe/models/ollama stop being used?
+   Q: What triggered the move to /FuZe/ollama?
+   Q: Are there any lingering references to the old path?
+   Q: Why is /FuZe/baked/ollama empty but exists?
+
+2. SERVICE CONFIGURATION INCONSISTENCIES:
+   Q: Why are all ollama services inactive?
+   Q: What was the last known working service configuration?
+   Q: Are GPU assignments (CUDA_VISIBLE_DEVICES) correctly mapped?
+   Q: Do service files point to correct model directories?
+
+3. MODEL NAMING CONVENTION EVOLUTION:
+   Q: Why do we have both gpu0 and 3090ti patterns?
+   Q: What was the exact sequence of renaming operations?
+   Q: Are there orphaned models with old naming?
+   Q: Do cleanup scripts handle mixed naming patterns?
+
+4. CLEANUP SCRIPT MODIFICATION RISKS:
+   Q: What would happen if service-cleanup.sh runs with wrong MODELDIR?
+   Q: Could store-cleanup.sh migrate models to non-existent directories?
+   Q: Will cleanup-variants.sh regex miss existing model patterns?
+   Q: What safeguards exist against data loss?
+
+5. SYSTEM STATE VALIDATION:
+   Q: Are there active ollama processes not managed by systemd?
+   Q: What disk space issues might exist with 1TB+ models?
+   Q: Are there permission issues preventing service startup?
+   Q: Do network ports conflict between service instances?
+
+RECOMMENDED IMMEDIATE ACTIONS:
+1. Validate all service configurations before enabling
+2. Test cleanup scripts in dry-run mode first
+3. Backup all model data before running cleanup operations
+4. Verify model naming consistency across all services
+5. Check disk space and permissions before model operations
+

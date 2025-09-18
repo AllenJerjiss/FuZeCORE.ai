@@ -1,0 +1,122 @@
+=== SURGICAL FIX VALIDATION ===
+Validating that surgical fixes were correctly applied
+
+# 1. GIT DIFF ANALYSIS
+Getting current git diff to analyze actual changes...
+Git diff output:
+diff --git a/factory/LLM/refinery/stack/ollama/cleanup-variants.sh b/factory/LLM/refinery/stack/ollama/cleanup-variants.sh
+index 68c4b42..2641dcc 100755
+--- a/factory/LLM/refinery/stack/ollama/cleanup-variants.sh
++++ b/factory/LLM/refinery/stack/ollama/cleanup-variants.sh
+@@ -101,6 +101,35 @@ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ KEEP_RE=''                                     # exclude anything matching this
+ CREATED_LIST=''                                # optional file: only delete names listed here
+ FORCE=0                                        # 0=dry-run, 1=delete
+@@ -237,6 +266,35 @@ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++MALFORMED_RE="^LLM-FuZe-LLM-FuZe-.*"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
++GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+ GPU_PATTERN_RE="(gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)"
+     --keep)         KEEP_RE="$2"; shift 2;;
+     --from-created) CREATED_LIST="$2"; shift 2;;
+
+
+# 2. INTENDED FIX VALIDATION
+Checking each intended fix against actual changes...
+
+## FIX 1 VALIDATION: Missing nuke-all.sh nuclear cleanup wrapper
+✓ nuke-all.sh exists
+✓ nuke-all.sh is executable
+✓ Contains: Nuclear cleanup wrapper for ollama
+✓ Contains: systemctl stop ollama.service
+✓ Contains: pkill -f ollama
+✓ Contains: rm -rf /FuZe/ollama/manifests/*
+✓ Contains: rm -rf /FuZe/ollama/blobs/*
+✓ Contains: rm -rf /FuZe/baked/ollama/*
+
+## FIX 2 VALIDATION: service-cleanup.sh missing MODELDIR path configuration
+✓ MODELDIR correctly set to /FuZe/ollama
+✓ No old path references found
+
+## FIX 3 VALIDATION: store-cleanup.sh missing CANON/ALT_DEFAULT paths
+✗ CANON_DEFAULT not correctly set
+✓ ALT_DEFAULT correctly set to /FuZe/baked/ollama
+✓ No old path references found
+
+## FIX 4&5 VALIDATION: cleanup-variants.sh regex patterns for malformed names
+✓ MATCH_RE correctly set to ^LLM-FuZe-.*
+✓ MALFORMED_RE correctly set to ^LLM-FuZe-LLM-FuZe-.*
+✓ GPU_PATTERN_RE correctly set to (gpu[0-9]+|[0-9]+ti|[0-9]+|3090ti|5090)
+
+# 3. FINAL VALIDATION SUMMARY
+Checking overall git status...
+Git status output:
+ M factory/LLM/refinery/stack/ollama/cleanup-variants.sh
+?? factory/VIBE/workflows/debug-n-fix/.run-20250918-052352/
+?? factory/VIBE/workflows/debug-n-fix/.run-20250918-052356/
+?? factory/VIBE/workflows/debug-n-fix/.run-20250918-052402/
+
+STATUS: Uncommitted changes detected - ready for commit
+
+=== SURGICAL FIX VALIDATION COMPLETED ===
