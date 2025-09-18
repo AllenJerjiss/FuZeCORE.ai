@@ -1,1 +1,0 @@
-/home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/release/generate_pcs: /home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/generate_pcs.rs /home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/lib.rs
