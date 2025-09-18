@@ -78,8 +78,12 @@ fi
 echo "Forensic analysis complete. Press Enter to continue with RCA analysis..."
 read
 
-# Run the deeper RCA analysis
-rust-script analyze-my-fuckedup-analysis.rs "$RUN_DIR/test-fuckups.txt" "$RUN_DIR/rca-initial-analysis.txt"
+# Run the deeper RCA analysis with correct input file based on mode
+if [[ "$RE_DO_MODE" == "true" ]]; then
+    rust-script analyze-my-fuckedup-analysis.rs "$RUN_DIR/re-do.txt" "$RUN_DIR/rca-initial-analysis.txt"
+else
+    rust-script analyze-my-fuckedup-analysis.rs "$RUN_DIR/test-fuckups.txt" "$RUN_DIR/rca-initial-analysis.txt"
+fi
 
 # Print the RCA analysis output
 echo "=== RCA ANALYSIS OUTPUT ==="
