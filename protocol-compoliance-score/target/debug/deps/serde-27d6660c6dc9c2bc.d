@@ -1,0 +1,14 @@
+/home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/deps/serde-27d6660c6dc9c2bc.d: /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs /home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/build/serde-b83922855a418cfc/out/private.rs
+
+/home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/deps/libserde-27d6660c6dc9c2bc.rlib: /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs /home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/build/serde-b83922855a418cfc/out/private.rs
+
+/home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/deps/libserde-27d6660c6dc9c2bc.rmeta: /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs /home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs /home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/build/serde-b83922855a418cfc/out/private.rs
+
+/home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/lib.rs:
+/home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/integer128.rs:
+/home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/mod.rs:
+/home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/de.rs:
+/home/fuze/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.225/src/private/ser.rs:
+/home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/build/serde-b83922855a418cfc/out/private.rs:
+
+# env-dep:OUT_DIR=/home/fuze/GitHub/FuZeCORE.ai/protocol-compoliance-score/target/debug/build/serde-b83922855a418cfc/out

@@ -1,0 +1,16 @@
+[lib]
+name = "protocol_compoliance_score"
+path = "lib.rs"
+[package]
+name = "protocol_compoliance_score"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[[bin]]
+name = "generate_pcs"
+path = "generate_pcs.rs"
