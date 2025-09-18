@@ -17,12 +17,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
     
-    let output_file = std::env::args().nth(2).unwrap_or_else(|| {
-        eprintln!("ERROR: Missing output file argument");
-        eprintln!("Usage: debugging-plan.rs <rca-file> [output-file]");
-        std::process::exit(1);
-    });
-    
     // Check if input file exists
     if !Path::new(&rca_file).exists() {
         eprintln!("ERROR: RCA analysis file not found: {}", rca_file);
