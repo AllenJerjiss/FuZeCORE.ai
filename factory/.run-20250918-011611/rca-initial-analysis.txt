@@ -1,0 +1,59 @@
+=== ROOT CAUSE ANALYSIS - INITIAL FINDINGS ===
+
+CRITICAL QUESTIONS FOR ROOT CAUSE ANALYSIS:
+
+1. DIRECTORY MIGRATION TIMELINE:
+   Q: When did /FuZe/models/ollama stop being used?
+   Q: What triggered the move to /FuZe/ollama?
+   Q: Are there any lingering references to the old path?
+   Q: Why is /FuZe/baked/ollama empty but exists?
+
+2. SERVICE CONFIGURATION INCONSISTENCIES:
+   Q: Why are all ollama services inactive?
+   Q: What was the last known working service configuration?
+   Q: Are GPU assignments (CUDA_VISIBLE_DEVICES) correctly mapped?
+   Q: Do service files point to correct model directories?
+
+3. MODEL NAMING CONVENTION EVOLUTION:
+   Q: Why do we have both gpu0 and 3090ti patterns?
+   Q: What was the exact sequence of renaming operations?
+   Q: Are there orphaned models with old naming?
+   Q: Do cleanup scripts handle mixed naming patterns?
+
+4. CLEANUP SCRIPT MODIFICATION RISKS:
+   Q: What would happen if service-cleanup.sh runs with wrong MODELDIR?
+   Q: Could store-cleanup.sh migrate models to non-existent directories?
+   Q: Will cleanup-variants.sh regex miss existing model patterns?
+   Q: What safeguards exist against data loss?
+
+5. SYSTEM STATE VALIDATION:
+   Q: Are there active ollama processes not managed by systemd?
+   Q: What disk space issues might exist with 1TB+ models?
+   Q: Are there permission issues preventing service startup?
+   Q: Do network ports conflict between service instances?
+
+IDENTIFIED FAILURES FROM FORENSIC ANALYSIS:
+   FAILURE: ✗ /FuZe/models (missing)
+   FAILURE: ✗ /FuZe/models/ollama (missing)
+   FAILURE: ✗ /FuZe/ollama/models (missing)
+   FAILURE: ✗ service-cleanup.sh -> MODELDIR path (MISSING!)
+   FAILURE: ✗ store-cleanup.sh -> CANON/ALT_DEFAULT paths (MISSING!)
+   FAILURE: ✗ cleanup-variants.sh -> MATCH_RE regex pattern (MISSING!)
+   FAILURE: ✗ nuke-all.sh -> NEW FILE - nuclear cleanup wrapper (MISSING!)
+
+UNRECOGNIZED PATTERNS DETECTED:
+   UNKNOWN: ? unknown pattern: LLM-FuZe-gpt-oss-20b-gpu0-ng80
+   UNKNOWN: ? unknown pattern: LLM-FuZe-LLM-FuZe-gpt-oss-20b-gpu0-ng80-latest-gpu0-ng80
+
+RECOMMENDED IMMEDIATE ACTIONS:
+1. Validate all service configurations before enabling
+2. Test cleanup scripts in dry-run mode first
+3. Backup critical model data before any cleanup
+4. Verify GPU assignments match actual hardware
+5. Create rollback plan for all modifications
+
+RISK ASSESSMENT:
+HIGH RISK: Data loss from incorrect cleanup operations
+MEDIUM RISK: Service startup failures from path mismatches
+LOW RISK: Performance impact from inactive services
+
