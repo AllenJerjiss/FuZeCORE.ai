@@ -12,26 +12,44 @@ echo "Workflow: Clean → Install → Benchmark with Baking"
 echo
 
 
+# Default model
+MODEL="gpt-oss-20b"
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        --model)
+        MODEL="$2"
+        shift # past argument
+        shift # past value
+        ;;
+        *)    # unknown option
+        shift # past argument
+        ;;
+    esac
+done
+
 if [ ! -f "$ORCH" ]; then
     echo "ERROR: orchestrator.sh not found at: $ORCH" >&2
     exit 1
 fi
 
 echo
-echo Step 1: Clean all artifacts, variants, and services
-"$ORCH" ollama cleanup-variants
-"$ORCH" ollama store-cleanup
-"$ORCH" ollama service-cleanup
+echo "Step 1: Clean all artifacts, variants, and services"
+sudo -E "$ORCH" ollama cleanup-variants
+sudo -E "$ORCH" ollama store-cleanup
+sudo -E "$ORCH" ollama service-cleanup
 
 
 echo
 echo "Step 2: Installing Ollama stack..."
-sudo "$ORCH" ollama install
+sudo -E "$ORCH" ollama install
 
 
 #echo
-echo "Step 3: Running benchmark with baking (standard mode, GPU 0)..."
-"$ORCH" --gpu 0,1,2 ollama benchmark --model gpt-oss-20b
+echo "Step 3: Running benchmark with baking (standard mode)..."
+sudo -E "$ORCH" --gpu 0,1,2 ollama bench --model "$MODEL"
 
 echo
 echo "=== Workflow Complete ==="

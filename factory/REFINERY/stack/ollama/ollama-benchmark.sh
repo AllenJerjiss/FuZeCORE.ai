@@ -293,10 +293,16 @@ gpu_label_for_ep(){
   # Helper function to get GPU model name for an index
   get_gpu_model_label() {
     local idx="$1"
-    local gpu_name="$(nvidia-smi --query-gpu=name --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
-    if [ -n "$gpu_name" ]; then
-      # Normalize: "NVIDIA GeForce RTX 3090 Ti" -> "3090ti"
-      echo "$gpu_name" | awk '{s = tolower($0); gsub(/nvidia|geforce|rtx|[[:space:]]/, "", s); print s}'
+    local gpu_info
+    gpu_info="$(nvidia-smi --query-gpu=name,serial --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
+    if [ -n "$gpu_info" ]; then
+      # Normalize: "NVIDIA GeForce RTX 3090 Ti, 123...45" -> "3090ti45"
+      echo "$gpu_info" | awk -F', ' '{
+        s = tolower($1); 
+        gsub(/nvidia|geforce|rtx|[[:space:]]|-/, "", s); 
+        serial_suffix = substr($2, length($2)-1);
+        print s serial_suffix
+      }'
     else
       echo "ERROR: Failed to get GPU name for device index $idx" >&2
       exit 1
