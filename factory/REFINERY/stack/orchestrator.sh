@@ -13,6 +13,38 @@ source "${SCRIPT_DIR}/common/common.sh"
 init_common "orchestrator"
 
 # --- Argument Parsing ---
+declare -a global_opts
+declare -a other_args
+while [ $# -gt 0 ]; do
+  case "$1" in
+    @*|*.env|--gpu|--combined|--model)
+      # These are global options that are processed here.
+      # The options and their values are added to global_opts.
+      global_opts+=("$1")
+      if [[ "$1" != *@* && "$1" != *.env ]]; then
+        global_opts+=("$2")
+        shift
+      fi
+      shift
+      ;;
+    -*)
+      # Any other option starting with '-' is assumed to be for a subcommand.
+      other_args+=("$1")
+      shift
+      ;;
+    *)
+      # Non-option arguments (stack, command, etc.)
+      other_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# Re-assemble arguments so that global options are processed first,
+# then the rest are passed to the stack/command.
+set -- "${global_opts[@]}" "${other_args[@]}"
+
+# Process only the true global options now
 declare -a stack_args
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -41,10 +73,8 @@ while [ $# -gt 0 ]; do
       info "Set MODEL_PATTERN=$MODEL_PATTERN"
       shift 2
       ;;
-    -*)
-      error_exit "Unknown global option: $1"
-      ;;
     *)
+      # The rest are stack arguments
       stack_args+=("$1")
       shift
       ;;
@@ -78,15 +108,9 @@ case "$1" in
       clean-bench)  "${STACK_ROOT}/common/clean-bench.sh" "$@" ;;
       analyze)      "${STACK_ROOT}/common/analyze.sh" "$@" ;;
       install)
-        # Handle the recursive test call from install.sh itself
-        if [ "${1:-}" = "--test" ]; then
-          # Source install.sh to get the run_tests function, then run it
-          source "${STACK_ROOT}/common/install.sh"
-          run_tests
-        else
-          # Otherwise, run a normal installation
-          "${STACK_ROOT}/common/install.sh" "$@"
-        fi
+        # A call like "orchestrator.sh ollama install" gets handled by the stack-specific
+        # command section. This global command is for "orchestrator.sh install ollama".
+        "${STACK_ROOT}/common/install.sh" "$@"
         ;;
       collect-results) "${STACK_ROOT}/common/collect-results.sh" "$@" ;;
       summarize-benchmarks) "${STACK_ROOT}/common/summarize-benchmarks.sh" "$@" ;;
@@ -162,7 +186,11 @@ case "$stack" in
           }')"
         fi
         "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;
-      install)                   "${STACK_ROOT}/common/install.sh" --try-cache ollama "$@" ;;
+      install)
+        # Pass all arguments after 'install' to the install script
+        shift # remove 'install'
+        "${STACK_ROOT}/common/install.sh" "ollama" "$@"
+        ;;
       service-cleanup|svc-clean) "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
       store-cleanup|store)       "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
       export-gguf|export)        "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;

@@ -303,6 +303,101 @@ show_usage_info() {
     done
 }
 
+install_ollama() {
+    local try_cache_flag=$TRY_CACHE
+    local ollama_installer_url="https://ollama.com/install.sh"
+    local installer_cache_dir="/FuZe/installer-cache"
+    local ollama_installer_path="$installer_cache_dir/ollama_install.sh"
+    local ollama_binary_cache_path="$installer_cache_dir/ollama"
+    local ollama_system_binary_path="/usr/local/bin/ollama"
+
+    # Ensure the cache directory exists
+    if [ ! -d "$installer_cache_dir" ]; then
+        info "Creating installer cache directory at $installer_cache_dir"
+        sudo mkdir -p "$installer_cache_dir"
+        sudo chown -R "$(whoami)":"$(whoami)" "$installer_cache_dir"
+    fi
+
+    # --- New Caching Logic ---
+    if [ "$try_cache_flag" -eq 1 ] && [ -f "$ollama_binary_cache_path" ]; then
+        info "Found cached Ollama binary. Bypassing official installer's download."
+        
+        info "Placing cached binary..."
+        sudo cp "$ollama_binary_cache_path" "$ollama_system_binary_path"
+        sudo chmod +x "$ollama_system_binary_path"
+
+        info "Manually configuring systemd and user..."
+        if ! id fuze >/dev/null 2>&1; then
+            info "Creating fuze user..."
+            sudo useradd -r -s /bin/false -U -m -d /usr/share/ollama fuze
+        fi
+        if getent group render >/dev/null 2>&1; then
+            info "Adding fuze user to render group..."
+            sudo usermod -a -G render fuze
+        fi
+        if getent group video >/dev/null 2>&1; then
+            info "Adding fuze user to video group..."
+            sudo usermod -a -G video fuze
+        fi
+
+        info "Adding current user to fuze group..."
+        sudo usermod -a -G fuze $(whoami)
+
+        info "Creating ollama systemd service..."
+        local bindir="/usr/local/bin"
+        cat <<EOF | sudo tee /etc/systemd/system/ollama.service >/dev/null
+[Unit]
+Description=Ollama Service
+After=network-online.target
+
+[Service]
+ExecStart=$bindir/ollama serve
+User=fuze
+Group=fuze
+Restart=always
+RestartSec=3
+Environment="PATH=$PATH"
+Environment="LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu"
+
+[Install]
+WantedBy=default.target
+EOF
+        info "Enabling and starting ollama service..."
+        sudo systemctl daemon-reload
+        sudo systemctl enable ollama.service
+        sudo systemctl restart ollama.service
+        
+        info "Manual installation from cache complete."
+        return 0
+    fi
+
+    # --- Original Logic with Caching Post-Download ---
+    info "Proceeding with official installer."
+    if [ ! -f "$ollama_installer_path" ]; then
+        info "Ollama installer script not found in cache. Downloading..."
+        curl -fsSL "$ollama_installer_url" -o "$ollama_installer_path"
+        chmod +x "$ollama_installer_path"
+    else
+        info "Using cached Ollama installer script from $ollama_installer_path"
+    fi
+
+    info "Executing Ollama installer script..."
+    if ! sudo sh "$ollama_installer_path"; then
+        error "Ollama installation failed."
+        return 1
+    fi
+
+    if [ "$try_cache_flag" -eq 1 ]; then
+        info "Caching new Ollama binary..."
+        sudo cp "$ollama_system_binary_path" "$ollama_binary_cache_path"
+    fi
+
+    info "Ollama installation complete."
+}
+
+ok "Installation script finished"
+
+# Test function is separate and not called by default
 run_tests() {
     info "Running tests..."
     
@@ -319,186 +414,6 @@ run_tests() {
     else
         warn "Test suite not found, skipping tests"
     fi
-}
-
-# Main execution entry point
-
-install_ollama() {
-    info "Installing Ollama stack..."
-    
-    # Check if root is needed for Ollama installation
-    if [ "$(id -u)" -ne 0 ]; then
-        error "Ollama installation requires root privileges (use sudo)"
-        exit 1
-    fi
-    
-    # Smart detection: skip if already installed and no upgrade requested
-    if command -v ollama >/dev/null 2>&1 && [ "$UPGRADE" -eq 0 ]; then
-        ok "Ollama already installed (use --upgrade to force update)"
-        info "Current version: $(ollama --version 2>/dev/null || echo 'unknown')"
-        return 0
-    fi
-    
-    # Install required packages first (if not dry run)
-    if [ "$DRY_RUN" -eq 1 ]; then
-        info "DRY RUN: Would install packages: curl jq lsof gawk sed procps coreutils rsync"
-    else
-        apt-get update -y
-        apt-get install -y curl jq lsof gawk sed procps coreutils rsync
-    fi
-    
-    # Determine how to get the Ollama binary
-    local cached_binary="$CACHE_DIR/ollama"
-    local use_cached=0
-    
-    if [ "$TRY_CACHE" -eq 1 ] && [ "$UPGRADE" -eq 0 ] && [ -f "$cached_binary" ] && [ -x "$cached_binary" ]; then
-        info "Found cached Ollama binary: $cached_binary"
-        use_cached=1
-    else
-        if [ "$TRY_CACHE" -eq 1 ] && [ "$UPGRADE" -eq 0 ]; then
-            info "No cached Ollama binary found, falling back to download"
-        elif [ "$UPGRADE" -eq 1 ]; then
-            info "Upgrade requested, downloading fresh Ollama binary"
-        else
-            info "Downloading Ollama binary"
-        fi
-        use_cached=0
-    fi
-    
-    # Use official installer (with caching consideration)
-    if [ "$use_cached" -eq 0 ]; then
-        if [ "$DRY_RUN" -eq 1 ]; then
-            info "DRY RUN: Would run official Ollama installer"
-        else
-            # Use official installer - this ensures proper setup of all dependencies
-            if ! command -v ollama >/dev/null 2>&1; then
-                info "Installing Ollama via official installer"
-                curl -fsSL https://ollama.com/install.sh | sh
-            else
-                info "Upgrading Ollama via official installer"
-                OLLAMA_UPGRADE=1 curl -fsSL https://ollama.com/install.sh | sh || true
-            fi
-            
-            # Cache the installed binary for future use
-            mkdir -p "$CACHE_DIR"
-            if [ -f "/usr/local/bin/ollama" ]; then
-                cp "/usr/local/bin/ollama" "$cached_binary"
-                chmod +x "$cached_binary"
-                ok "Cached Ollama binary for future use: $cached_binary"
-            fi
-        fi
-    else
-        # Install from cache
-        if [ "$DRY_RUN" -eq 1 ]; then
-            info "DRY RUN: Would install from cached binary: $cached_binary -> /usr/local/bin/ollama"
-        else
-            cp "$cached_binary" /usr/local/bin/ollama
-            chmod +x /usr/local/bin/ollama
-            ok "Installed Ollama from cache: $cached_binary"
-        fi
-    fi
-    
-    # Rest of Ollama-specific setup (from original ollama/install.sh)
-    if [ "$DRY_RUN" -eq 1 ]; then
-        info "DRY RUN: Would setup ollama user and groups"
-        info "DRY RUN: Would create /FuZe/models/ollama directory"
-        info "DRY RUN: Would stop all ollama services"
-        info "DRY RUN: Would remove custom ollama units"
-        info "DRY RUN: Would configure stock ollama.service"
-        info "DRY RUN: Would start ollama.service"
-    else
-        # Ensure ollama user exists
-        if ! id -u ollama >/dev/null 2>&1; then
-            useradd -r -s /usr/sbin/nologin -m ollama
-        fi
-        for g in video render; do
-            getent group "$g" >/dev/null 2>&1 && usermod -aG "$g" ollama || true
-        done
-        
-        # Setup FuZe model directory
-        local canon="/FuZe/ollama"
-        mkdir -p /FuZe "$canon"
-        chmod 755 /FuZe "$canon"
-        chown -R ollama:ollama "$canon"
-        
-        # Stop ALL ollama* services (stock & custom)
-        info "Stopping ALL ollama* services"
-        systemctl list-unit-files | awk '/^ollama.*\.service/ {print $1}' | while read -r u; do
-            systemctl unmask "$u" 2>/dev/null || true
-            systemctl stop "$u" 2>/dev/null || true
-            systemctl disable "$u" 2>/dev/null || true
-            systemctl reset-failed "$u" 2>/dev/null || true
-        done
-        
-        # Remove custom/legacy units (keep ONLY stock ollama.service)
-        info "Removing custom/legacy ollama units"
-        local units_to_remove
-        units_to_remove="$(systemctl list-unit-files --type=service | \
-          awk '/^ollama.*\.service/ && $1!="ollama.service" {print $1}' || true)"
-          
-        local unit_dirs="/etc/systemd/system /lib/systemd/system /usr/lib/systemd/system"
-        for u in $units_to_remove; do
-            for d in $unit_dirs; do
-                rm -f "$d/$u" 2>/dev/null || true
-                rm -rf "$d/${u}.d" 2>/dev/null || true
-            done
-            find /etc/systemd/system -type l -lname "*$u" -print -delete 2>/dev/null || true
-        done
-        
-        # Remove common custom units
-        rm -f /etc/systemd/system/ollama-persist.service \
-              /etc/systemd/system/ollama-test-*.service 2>/dev/null || true
-        rm -rf /etc/systemd/system/ollama-persist.service.d \
-               /etc/systemd/system/ollama-test-*.service.d 2>/dev/null || true
-        find /etc/systemd/system -maxdepth 1 -type f -name 'ollama-*.service' -print -delete 2>/dev/null || true
-        find /etc/systemd/system -maxdepth 1 -type d -name 'ollama-*.service.d' -print -exec rm -rf {} + 2>/dev/null || true
-        
-        # Kill stray ollama daemons
-        info "Killing stray ollama daemons"
-        local main_pid
-        main_pid="$(systemctl show -p MainPID --value ollama.service 2>/dev/null || true)"
-        pgrep -f "/usr/local/bin/ollama serve" >/dev/null 2>&1 && \
-          pgrep -f "/usr/local/bin/ollama serve" | while read -r pid; do
-            if [ -n "${main_pid:-}" ] && [ "$pid" = "$main_pid" ]; then
-                continue
-            fi
-            kill -TERM "$pid" 2>/dev/null || true
-          done
-        sleep 1
-        pgrep -f "/usr/local/bin/ollama serve" >/dev/null 2>&1 && \
-          pgrep -f "/usr/local/bin/ollama serve" | while read -r pid; do
-            if [ -n "${main_pid:-}" ] && [ "$pid" = "$main_pid" ]; then
-                continue
-            fi
-            kill -KILL "$pid" 2>/dev/null || true
-          done
-          
-        # Configure stock ollama.service
-        info "Configuring stock ollama.service"
-        mkdir -p /etc/systemd/system/ollama.service.d
-        cat >/etc/systemd/system/ollama.service.d/override.conf <<'DROPIN'
-[Service]
-User=ollama
-Group=ollama
-SupplementaryGroups=video render
-Environment=OLLAMA_MODELS=/FuZe/ollama
-# ExecStart provided by package; defaults to port 11434
-DROPIN
-        
-        # Start ollama service
-        systemctl daemon-reload
-        systemctl unmask ollama.service 2>/dev/null || true
-        systemctl enable --now ollama.service
-        
-        # Final cleanup of stray listeners
-        for p in 11435 11436; do
-            local pid
-            pid="$(lsof -nP -iTCP:$p -sTCP:LISTEN -t 2>/dev/null || true)"
-            [ -n "${pid:-}" ] && kill -TERM "$pid" 2>/dev/null || true
-        done
-    fi
-    
-    ok "Ollama installation completed"
 }
 
 main() {
@@ -519,7 +434,7 @@ main() {
     for stack in "${STACKS[@]}"; do
         case "$stack" in
             ollama)
-                install_ollama
+                install_ollama "$@"
                 ;;
             vllm)
                 info "vLLM stack installation not yet implemented"
@@ -536,8 +451,7 @@ main() {
         esac
     done
     
-    run_tests
-    show_usage_info
+    ok "Installation script finished"
 }
 
 # Run main function

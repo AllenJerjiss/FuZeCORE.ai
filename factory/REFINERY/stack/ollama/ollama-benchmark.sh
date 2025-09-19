@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 # ollama/benchmark.sh
 # One-at-a-time model tuning + benchmarking with an always-on puller on :11434
@@ -37,6 +36,7 @@ TEST_PORT_MULTI="${TEST_PORT_MULTI:-11437}"  # multi-GPU instance
 
 # Persistent model store (used by :11434)
 OLLAMA_MODELS_DIR="${OLLAMA_MODELS_DIR:-/FuZe/ollama}"
+export OLLAMA_MODELS="$OLLAMA_MODELS_DIR"
 
 # num_gpu sweep (high -> low)
 NUM_GPU_CANDIDATES="${NUM_GPU_CANDIDATES:-80 72 64 56 48 40 32 24 16}"
@@ -129,8 +129,8 @@ create_ollama_service_template() {
     local gpu_spec="$3"
     
     # Get default ollama user/group from stock service
-    local ollama_user="ollama"
-    local ollama_group="ollama"
+    local ollama_user="fuze"
+    local ollama_group="fuze"
     local models_dir="${OLLAMA_MODELS_DIR:-/FuZe/ollama}"
     
     # Create service file
@@ -144,12 +144,14 @@ Wants=network-online.target
 ExecStart=/usr/local/bin/ollama serve
 User=$ollama_user
 Group=$ollama_group
+SupplementaryGroups=video render
 Restart=always
 RestartSec=3
 Environment=OLLAMA_HOST=0.0.0.0:$port
 Environment=OLLAMA_MODELS=$models_dir
 Environment=CUDA_VISIBLE_DEVICES=$gpu_spec
 Environment=OLLAMA_SCHED_SPREAD=1
+Environment="LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu"
 
 [Install]
 WantedBy=default.target
@@ -762,8 +764,11 @@ if [ "$IS_ROOT" -eq 1 ]; then
 fi
 log "$(gpu_table | sed 's/^/GPU: /')"
 
-# Setup GPU services based on configuration
-setup_gpu_services "ollama" "create_ollama_service_template"
+# Setup GPU services
+if ! setup_gpu_services "ollama" "create_ollama_service_template"; then
+    error "Failed to set up GPU services. Aborting."
+    exit 1
+fi
 
 # Make sure :11434 is up (stock "ollama.service" _or_ our "ollama-persist.service")
 if ! curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; then
@@ -778,17 +783,6 @@ if ! curl -fsS "http://127.0.0.1:${PERSISTENT_PORT}/api/tags" >/dev/null 2>&1; t
   else
     warn "Persistent daemon :${PERSISTENT_PORT} is not up and this run is not root. Start ollama.service or rerun with sudo."
   fi
-fi
-
-# Bind A/B to GPUs by name (or index fallback / single-GPU graceful)
-all_gpus="$(gpu_table || true)"
-uuid_a="$(echo "$all_gpus" | awk -F',' -v s="$MATCH_GPU_A" 'tolower($1) ~ tolower(s){gsub(/[[:space:]]/,"",$2); print $2; exit}')"
-uuid_b="$(echo "$all_gpus" | awk -F',' -v s="$MATCH_GPU_B" 'tolower($1) ~ tolower(s){gsub(/[[:space:]]/,"",$2); print $2; exit}')"
-
-if [ -z "${uuid_a:-}" ]; then uuid_a="$(echo "$all_gpus" | awk -F',' 'NR==1{gsub(/[[:space:]]/,"",$2); print $2}')"; fi
-if [ -z "${uuid_b:-}" ] || [ "$uuid_a" = "$uuid_b" ]; then
-  # try second GPU; if none, we will only run A
-  uuid_b="$(echo "$all_gpus" | awk -F',' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}')"
 fi
 
 # Build endpoints array dynamically using GPU services
@@ -810,7 +804,10 @@ info "TEST B OLLAMA_MODELS: $(service_env ollama-test-b.service OLLAMA_MODELS 2>
 
 info "Waiting for APIs"
 wait_api "127.0.0.1:${PERSISTENT_PORT}" || warn "API :${PERSISTENT_PORT} not reachable yet"
-for ep in "${ENDPOINTS[@]}"; do wait_api "$ep" || warn "API $ep slow to start"; done
+for ep_with_gpu in "${ENDPOINTS[@]}"; do
+    ep="${ep_with_gpu%|*}"
+    wait_api "$ep" || warn "API $ep (from $ep_with_gpu) slow to start"
+done
 
 info "ollama version: $($OLLAMA_BIN --version || echo 'unknown')"
 

@@ -57,14 +57,67 @@ create_gpu_service_file() {
     local stack="$4"
     local service_template_func="$5"
     
-    # Check if we need sudo for service creation
-    if [ "$(id -u)" -ne 0 ] && [ ! -w "/etc/systemd/system/" ]; then
-        info "GPU service creation requires root privileges"
-        sudo bash -c "$(declare -f "$service_template_func"); $service_template_func '$service_name' '$port' '$gpu_spec'"
-    else
-        # Call stack-specific service template function
-        "$service_template_func" "$service_name" "$port" "$gpu_spec"
+    # Call stack-specific service template function
+    "$service_template_func" "$service_name" "$port" "$gpu_spec"
+}
+
+# Setup all GPU services based on configuration
+setup_gpu_services() {
+    local stack="$1"
+    local service_template_func="$2"
+    local configs
+    
+    # Validate GPU configuration is provided
+    if [ -z "${GPU_DEVICES:-}${COMBINED_DEVICES:-}" ]; then
+        warn "GPU configuration required. Use --gpu X or --combined X,Y,Z flags."
+        return 1
     fi
+    
+    info "Setting up GPU services for $stack"
+    
+    # Get service configurations
+    configs="$(generate_service_configs)"
+    
+    if [ -z "$configs" ]; then
+        warn "No GPU service configurations generated"
+        return 1
+    fi
+    
+    # Create each service
+    while IFS=':' read -r service_letter port gpu_spec; do
+        local service_name="${stack}-test-${service_letter,,}.service"  # lowercase
+        info "Creating $service_name (port $port, GPU $gpu_spec)"
+        
+        create_gpu_service_file "$service_name" "$port" "$gpu_spec" "$stack" "$service_template_func"
+        
+        # Enable and start the service
+        systemctl daemon-reload
+        systemctl enable "$service_name"
+        systemctl restart "$service_name"
+        # Wait for the service to be ready
+        if wait_for_service_ready "$service_name"; then
+            ok "$service_name ready on port $port"
+        else
+            error "$service_name failed to start. Check logs with: journalctl -u $service_name"
+            return 1
+        fi
+    done
+}
+
+# Wait for a systemd service to report it is ready
+wait_for_service_ready() {
+    local service_name="$1"
+    local attempts=10
+    local delay=2
+    
+    for ((i=0; i<attempts; i++)); do
+        if systemctl is-active --quiet "$service_name"; then
+            return 0
+        fi
+        sleep "$delay"
+    done
+    
+    return 1
 }
 
 # Setup all GPU services based on configuration

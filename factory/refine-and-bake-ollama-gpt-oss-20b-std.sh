@@ -6,11 +6,28 @@ set -euo pipefail
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ORCH="${SCRIPT_DIR}/REFINERY/stack/orchestrator.sh"
+CLEAN_BENCH_SCRIPT="${SCRIPT_DIR}/REFINERY/stack/common/clean-bench.sh"
+
+# --- Cleanup Function and Trap ---
+# This ensures that no matter how the script exits, services are stopped.
+cleanup() {
+    echo
+    echo "--- Running cleanup ---"
+    # The --yes flag is critical here to ensure cleanup actually runs.
+    sudo -E "$CLEAN_BENCH_SCRIPT" --yes
+    echo "--- Cleanup complete ---"
+}
+trap cleanup EXIT SIGINT SIGTERM
+# --------------------------------
 
 echo "=== GPT-OSS-20B Standard Mode Refinement & Baking ==="
 echo "Workflow: Clean → Install → Benchmark with Baking"
 echo
 
+# Step 1: Initial cleanup to ensure a clean slate
+echo "Step 1: Clean all artifacts, variants, and services"
+sudo -E "$CLEAN_BENCH_SCRIPT" --yes
+echo
 
 # Default model
 MODEL="gpt-oss-20b"
@@ -37,17 +54,19 @@ fi
 
 echo
 echo "Step 1: Clean all artifacts, variants, and services"
-sudo -E "$ORCH" ollama cleanup-variants
-sudo -E "$ORCH" ollama store-cleanup
-sudo -E "$ORCH" ollama service-cleanup
+# The trap will handle the cleanup, so we can remove the explicit calls here
+# to avoid redundancy and rely on the robust trap mechanism.
+# sudo -E "$ORCH" ollama cleanup-variants
+# sudo -E "$ORCH" ollama service-cleanup
 
 
 echo
 echo "Step 2: Installing Ollama stack..."
-sudo -E "$ORCH" ollama install
+# The --try-cache flag is added to ensure we use the local binary if available
+sudo -E "$ORCH" ollama install --try-cache
 
 
-#echo
+echo
 echo "Step 3: Running benchmark with baking (standard mode)..."
 sudo -E "$ORCH" --gpu 0,1,2 ollama bench --model "$MODEL"
 

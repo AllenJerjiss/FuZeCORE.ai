@@ -54,6 +54,7 @@ show_dry_run_status
 echo "== Clean plan =="
 echo "Logs   : ${LOG_DIR} (clean=${DO_LOGS}, keep-latest=${KEEP_LATEST})"
 echo "Repo   : ${ROOT_DIR}/benchmarks*.csv (clean=${DO_REPO})"
+echo "Services: Stop all ollama*.service units"
 echo "Variants: ${DO_VARIANTS}"
 echo "Mode   : $([ "$YES" -eq 1 ] && echo EXECUTE || echo DRY-RUN)"
 
@@ -66,6 +67,35 @@ do_rm(){ # files...
     printf '  rm %s\n' "${files[@]}"
   fi
 }
+
+# Clean services
+echo "-- Stopping and disabling all ollama services"
+if [ "$YES" -eq 1 ]; then
+    # Stop the main service first
+    if systemctl is-active --quiet ollama.service; then
+        info "Stopping main ollama.service"
+        systemctl stop ollama.service
+    fi
+
+    # Use systemctl to find, stop, and disable all ollama-related services
+    systemctl list-units 'ollama*.service' --no-legend | awk '{print $1}' | while read -r service; do
+        info "Stopping and disabling $service"
+        systemctl stop "$service" >/dev/null 2>&1 || true
+        systemctl disable "$service" >/dev/null 2>&1 || true
+        systemctl reset-failed "$service" >/dev/null 2>&1 || true
+    done
+    
+    # As a fallback, forcefully kill any lingering ollama serve processes
+    if pgrep -f '/usr/local/bin/ollama serve' >/dev/null; then
+        info "Forcefully killing lingering 'ollama serve' processes..."
+        pkill -f '/usr/local/bin/ollama serve' || true
+        sleep 2 # Give time for processes to die
+    fi
+else
+    info "DRY RUN: Would stop main ollama.service"
+    info "DRY RUN: Would stop and disable all ollama*.service units"
+    info "DRY RUN: Would kill any remaining 'ollama serve' processes"
+fi
 
 # Clean logs
 if [ "$DO_LOGS" -eq 1 ]; then
