@@ -280,63 +280,57 @@ offload_triplet(){ # name,uuid,memmib for an ollama-test-* unit
   fi
 }
 
-gpu_label_for_ep(){
-  local ep="$1" unit
-  unit="$(unit_for_ep "$ep")"
-  
-  # Special case for persistent service (no CUDA_VISIBLE_DEVICES)
-  if [[ "$unit" == "ollama-persist.service" ]]; then
-    echo "persistent"
-    return 0
-  fi
-  
-  # Helper function to get GPU model name for an index
-  get_gpu_model_label() {
-    local idx="$1"
-    local gpu_info
-    gpu_info="$(nvidia-smi --query-gpu=name,serial --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
-    if [ -n "$gpu_info" ]; then
-      # Normalize: "NVIDIA GeForce RTX 3090 Ti, 123...45" -> "3090ti45"
-      echo "$gpu_info" | awk -F', ' '{
-        s = tolower($1); 
-        gsub(/nvidia|geforce|rtx|[[:space:]]|-/, "", s); 
-        serial_suffix = substr($2, length($2)-1);
-        print s serial_suffix
-      }'
-    else
-      echo "ERROR: Failed to get GPU name for device index $idx" >&2
-      exit 1
-    fi
-  }
-  
-  # Check if this is a multi-GPU service
-  if [[ "$unit" == "ollama-test-multi.service" ]]; then
-    # For multi-GPU, get indices and map to model-based labels
-    local gpu_indices="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
-    if [ -n "$gpu_indices" ]; then
-      IFS=',' read -ra indices <<< "$gpu_indices"
-      local gpu_labels=()
-      for idx in "${indices[@]}"; do
-        gpu_labels+=("$(get_gpu_model_label "$idx")")
-      done
-      # Join labels with +
-      local combined_label
-      printf -v combined_label '%s+' "${gpu_labels[@]}"
-      echo "${combined_label%+}"  # Remove trailing +
-    else
-      echo "ERROR: No CUDA_VISIBLE_DEVICES found for multi-GPU service" >&2
-      exit 1
-    fi
+# This function is now the single source of truth for GPU labels.
+# It is called with a specific GPU index.
+get_gpu_model_label() {
+  local idx="$1"
+  local gpu_info
+  gpu_info="$(nvidia-smi --query-gpu=name,serial --format=csv,noheader --id="$idx" 2>/dev/null | head -1)"
+  if [ -n "$gpu_info" ]; then
+    # Normalize: "NVIDIA GeForce RTX 3090 Ti, 123...45" -> "3090ti45"
+    echo "$gpu_info" | awk -F', ' '{
+      s = tolower($1);
+      gsub(/nvidia|geforce|rtx|[[:space:]]|-/, "", s);
+      serial_suffix = substr($2, length($2)-1);
+      print s serial_suffix
+    }'
   else
-    # For single-GPU, get the device index and use model-based label
-    local gpu_idx="$(service_env "$unit" CUDA_VISIBLE_DEVICES)"
-    if [ -n "$gpu_idx" ]; then
-      get_gpu_model_label "$gpu_idx"
-    else
-      echo "ERROR: No CUDA_VISIBLE_DEVICES found for single GPU service $unit" >&2
-      exit 1
-    fi
+    echo "unknown-gpu"
   fi
+}
+
+# ... existing code ...
+
+# This is the main loop that iterates over services
+main() {
+# ... existing code ...
+  # Get the list of active endpoints and their associated GPU indices
+  endpoints_with_indices=$(get_gpu_service_endpoints "ollama")
+
+  for endpoint_info in $endpoints_with_indices; do
+    IFS='|' read -r ep gpu_idx <<< "$endpoint_info"
+    
+    # Pass the specific gpu_idx to the benchmark function
+    bench_on_endpoint "$ep" "$gpu_idx"
+  done
+# ... existing code ...
+}
+
+
+# The benchmark function now receives the gpu_idx
+bench_on_endpoint() {
+    local ep="$1"
+    local gpu_idx="$2"
+    # ... existing code ...
+    
+    # Use the passed gpu_idx to get the correct label
+    local gpu_lbl
+    gpu_lbl="$(get_gpu_model_label "$gpu_idx")"
+
+    # ... existing code ...
+    # When baking the model, use the correct gpu_lbl
+    local baked_variant_name="FuZe-${alias}-${gpu_lbl}-ng${best_ng}"
+    # ... existing code ...
 }
 
 have_model(){

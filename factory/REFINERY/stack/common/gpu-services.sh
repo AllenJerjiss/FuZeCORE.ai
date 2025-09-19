@@ -157,6 +157,7 @@ cleanup_gpu_services() {
 }
 
 # Get list of active GPU service endpoints for a stack
+# Returns: endpoint|gpu_index
 get_gpu_service_endpoints() {
     local stack="$1"
     
@@ -165,10 +166,16 @@ get_gpu_service_endpoints() {
         if [ -f "$service_file" ]; then
             local service_name="$(basename "$service_file")"
             if systemctl is-active "$service_name" >/dev/null 2>&1; then
-                # Extract port from service environment
-                local service_port="$(systemctl show "$service_name" --property=Environment | sed -n 's/.*OLLAMA_HOST=[^:]*:\([0-9]*\).*/\1/p')"
-                if [ -n "$service_port" ]; then
-                    echo "127.0.0.1:$service_port"
+                # Extract port and GPU index from service environment
+                local envs
+                envs="$(systemctl show "$service_name" --property=Environment)"
+                local service_port
+                service_port="$(echo "$envs" | sed -n 's/.*OLLAMA_HOST=[^:]*:\([0-9]*\).*/\1/p')"
+                local gpu_index
+                gpu_index="$(echo "$envs" | sed -n 's/.*CUDA_VISIBLE_DEVICES=\([0-9,]*\).*/\1/p')"
+                
+                if [ -n "$service_port" ] && [ -n "$gpu_index" ]; then
+                    echo "127.0.0.1:$service_port|$gpu_index"
                 fi
             fi
         fi
