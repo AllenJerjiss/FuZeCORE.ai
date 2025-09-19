@@ -1,32 +1,39 @@
-# Root Cause Analysis (RCA) Protocol
+# The Evidence-Based RCA Protocol
 
-This document outlines the mandatory process for diagnosing and resolving script failures. The objective is to efficiently identify the fundamental root cause by analyzing the direct causal chain from symptom to implementation error.
+This document outlines a mandatory, rigorous process for diagnosing and resolving script failures. Its objective is to prevent repeated, superficial fixes by forcing a deep, evidence-based analysis of the code's state and control flow *before* a root cause is declared.
 
-## The 3-Layer Causal Chain RCA Process
+## The RCA Process
 
-1.  **Detect Failure**: When any executed script fails, all modification activities will cease immediately.
+### 1. Failure Triage
+*   **Symptom**: State the exact error message, line number, and command that was run.
+*   **State Capture**: Collate all relevant log output, exit codes, and other observable state at the time of failure.
+*   **Initial Hypothesis**: Formulate a single, testable hypothesis about the direct technical cause of the symptom. (e.g., "Hypothesis: The script failed because variable `$stack` was unbound when the `case` statement was reached.")
 
-2.  **Perform 3-Layer RCA**: A root cause analysis will be conducted by drilling down through three distinct layers of causality.
+### 2. Evidence Gathering & Analysis (The "Desk Check")
+This is the most critical phase. I must prove the hypothesis by manually simulating the shell's behavior.
 
-    *   ### Layer 1: The "What" - Symptom Analysis
-        *   **Symptom**: State the exact error message, line number, and command that was run.
-        *   **Direct Technical Cause**: What does this error mean in the context of the shell/language? (e.g., "An 'unbound variable' error means `set -u` is active and a variable was used before it was assigned a value.")
+*   **Code Path Identification**: Identify the exact sequence of functions and code blocks that execute to produce the failure.
+*   **State Reconstruction**: Create a step-by-step trace of the script's state leading to the error. For each step in the code path, I must document the values of relevant variables and, most importantly, the exact contents of the positional parameters (`$1`, `$2`, `$@`).
+*   **Flaw Pinpointing**: Based on the state reconstruction, pinpoint the *exact line* where the script's actual state diverged from the expected state. This is the **Implementation Flaw**.
 
-    *   ### Layer 2: The "How" - Implementation Analysis
-        *   **Code Path Trace**: How did the execution flow reach the failing line?
-        *   **State Analysis**: What was the state of the relevant variables and positional parameters (`$@`, `$1`, etc.) at the time of failure? This step **must** involve a mental simulation of the code's logic, including argument shifting and variable assignments.
-        *   **Implementation Flaw**: Based on the trace and state analysis, what is the specific line or block of code that is incorrect?
+### 3. Counter-Factual Challenge
+Before declaring a root cause, I must challenge my own conclusion.
 
-    *   ### Layer 3: The "Why" - Reasoning Analysis
-        *   **Flawed Assumption**: Why was this incorrect code written? What flawed assumption, knowledge gap, or logical error in my own reasoning led to this implementation flaw?
-        *   **Root Cause**: The single, actionable principle that must be corrected in my process to prevent this entire class of error from recurring.
+*   **The Counter-Factual**: Ask "What is the most likely alternative explanation for this failure?" and then use the evidence from the Desk Check to prove why that alternative is incorrect. This prevents confirmation bias.
 
-3.  **Present RCA for Review**: The completed 3-Layer RCA will be presented to the user for review.
+### 4. Root Cause Declaration
+*   **Implementation Flaw**: Restate the specific line or block of code that is incorrect.
+*   **Reasoning Flaw**: Why was this incorrect code written? What flawed assumption or knowledge gap in my own reasoning led to this implementation flaw?
+*   **Root Cause**: The single, fundamental principle of shell scripting, control flow, or system interaction that I misunderstood, which, if corrected, will prevent this entire class of error from recurring.
 
-4.  **Propose Surgical Fix-Plan**: Based *only* on the identified Root Cause and Implementation Flaw. The plan **must** include a simulation of the final code's state and a mental parsing of it against *multiple known invocation patterns* (regression testing) to prove its validity.
+### 5. Hypothesis Validation & Systemic Remediation
+*   **The Fix**: Propose a single, surgical change to correct the identified Implementation Flaw.
+*   **Hypothesis Validation (Desk Check)**: Before proceeding, I must perform a new desk check, manually tracing the execution path with the proposed fix applied. This simulation must prove that the fix resolves the primary failure.
+*   **Systemic Pattern Search**: Once the fix is validated via desk check, I must search the entire codebase for other instances of the same flawed logic or code pattern.
+*   **Remediation Plan**: The final plan must include the validated surgical fix, a list of all other identified locations of the flawed pattern, and a plan to correct them all simultaneously.
+*   **Regression Test Simulation**: The plan must also include a desk check of at least two other valid invocation patterns to ensure the comprehensive fix does not introduce a new bug.
 
-5.  **Await Approval**: The proposed change will not be applied until explicit approval is received.
-
-6.  **Apply and Validate**: Once approved, only the single proposed change will be applied. The script will then be executed to validate the fix.
-
-7.  **Iterate on Failure**: If the script fails again, the entire process (starting from Step 1) will be repeated for the new failure.
+### 6. Execution
+*   **Approval**: Await user approval for the fix-plan.
+*   **Apply & Validate**: Apply the single change and run the validation command.
+*   **Iterate**: If the validation fails, the entire Evidence-Based RCA process begins again from Step 1.
