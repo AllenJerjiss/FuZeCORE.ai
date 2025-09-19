@@ -139,9 +139,10 @@ if [ -n "$MODEL_RE" ]; then
   debug "Created filtered CSV with $(wc -l < "$TMP_CSV") lines"
 fi
 
-# Baseline map per (endpoint|model) - identify by empty or zero num_gpu
+
+# Baseline map per base_model (not endpoint) - identify by empty or zero num_gpu
 BASEMAP="$(mktemp)"
-awk -F',' 'NR>1 && ($8=="" || $8+0==0) {k=$2"|"$5; if(($12+0)>b[k]) b[k]=$12+0} END{for(k in b) print k","b[k]}' "$TMP_CSV" >"$BASEMAP"
+awk -F',' 'NR>1 && ($8=="" || $8+0==0) {k=$5; if(($12+0)>b[k]) b[k]=$12+0} END{for(k in b) print k","b[k]}' "$TMP_CSV" >"$BASEMAP"
 
 if [ "$NO_TOP" -eq 0 ]; then
   echo
@@ -168,7 +169,7 @@ if [ "$NO_TOP" -eq 0 ]; then
     function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
     BEGIN{ while((getline l < BM_FILE)>0){ split(l,a,","); bm[a[1]]=a[2]+0 } }
   {
-    key=$2"|"$5; be=bm[key]+0; tok=$12+0;
+    key=$5; be=bm[key]+0; tok=$12+0;
     gl=$13; va=variant($5, $8, gl, STK);
     he=sprintf("%s/%s", HST, $2);
     printf "| %-19s | %-40s | %-41s | %8.2f | %8.2f | %19s |\n",
@@ -181,7 +182,7 @@ echo "Best optimized per (endpoint, model):"
 echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
 echo "| timestamp           | variant                                  | host                                      |   tok/s | base_t/s | FuZe gain factor |"
 echo "|---------------------|------------------------------------------|-------------------------------------------|----------|----------|-------------------|"
-awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
+awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-ollama}" -v HST="$HOST_SHORT" -v BM_FILE="$BASEMAP" '
   function aliasify(s,  t){
     t=s; gsub(/[\/:]+/,"-",t);
     gsub(/-it-/,"-i-",t); sub(/-it$/,"-i",t);
@@ -189,24 +190,25 @@ awk -F',' -v AP="$ALIAS_PREFIX" -v STK="${STACK:-n/a}" -v HST="$HOST_SHORT" '
     return t
   }
   function trim_lead_dash(s){ gsub(/^-+/,"",s); return s }
-  function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
-    ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx);
-    if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
-    else           va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
-    if (ng+0>0) va=va "+ng" ng;
-    return va
-  }
+    function variant(base, ng, gl, st,  ab, sfx, sfx2, va){
+      ab=aliasify(base); sfx=ENVIRON["ALIAS_SUFFIX"]; sfx2=trim_lead_dash(sfx);
+      if (sfx2!="") va=sprintf("%s%s-%s--%s-%s", AP, st, gl, sfx2, ab);
+      else           va=sprintf("%s%s-%s-%s", AP, st, gl, ab);
+      if (ng+0>0) va=va "+ng" ng;
+      return va
+    }
   function htime(ts){ return (length(ts)>=15)? sprintf("%s-%s-%s %s:%s:%s", substr(ts,1,4),substr(ts,5,2),substr(ts,7,2),substr(ts,10,2),substr(ts,12,2),substr(ts,14,2)) : ts }
+  BEGIN{ while((getline l < BM_FILE)>0){ split(l,a,","); bm[a[1]]=a[2]+0 } }
   NR>1 {
-    k=$2"|"$5
-    if ($8=="" || $8+0==0){base[k]=$12+0}
-    else if ($8!="" && $8+0>0 && $12+0>0){ if ($12+0>best[k]) {best[k]=$12+0; tag[k]=$7; ng[k]=$8; ts[k]=$1; gl_map[k]=$13; ep[k]=$2} }
+    key=$5
+    if ($8=="" || $8+0==0){base[key]=$12+0}
+    else if ($8!="" && $8+0>0 && $12+0>0){ if ($12+0>best[key]) {best[key]=$12+0; tag[key]=$7; ng[key]=$8; ts[key]=$1; gl_map[key]=$13; ep[key]=$2} }
   }
   END{
     if (length(best)==0){print "| (none)            |"; exit}
     for (k in best){
-      split(k,a,"|"); glv=gl_map[k]; va=variant(a[2], (ng[k]?ng[k]:0), glv, STK);
-      be=base[k]+0; mult=(be>0? best[k]/be : 0)
+      glv=gl_map[k]; va=variant(k, (ng[k]?ng[k]:0), glv, STK);
+      be=bm[k]+0; mult=(be>0? best[k]/be : 0)
       he=sprintf("%s/%s", HST, ep[k]);
       printf "| %-19s | %-40s | %-41s | %8.2f | %8.2f | %19s |\n",
         htime(ts[k]), va, he, best[k], be, sprintf("%.2fx", (be>0?mult:0))

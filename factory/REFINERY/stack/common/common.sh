@@ -10,7 +10,7 @@ set -euo pipefail
 
 # Default directories and paths
 export LOG_DIR_DEFAULT="${LOG_DIR:-/var/log/fuze-stack}"
-export ALIAS_PREFIX_DEFAULT="${ALIAS_PREFIX:-FuZe}"
+export ALIAS_PREFIX_DEFAULT="FuZe-"
 export SERVICE_HOME_DEFAULT="${SERVICE_HOME:-/root}"
 
 # Default timeouts and limits
@@ -372,6 +372,37 @@ EOF
 # ============================================================================
 
 # Function to initialize common environment
+
+# Parse --model from args and set MODEL_PATTERN/INCLUDE_MODELS
+setup_model_filter_from_args() {
+    local args=("$@")
+    local model=""
+    for ((i=0; i<${#args[@]}; i++)); do
+        if [[ "${args[$i]}" == "--model" && -n "${args[$((i+1))]:-}" ]]; then
+            model="${args[$((i+1))]}"
+            break
+        fi
+    done
+    if [ -n "$model" ]; then
+        export MODEL_PATTERN="$model"
+        # Convert "gpt-oss-20b" to "gpt-oss:20b" and build regex
+        local converted_pattern="${model%-*}:${model##*-}"
+        export INCLUDE_MODELS="(^${model}(:|$)|^${converted_pattern}(:|$)|${model})"
+        info "Model filter set: $model (regex: $INCLUDE_MODELS)"
+    fi
+}
+
+# Filter a list of models using INCLUDE_MODELS
+filter_models() {
+    local models=("$@")
+    local filtered=()
+    for m in "${models[@]}"; do
+        if [ -n "$INCLUDE_MODELS" ] && echo "$m" | grep -Eq "$INCLUDE_MODELS"; then
+            filtered+=("$m")
+        fi
+    done
+    printf "%s\n" "${filtered[@]}"
+}
 init_common() {
     local script_name="${1:-$(basename "${BASH_SOURCE[1]}")}"
     debug "Initializing common environment for: $script_name"

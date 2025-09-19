@@ -19,6 +19,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BAKERY_BIN="${ROOT_DIR}/../../BAKERY/fuze-vanilla-llm.sh"
 ANALYZE_BIN="${ROOT_DIR}/stack/common/analyze.sh"
 source "${ROOT_DIR}/common/gpu-services.sh"
+source "${ROOT_DIR}/common/common.sh"
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
 # Ensure writable log dir; fall back to per-user location if repo logs are root-owned
 if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
@@ -442,26 +443,18 @@ discover_models(){
   info "Discovering base models from persistent daemon (:${PERSISTENT_PORT})"
   local names out=()
   names="$(OLLAMA_HOST="http://${PULL_FROM}" "$OLLAMA_BIN" list 2>/dev/null | awk '($1!="NAME" && $1!="" && $1 !~ /^FuZe-/){print $1}')"
-  while IFS= read -r tag; do
+  # Remove optimized variants
+  names=$(echo "$names" | grep -Ev -- '-nvidia-[a-z0-9]+(super|ti)?-ng[0-9]+(:|$)')
+  # Apply generic filter_models from common.sh
+  mapfile -t filtered < <(filter_models $names)
+  for tag in "${filtered[@]}"; do
     [ -z "$tag" ] && continue
-    # Skip our optimized variants: anything with -nvidia-...-ngNN in the NAME portion
-    if echo "$tag" | grep -Eq -- '-nvidia-[a-z0-9]+(super|ti)?-ng[0-9]+(:|$)'; then
-      continue
-    fi
-    # Optional include/exclude filters
-    if [ -n "$EXCLUDE_MODELS" ] && echo "$tag" | grep -Eq "$EXCLUDE_MODELS"; then
-      continue
-    fi
-    if [ -n "$INCLUDE_MODELS" ] && ! echo "$tag" | grep -Eq "$INCLUDE_MODELS"; then
-      continue
-    fi
-    # Build alias and apply optional prefix/suffix
     local alias alias_full
     alias="$(base_alias "$tag")"
     alias_full="${alias}"
     if [ -n "$ALIAS_SUFFIX" ]; then alias_full="${alias_full}${ALIAS_SUFFIX}"; fi
     out+=("$tag|${alias_full}")
-  done <<<"$names"
+  done
 
   if [ "${#out[@]}" -eq 0 ]; then
     warn "No base models discovered — you may need to 'ollama pull <model>' on :${PERSISTENT_PORT}."

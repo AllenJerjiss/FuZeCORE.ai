@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unified Stack Tool (driver)
 # Thin wrapper to select and run per-stack benchmark scripts.
-# Usage: ./ust.sh [@envfile.env] <stack> [command] [args...]
+# Usage: ./orchestrator.sh [@envfile.env] <stack> [command] [args...]
 # Stacks: ollama | vLLM | llama.cpp | Triton
 
 set -euo pipefail
@@ -9,9 +9,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STACK_ROOT="${SCRIPT_DIR}"
 
-# Source common functions for consistent behavior
 source "${SCRIPT_DIR}/common/common.sh"
-init_common "ust"
+init_common "orchestrator"
+
+# Always set up model filtering from args before stack dispatch
+setup_model_filter_from_args "$@"
 
 usage(){
   cat <<USAGE
@@ -130,7 +132,6 @@ needs_root() {
   esac
 }
 
-# Auto-escalate to root only when necessary
 if needs_root && [ "$(id -u)" -ne 0 ]; then
   info "Command requires root privileges, escalating..."
   exec sudo -E "$0" "$stack" "$cmd" "$@"
@@ -140,17 +141,15 @@ case "$stack" in
   ollama|Ollama)
     case "$cmd" in
       bench|benchmark)           
-        # Generate GPU labels: 3090ti, 5090, etc. based on model names
         if command -v nvidia-smi >/dev/null 2>&1; then
           export GPU_LABELS="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | awk 'BEGIN{ORS=""} {
             if(NR>1) print ","; 
-            # Normalize GPU names: "NVIDIA GeForce RTX 3090 Ti" -> "3090ti"
             s = tolower($0);
-            gsub(/nvidia|geforce|rtx|[[:space:]]/, "", s); 
+            gsub(/nvidia|geforce|rtx|[[:space:]]/, "", s);
+            gsub(/-/, "", s);
             print s
           }')"
         fi
-        # Handle combined mode with dynamic environment generation
         if [[ -n "${COMBINED:-}" ]]; then
           generate_dynamic_env "$MODEL" "$COMBINED"
         fi
