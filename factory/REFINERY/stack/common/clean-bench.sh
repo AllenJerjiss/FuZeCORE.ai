@@ -78,7 +78,7 @@ if [ "$YES" -eq 1 ]; then
     fi
 
     # Use systemctl to find, stop, and disable all ollama-related services
-    systemctl list-units 'ollama*.service' --no-legend | awk '{print $1}' | while read -r service; do
+    systemctl list-units 'ollama-test-*.service' --no-legend | awk '{print $1}' | while read -r service; do
         info "Stopping and disabling $service"
         systemctl stop "$service" >/dev/null 2>&1 || true
         systemctl disable "$service" >/dev/null 2>&1 || true

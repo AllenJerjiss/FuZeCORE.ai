@@ -17,6 +17,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BAKERY_BIN="${ROOT_DIR}/../../BAKERY/fuze-vanilla-llm.sh"
 ANALYZE_BIN="${ROOT_DIR}/stack/common/analyze.sh"
+source "${ROOT_DIR}/common/common.sh"
 source "${ROOT_DIR}/common/gpu-services.sh"
 source "${ROOT_DIR}/common/common.sh"
 LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
