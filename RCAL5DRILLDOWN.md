@@ -15,23 +15,24 @@ This document outlines a mandatory, rigorous, and generic process for diagnosing
 -   **Logs:** Collate all relevant log output from the failed run.
 -   **State:** Document the state of the system. This includes relevant file permissions, running processes (`ps`, `systemctl status`), network listeners (`lsof`, `netstat`), and environment variables.
 
-### **Step 3: Map the Execution Flow**
+### **Step 3: Map the Execution Flow & Data Flow**
 -   **Objective:** Build a "bird's-eye view" of the entire workflow to understand the context of the failure.
--   **Action:** Starting from the entry-point script, trace and list every sub-script, function, and external command that is called in the execution path leading to the failure. Read the *full contents* of every script in this path to understand its role and logic.
+-   **Action (Control Flow):** Starting from the entry-point script, trace and list every sub-script, function, and external command that is called in the execution path leading to the failure. Read the *full contents* of every script in this path to understand its role and logic.
+-   **Action (Data Flow):** For each interface between scripts/functions, document the data being passed. Note how `stdout` from one script is used by another, how environment variables are set and consumed, and how arguments are passed and parsed.
 
 ## **Phase 2: Analysis & Hypothesis**
 
 ### **Step 4: Synthesize the Causal Chain**
 -   **Objective:** Explicitly document the end-to-end logic of the workflow as a cause-and-effect narrative.
--   **Action:** Write a step-by-step story of the intended behavior. Example: "1. The `main` script calls the `clean` script. 2. The `clean` script is designed to stop all `systemd` services. 3. The `main` script then calls the `install` script..."
--   **Identify Contradictions:** Based on the narrative and the evidence, explicitly look for potential logical contradictions, race conditions, or fragile assumptions between steps.
+-   **Action:** Write a step-by-step story of the intended behavior. Example: "1. The `main` script calls `get_endpoints.sh`. 2. `get_endpoints.sh` is designed to output a list of URLs, one per line. 3. The `main` script reads this list into a variable and loops through it, calling `curl` on each URL."
+-   **Identify Contradictions:** Based on the narrative and the evidence, explicitly look for potential logical contradictions, race conditions, or fragile assumptions between steps. *Pay close attention to mismatches in data format between what a script produces and what the consuming script expects.*
 
 ### **Step 5: Formulate a Root Cause Hypothesis**
 -   **Hypothesis:** Formulate a single, testable hypothesis that explains how a specific contradiction or flaw leads to the observed symptom.
--   **Desk Check (Simulation):** Manually trace the script's execution path with the evidence gathered. For each step, document the values of relevant variables and positional parameters (`$1`, `$2`, etc.). Pinpoint the *exact line* where the script's actual state diverged from the expected state. This is the **Implementation Flaw**.
+-   **Desk Check (Simulation):** Manually trace the script's execution path with the evidence gathered. For each step, document the values of relevant variables and positional parameters (`$1`, `$2`, etc.), paying special attention to values passed *across script boundaries*. Pinpoint the *exact line* where the script's actual state diverged from the expected state. This is the **Implementation Flaw**.
 -   **Root Cause Declaration:**
     -   **Implementation Flaw:** The specific line or block of code that is incorrect.
-    -   **Reasoning Flaw:** The flawed assumption or knowledge gap that led to the incorrect code being written in the first place. This is the true **Root Cause**.
+    -   **Reasoning Flaw:** The flawed assumption or knowledge gap that led to the incorrect code being written in the first place (e.g., "Assuming `grep` output will always be a single line"). This is the true **Root Cause**.
 
 ### **Step 6: Challenge the Hypothesis**
 -   **The Counter-Factual:** Ask, "What is the most likely *alternative* explanation?" Use the evidence from the Desk Check to prove why that alternative is incorrect. This step is crucial to prevent confirmation bias.
@@ -40,8 +41,9 @@ This document outlines a mandatory, rigorous, and generic process for diagnosing
 
 ### **Step 7: Devise a Solution**
 -   **The Fix:** Propose a single, surgical change to correct the identified Implementation Flaw.
+-   **Defensive Programming:** In addition to the direct fix, add input validation or sanity checks at the point of failure to prevent similar issues. The goal is to make the script fail explicitly and immediately if it receives malformed data, rather than proceeding to a silent failure or timeout.
 -   **Systemic Search:** Search the entire codebase for other instances of the same flawed logic or code pattern. A fix should address the problem systemically, not just at the point of failure.
--   **Remediation Plan:** The final plan must include the validated surgical fix and a list of all other identified locations of the flawed pattern to be corrected.
+-   **Remediation Plan:** The final plan must include the validated surgical fix, any defensive additions, and a list of all other identified locations of the flawed pattern to be corrected.
 
 ### **Step 8: Validate the Solution (Pre-Flight Check)**
 -   **Validation Desk Check:** Before applying any changes, perform a new desk check. Manually trace the execution path with the proposed fix applied to prove that it resolves the primary failure.
@@ -49,8 +51,9 @@ This document outlines a mandatory, rigorous, and generic process for diagnosing
 
 ### **Step 9: Execute and Verify**
 -   **Implementation:** Apply the changes as defined in the remediation plan.
--   **Verification Run:** Execute the script or test case that originally produced the failure. Verify that the fix is effective.
+-   **Verification Run:** Execute the script or test case that originally produced the failure.
+-   **Symptom Analysis:**
+    -   **If the symptom is GONE:** The fix is verified. Proceed to the Regression Run.
+    -   **If the symptom PERSISTS:** The hypothesis was wrong. Compare the *full output* of the new failed run with the original. If the output is identical, the fix had no effect. If the output has changed (e.g., the script fails at a later stage), this is new evidence. The RCA process must restart from Phase 2 (Analysis & Hypothesis) with this new knowledge.
 -   **Regression Run:** Run a broader set of tests to ensure no new bugs were introduced.
--   **Iteration:** If the `Verification Run` shows the *original* symptom is not resolved, the hypothesis was wrong. The RCA process must restart from Phase 2 (Analysis & Hypothesis) with the new knowledge that the proposed fix was insufficient.
--   **New Failure Protocol:** If the `Verification Run` or `Regression Run` produces a **new and unexpected failure**, the current RCA process must be aborted. A new, separate RCA process must be initiated from Phase 1 for this new symptom. The "Gather Initial Evidence" step of the new RCA must include the context and the failed fix attempt from the previous RCA as part of its evidence. Do not attempt to fix the new failure outside of this formal process.
-proc
+-   **New Failure Protocol:** If the `Verification Run` or `Regression Run` produces a **new and unexpected symptom**, the current RCA process must be aborted. A new, separate RCA process must be initiated from Phase 1 for this new symptom. The "Gather Initial Evidence" step of the new RCA must include the context and the failed fix attempt from the previous RCA as part of its evidence. Do not attempt to fix the new failure outside of this formal process.
