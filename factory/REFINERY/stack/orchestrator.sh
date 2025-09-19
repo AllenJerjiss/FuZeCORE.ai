@@ -149,11 +149,12 @@ case "$stack" in
         "${STACK_ROOT}/common/gpu_monitor.sh" start
 
         if command -v nvidia-smi >/dev/null 2>&1; then
-          export GPU_LABELS="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | awk 'BEGIN{ORS=""} {
-            if(NR>1) print ","; 
-            s = tolower($0);
+          export GPU_LABELS="$(nvidia-smi --query-gpu=name,serial --format=csv,noheader 2>/dev/null | awk -F', ' 'BEGIN{ORS=""} {
+            if(NR>1) print ",";
+            s = tolower($1);
             gsub(/nvidia|geforce|rtx|[[:space:]]|-/, "", s);
-            print s
+            serial_suffix = substr($2, length($2)-1);
+            print (NR-1) ":" s serial_suffix
           }')"
         fi
         if [[ -n "${COMBINED:-}" ]]; then
