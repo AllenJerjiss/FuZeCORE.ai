@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-## Step 1: Clean all artifacts, variants, and services
-"$ORCH" ollama service-cleanup
-"$ORCH" ollama store-cleanup
-"$ORCH" ollama cleanup-variantsine-and-bake-ollama-gpt-oss-20b-std.sh
 # Pre-canned deployment configuration for GPT-OSS-20B with standard mode and baking
 
 set -euo pipefail
@@ -52,3 +48,4 @@ if [ -n "$LATEST_CSV" ]; then
 else
     echo "No CSV files found for analysis"
 fi
+

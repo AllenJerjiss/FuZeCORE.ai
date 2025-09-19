@@ -1,7 +1,103 @@
 #!/usr/bin/env bash
+#
 # Unified Stack Tool (driver)
-# Thin wrapper to select and run per-stack be  gpu-monitor)
-    exec "${STACK_ROOT}/common/gpu-monitor.sh" "$@" ;;
+# Usage: ./orchestrator.sh [@envfile.env] <stack> [command] [args...]
+# Stacks: ollama | vLLM | llama.cpp | Triton
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STACK_ROOT="${SCRIPT_DIR}"
+
+source "${SCRIPT_DIR}/common/common.sh"
+init_common "orchestrator"
+
+# Always set up model filtering from args before stack dispatch
+setup_model_filter_from_args "$@"
+
+usage(){
+  cat <<USAGE
+Usage: $0 [@envfile.env] <stack> [command] [args...]
+
+STACKS:
+  ollama     Ollama LLM server stack
+  vLLM       vLLM inference engine  
+  llama.cpp  llama.cpp C++ implementation
+  Triton     NVIDIA Triton inference server
+
+GLOBAL COMMANDS (work across all stacks):
+  gpu-setup          Setup NVIDIA GPU drivers and CUDA
+  preflight          System health checks and validation
+  clean-bench        Clean benchmark artifacts safely
+  migrate-logs       Consolidate logs to system location
+  analyze            Interactive benchmark analysis
+  collect-results    Aggregate results from all stacks
+  summarize-benchmarks Generate comprehensive reports
+
+STACK-SPECIFIC COMMANDS:
+  ollama   : benchmark (default) | install | service-cleanup | store-cleanup | cleanup-variants | export-gguf
+  vLLM     : benchmark (default) | install
+  llama.cpp: benchmark (default) | import-gguf | install  
+  Triton   : benchmark (default) | install
+
+EXAMPLES:
+  $0 preflight                    # System health check
+  $0 ollama benchmark            # Run Ollama benchmarks
+  $0 clean-bench --dry-run       # Preview cleanup actions
+  $0 analyze                     # Interactive result analysis
+  $0 @custom.env vLLM benchmark  # Use custom environment
+USAGE
+}
+
+# Optional env file(s) loader: any leading args of form @file or *.env
+while [ $# -gt 0 ]; do
+  case "$1" in
+    @*|*.env)
+      envf="${1#@}"
+      if [ -f "$envf" ]; then
+        info "Loading environment: $envf"
+        set -a; . "$envf"; set +a
+        shift; continue
+      else
+        error_exit "Environment file not found: $envf"
+      fi
+      ;;
+    --gpu)
+      if [ -n "${2:-}" ]; then
+        export GPU_DEVICES="$2"
+        info "Set GPU_DEVICES=$GPU_DEVICES"
+        shift 2; continue
+      else
+        error_exit "--gpu flag requires a value (e.g. --gpu 0,1)"
+      fi
+      ;;
+    --combined)
+      if [ -n "${2:-}" ]; then
+        export COMBINED_DEVICES="$2"
+        info "Set COMBINED_DEVICES=$COMBINED_DEVICES"
+        shift 2; continue
+      else
+        error_exit "--combined flag requires a value (e.g. --combined 0,1,2)"
+      fi
+      ;;
+    *) break ;;
+  esac
+done
+
+stack="${1:-}" || true
+if [ -z "$stack" ] || [ "$stack" = "-h" ] || [ "$stack" = "--help" ]; then 
+  usage
+  exit 0
+fi
+shift $(( $#>0 ? 1 : 0 )) || true
+
+# Top-level utilities (not tied to a specific stack)
+case "$stack" in
+  gpu|gpu-prepare|gpu-setup)
+    exec "${STACK_ROOT}/common/gpu-setup.sh" "$@" ;;
+  gpu-monitor)
+    exec "${STACK_ROOT}/common/gpu-monitor.sh" "$@"
+    ;;
   preflight|check|doctor)
     exec "${STACK_ROOT}/common/preflight.sh" "$@" ;;
   logs|log-migrate|migrate-logs)
@@ -65,10 +161,10 @@ case "$stack" in
         fi
         "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;
       install)                   exec "${STACK_ROOT}/common/install.sh" --try-cache ollama "$@" ;;
-      service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
-      store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
+      service-cleanup|svc-clean) "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
+      store-cleanup|store)       "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
       export-gguf|export)        exec "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;
-      cleanup-variants|variants) exec "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
+      cleanup-variants|variants) "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
       *) error_exit "Unknown ollama command: $cmd" ;;
     esac ;;
   vllm|vLLM|VLLM)
@@ -257,10 +353,10 @@ case "$stack" in
         fi
         exec "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;
       install)                   exec "${STACK_ROOT}/common/install.sh" --try-cache ollama "$@" ;;
-      service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
-      store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
+      service-cleanup|svc-clean) "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
+      store-cleanup|store)       "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
       export-gguf|export)        exec "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;
-      cleanup-variants|variants) exec "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
+      cleanup-variants|variants) "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
       *) error_exit "Unknown ollama command: $cmd" ;;
     esac ;;
   vllm|vLLM|VLLM)
