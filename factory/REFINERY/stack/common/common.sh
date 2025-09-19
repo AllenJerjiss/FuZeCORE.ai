@@ -31,19 +31,23 @@ export REQUIRED_SYSTEM_TOOLS="systemctl id hostname"
 # ============================================================================
 
 # Color codes
-readonly RED='\033[31m'
-readonly GREEN='\033[32m'
-readonly YELLOW='\033[33m'
-readonly BLUE='\033[34m'
-readonly MAGENTA='\033[35m'
-readonly CYAN='\033[36m'
-readonly RESET='\033[0m'
+if [ -z "${RED:-}" ]; then
+    readonly RED='\033[0;31m'
+    readonly GREEN='\033[0;32m'
+    readonly YELLOW='\033[0;33m'
+    readonly BLUE='\033[0;34m'
+    readonly MAGENTA='\033[0;35m'
+    readonly CYAN='\033[0;36m'
+    readonly RESET='\033[0m'
+fi
 
 # Logging levels
-readonly LOG_ERROR=1
-readonly LOG_WARN=2
-readonly LOG_INFO=3
-readonly LOG_DEBUG=4
+if [ -z "${LOG_ERROR:-}" ]; then
+    readonly LOG_ERROR=1
+    readonly LOG_WARN=2
+    readonly LOG_INFO=3
+    readonly LOG_DEBUG=4
+fi
 
 # Current log level (can be overridden)
 LOG_LEVEL="${LOG_LEVEL:-$LOG_INFO}"
