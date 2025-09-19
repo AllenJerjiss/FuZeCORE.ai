@@ -288,23 +288,32 @@ generate_dynamic_env() {
     local model_pattern="$1"
     local gpu_config="$2"
     local log_dir="${3:-${LOG_DIR_DEFAULT}}"
-    
+
+    # Parse --model from args if present
+    for arg in "$@"; do
+        if [[ "$arg" == --model ]]; then
+            shift
+            model_pattern="$1"
+            break
+        fi
+    done
+
     if [ -z "$model_pattern" ] || [ -z "$gpu_config" ]; then
         error_exit "generate_dynamic_env requires model_pattern and gpu_config"
     fi
-    
+
     local timestamp="$(date +%Y%m%d_%H%M%S)"
     local gpu_suffix="$(echo "$gpu_config" | sed 's/gpu//g')"
-    
+
     # Create dynamic env filename
     local env_name="LLM-FuZe-${model_pattern}-multi-gpu${gpu_suffix}-${timestamp}.env"
     local env_path="${log_dir}/${env_name}"
-    
+
     # Ensure log directory exists
     mkdir -p "$log_dir" || error_exit "Failed to create log directory: $log_dir"
-    
+
     info "Generating dynamic environment file: $env_name"
-    
+
     # Generate environment file content
     cat > "$env_path" <<EOF
 # Dynamic multi-GPU environment file generated $(date)
@@ -315,6 +324,7 @@ generate_dynamic_env() {
 LOG_DIR=$log_dir
 
 # Scope to one model tag
+MODEL_PATTERN='$model_pattern'
 INCLUDE_MODELS='^${model_pattern//[-]/[-]}$'
 
 # Multi-GPU specific configuration

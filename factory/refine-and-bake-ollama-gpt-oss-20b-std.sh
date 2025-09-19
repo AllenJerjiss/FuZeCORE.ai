@@ -26,7 +26,7 @@ sudo "$UST" ollama install
 
 echo
 echo "Step 3: Running benchmark with baking (standard mode, GPU 0)..."
-"$UST" ollama benchmark --gpu 0,1 --model gpt-oss-20b
+MODEL_PATTERN="gpt-oss-20b" "$UST" --gpu 0,1 ollama benchmark --model gpt-oss-20b
 
 echo
 echo "=== Workflow Complete ==="

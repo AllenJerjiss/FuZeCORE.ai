@@ -60,6 +60,24 @@ while [ $# -gt 0 ]; do
         error_exit "Environment file not found: $envf"
       fi
       ;;
+    --gpu)
+      if [ -n "${2:-}" ]; then
+        export GPU_DEVICES="$2"
+        info "Set GPU_DEVICES=$GPU_DEVICES"
+        shift 2; continue
+      else
+        error_exit "--gpu flag requires a value (e.g. --gpu 0,1)"
+      fi
+      ;;
+    --combined)
+      if [ -n "${2:-}" ]; then
+        export COMBINED_DEVICES="$2"
+        info "Set COMBINED_DEVICES=$COMBINED_DEVICES"
+        shift 2; continue
+      else
+        error_exit "--combined flag requires a value (e.g. --combined 0,1,2)"
+      fi
+      ;;
     *) break ;;
   esac
 done
