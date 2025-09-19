@@ -3,6 +3,16 @@
 
 set -euo pipefail
 
+# --- Log Setup ---
+LOG_DIR="/FuZe/logs"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="${LOG_DIR}/refine-and-bake-${TIMESTAMP}.log"
+# Ensure log directory exists and redirect all output to a log file
+mkdir -p "$LOG_DIR"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+echo "Logging to ${LOG_FILE}"
+# -----------------
+
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ORCH="${SCRIPT_DIR}/REFINERY/stack/orchestrator.sh"
@@ -73,13 +83,13 @@ sudo -E "$ORCH" --gpu 0,1,2 ollama bench --model "$MODEL"
 echo
 echo "=== Workflow Complete ==="
 echo "Results available in:"
-echo "  Logs/CSVs: /var/log/fuze-stack/"
+echo "  Logs/CSVs: /FuZe/logs/"
 echo "  Baked models: /FuZe/baked/ollama/"
 echo
 
 # Run analysis on the latest CSV
 echo "=== Analysis Results ==="
-LATEST_CSV=$(ls -t /var/log/fuze-stack/ollama_bench_*.csv 2>/dev/null | head -1)
+LATEST_CSV=$(ls -t /FuZe/logs/ollama_bench_*.csv 2>/dev/null | head -1)
 if [ -n "$LATEST_CSV" ]; then
     "$ORCH" analyze --stack ollama --csv "$LATEST_CSV"
 else

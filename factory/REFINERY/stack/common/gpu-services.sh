@@ -209,6 +209,38 @@ cleanup_gpu_services() {
     fi
 }
 
+# Get a normalized GPU label for a given service endpoint
+# Usage: gpu_label_for_ep <endpoint>
+gpu_label_for_ep() {
+    local ep="$1"
+    local gpu_index
+    local gpu_name
+    local normalized_label
+
+    # Find the GPU index for the given endpoint
+    # We must re-scan the services to reliably map endpoint to GPU
+    local stack
+    stack="$(basename "$0" | cut -d- -f1)" # e.g., ollama from ollama-benchmark.sh
+    
+    local service_map
+    service_map="$(get_gpu_service_endpoints "$stack")"
+    
+    gpu_index=$(echo "$service_map" | grep "^${ep}|" | cut -d'|' -f2)
+
+    if [ -z "$gpu_index" ]; then
+        warn "Could not determine GPU index for endpoint $ep. Defaulting to index 0."
+        gpu_index=0
+    fi
+
+    # Get GPU name from nvidia-smi
+    gpu_name=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits -i "$gpu_index" 2>/dev/null || echo "unknown-gpu")
+
+    # Normalize the label (e.g., "NVIDIA GeForce RTX 4090" -> "nvidia-geforce-rtx4090")
+    normalized_label=$(echo "$gpu_name" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | sed 's/^/nvidia-/')
+    
+    echo "$normalized_label"
+}
+
 # Get list of active GPU service endpoints for a stack
 # Returns: endpoint|gpu_index
 get_gpu_service_endpoints() {

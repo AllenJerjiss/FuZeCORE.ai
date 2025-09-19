@@ -384,7 +384,7 @@ cd factory/LLM/refinery/stack/env
 ### Benchmark Results
 - **Aggregate CSV**: `factory/LLM/refinery/benchmarks.csv` (historical data)
 - **Best results**: `factory/LLM/refinery/benchmarks.best*.csv` (optimized variants)
-- **Run logs**: `/var/log/fuze-stack/` (detailed execution logs)
+- **Run logs**: `/FuZe/logs/` (detailed execution logs)
 - **Analysis reports**: Automated performance analysis and ranking
 
 ### Result Analysis

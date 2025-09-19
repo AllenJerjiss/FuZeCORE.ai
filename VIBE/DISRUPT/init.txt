@@ -1,0 +1,42 @@
+Subject: Initiate Managed RCA Cycle
+
+Protocol: RCAL5DRILLDOWN.md and RCA_MANAGEMENT.md
+
+Symptom: The script refine-and-bake-ollama-gpt-oss-20b-std.sh fails with the message "No working variants found" and exits with code 141 even after many attempts of attempting to fix.  we are consequetively getting into the same pattern:
+
+== Waiting for APIs
+== ollama version: ollama version is 0.11.11
+== Discovering base models from persistent daemon (:11434)
+== Models     : gpt-oss:20b|gpt-oss-20b 
+=== Vanilla metrics on 127.0.0.1:11434 — base: gpt-oss:20b (alias gpt-oss-20b) ===
+=== Tuning on 127.0.0.1:11435 — base: gpt-oss:20b (alias gpt-oss-20b) ===
+==  Testing variants to find optimal num_gpu...
+==   -> Testing ng=80...
+==   -> Calling bench_once for ng=80
+==   <- bench_once for ng=80 returned: 0.00
+==   -> Testing ng=72...
+==   -> Calling bench_once for ng=72
+==   <- bench_once for ng=72 returned: 0.00
+==   -> Testing ng=64...
+==   -> Calling bench_once for ng=64
+==   <- bench_once for ng=64 returned: 0.00
+
+The factory toolchain in the source tree is designed to:
+
+
+Objective: 
+
+1)  the default ollama installation should only manage the pull process, and there is no reason for the complicated insllation process, it should be simplified to do the ollama instlalation as a standard toolchain to manage the pulls.  
+2) the test ports that are created on ports above 11434, i.e. test-a port, should also default to the same exact settings when created at first, and the first set of testing on the test ports should be the vanilla benchmarking.
+3)  subsequently after testing the vanilla ollama configuraiton on the test port, the first variant's settings should be applied to the test port and the service should restart on that port to walk down the variant testing.
+4)  each test port should maintain a clear mapping to the GPU it is passed in to operate on in the case of testing with multiple GPU's but on one at a time;  the system should remain clean and run any given test serially.  this is done in bench_one, which should essentially clear the benchmarking state for the  iteration it is in, which means it should really stop the test instance it is working on, apply the correct settings, reload the systemd daemon, and then start the test service that is assinged to the GPU, and then run the benchmarking for it befoere moving onto the next benchmarking.
+5)  in the case of combined GPU test, where the objective is to test one model at a time, but spread the load of it on multipe gpu's, the behavior should be different;  in those cases, it should only bring up 1 test instance port from the start and only test on that one port serially....
+6)  if multiple models are going to be processed, it should iterate overa all models, but one model at a time, and only one running test service per benchmarking on the system.
+
+currenlty the code is very convoluded and does not abide by the design and attempts to fix this outside of the RCA process has proven futal.  we need a comprehensive solution that can work to these exact specs
+
+
+Initial Evidence:
+
+Main script: refine-and-bake-ollama-gpt-oss-20b-std.sh
+Log file: /FuZe/logs/refine-and-bake-20250919_072317.log 

@@ -9,7 +9,7 @@ set -euo pipefail
 # ============================================================================
 
 # Default directories and paths
-export LOG_DIR_DEFAULT="${LOG_DIR:-/var/log/fuze-stack}"
+export LOG_DIR_DEFAULT="${LOG_DIR:-/FuZe/logs}"
 export ALIAS_PREFIX_DEFAULT="FuZe-"
 export SERVICE_HOME_DEFAULT="${SERVICE_HOME:-/root}"
 

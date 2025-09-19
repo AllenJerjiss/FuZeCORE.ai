@@ -19,8 +19,7 @@ BAKERY_BIN="${ROOT_DIR}/../../BAKERY/fuze-vanilla-llm.sh"
 ANALYZE_BIN="${ROOT_DIR}/stack/common/analyze.sh"
 source "${ROOT_DIR}/common/common.sh"
 source "${ROOT_DIR}/common/gpu-services.sh"
-source "${ROOT_DIR}/common/common.sh"
-LOG_DIR="${LOG_DIR:-/var/log/fuze-stack}"
+LOG_DIR="${LOG_DIR:-/FuZe/logs}"
 # Ensure writable log dir; fall back to per-user location if repo logs are root-owned
 if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
   LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fuze-stack/logs"
@@ -130,8 +129,8 @@ create_ollama_service_template() {
     local gpu_spec="$3"
     
     # Get default ollama user/group from stock service
-    local ollama_user="fuze"
-    local ollama_group="fuze"
+    local ollama_user="ollama"
+    local ollama_group="ollama"
     local models_dir="${OLLAMA_MODELS_DIR:-/FuZe/ollama}"
     
     # Create service file
@@ -148,11 +147,14 @@ Group=$ollama_group
 SupplementaryGroups=video render
 Restart=always
 RestartSec=3
-Environment=OLLAMA_HOST=0.0.0.0:$port
-Environment=OLLAMA_MODELS=$models_dir
-Environment=CUDA_VISIBLE_DEVICES=$gpu_spec
-Environment=OLLAMA_SCHED_SPREAD=1
+Environment="OLLAMA_HOST=0.0.0.0:$port"
+Environment="OLLAMA_MODELS=/FuZe/ollama"
+Environment="CUDA_VISIBLE_DEVICES=$gpu_spec"
+Environment="OLLAMA_SCHED_SPREAD=1"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 Environment="LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu"
+Environment="HOME=/usr/share/ollama"
+WorkingDirectory=/usr/share/ollama
 
 [Install]
 WantedBy=default.target
@@ -192,7 +194,16 @@ curl_gen(){
     --argjson t "$TEMPERATURE" \
     --argjson nc "$BENCH_NUM_CTX" \
     '{model:$m, prompt:$p, stream:false, temperature:$t, num_ctx:$nc} + $o')" || return 1
-  curl -sS --max-time "$to" -H 'Content-Type: application/json' -d "$payload" "http://${ep}/api/generate" || return 1
+  
+  echo "DEBUG: curl_gen endpoint: http://${ep}/api/generate" >> /tmp/curl_debug.log
+  echo "DEBUG: curl_gen payload: $payload" >> /tmp/curl_debug.log
+  
+  local response
+  response=$(curl -sS --max-time "$to" -H 'Content-Type: application/json' -d "$payload" "http://${ep}/api/generate" || echo "curl_failed")
+  
+  echo "DEBUG: curl_gen response: $response" >> /tmp/curl_debug.log
+  
+  echo "$response"
 }
 
 # ------------------------------------------------------------------------------
@@ -235,37 +246,6 @@ unit_for_ep(){
   esac
 }
 
-write_unit(){ # name port gpu_uuid_or_indices title
-  local name="$1" port="$2" gpu_spec="$3" title="$4"
-  local extra_env=""
-  # Add OLLAMA_SCHED_SPREAD for multi-GPU services
-  if [[ "$gpu_spec" == *","* ]] && [ "${OLLAMA_SCHED_SPREAD:-0}" -eq 1 ]; then
-    extra_env="Environment=OLLAMA_SCHED_SPREAD=1"
-  fi
-  cat >/etc/systemd/system/"$name" <<UNIT
-[Unit]
-Description=${title}
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=ollama
-Group=ollama
-SupplementaryGroups=video render
-Environment=OLLAMA_MODELS=${OLLAMA_MODELS_DIR}
-Environment=CUDA_VISIBLE_DEVICES=${gpu_spec}
-Environment=OLLAMA_HOST=127.0.0.1:${port}
-${extra_env}
-ExecStart=${OLLAMA_BIN} serve
-Restart=always
-RestartSec=2
-NoNewPrivileges=false
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-}
-
 # Service management delegated to service-cleanup.sh
 
 # Ensure service user and models dir ownership
@@ -302,11 +282,8 @@ get_gpu_model_label() {
   fi
 }
 
-# ... existing code ...
-
 # This is the main loop that iterates over services
 main() {
-# ... existing code ...
   # Get the list of active endpoints and their associated GPU indices
   endpoints_with_indices=$(get_gpu_service_endpoints "ollama")
 
@@ -316,7 +293,6 @@ main() {
     # Pass the specific gpu_idx to the benchmark function
     bench_on_endpoint "$ep" "$gpu_idx"
   done
-# ... existing code ...
 }
 
 
@@ -552,8 +528,11 @@ bench_once(){ # ep baseTag modelTag label num_gpu gpu_label
   echo "$tokps"
 }
 
-tune_and_bench_one(){ # ep baseTag aliasBase
-  local ep="$1" base="$2" alias_base="$3"
+tune_and_bench_one(){ # ep_with_gpu baseTag aliasBase
+  local ep_with_gpu="$1"
+  local ep="${1%|*}"
+  local base="$2" 
+  local alias_base="$3"
   local gpu_lbl; gpu_lbl="$(gpu_label_for_ep "$ep")"
 
   pull_if_missing "$base"
@@ -583,18 +562,19 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       local enhanced_fast_label
       enhanced_fast_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
       local tokps; tokps="$(bench_once "$ep" "$base" "$base" "$enhanced_fast_label" "$ng" "$gpu_lbl" || echo 0.00)"
-      # Track best and optional early-stop on marginal gain
-      if awk -v a="$tokps" -v b="$best_tokps" 'BEGIN{exit !(a>b)}'; then
-        best_ng="$ng"; best_tokps="$tokps"; best_name="${alias_base}+ng${ng}"; no_improve_run=0
-      else
-        no_improve_run=$((no_improve_run+1))
-      fi
       # Count consecutive zero tok/s (avoid CPU thrash)
       if awk -v a="$tokps" 'BEGIN{exit !(a+0==0)}'; then
         zero_run=$((zero_run+1))
       else
         zero_run=0
       fi
+      
+      # Fail if there are too many consecutive zero tok/s runs
+      if [ "${ZERO_TOKPS_BREAK:-0}" -gt 0 ] && [ "$zero_run" -ge "${ZERO_TOKPS_BREAK}" ]; then
+        err "Failing after ${zero_run} consecutive zero tok/s trials"
+        exit 1
+      fi
+
       # Mark that at least one optimized run succeeded
       if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then first_ok=1; fi
       # stop early if improvement < EARLY_STOP_DELTA over current best
@@ -602,11 +582,7 @@ tune_and_bench_one(){ # ep baseTag aliasBase
         # since list is descending from high->low, break after first working
         if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then ok "     First working: ng=${ng} at ${tokps} tok/s"; first_ok=1; break; fi
       else
-        # In EXHAUSTIVE=1, still guard against thrash and long flat streaks
-        if [ "${ZERO_TOKPS_BREAK:-0}" -gt 0 ] && [ "$zero_run" -ge "${ZERO_TOKPS_BREAK}" ]; then
-          warn "     Breaking after ${zero_run} consecutive zero tok/s trials"
-          break
-        fi
+        # In EXHAUSTIVE=1, still guard against long flat streaks
         if [ "${NO_IMPROVE_LIMIT:-0}" -gt 0 ] && [ "$no_improve_run" -ge "${NO_IMPROVE_LIMIT}" ] && awk -v b="$best_tokps" 'BEGIN{exit !(b>0)}'; then
           warn "     Breaking after ${no_improve_run} non-improving trials (best=${best_tokps} tok/s)"
           break
@@ -620,9 +596,12 @@ tune_and_bench_one(){ # ep baseTag aliasBase
       
       # Phase 1: Test all candidates without baking
       for ng in ${ng_list}; do
+        info "  -> Testing ng=${ng}..."
         local enhanced_test_label
         enhanced_test_label="$(enhanced_alias "$base" "$gpu_lbl" "$ng")"
+        info "  -> Calling bench_once for ng=${ng}"
         local tokps; tokps="$(bench_once "$ep" "$base" "$base" "$enhanced_test_label" "$ng" "$gpu_lbl" || echo 0.00)"
+        info "  <- bench_once for ng=${ng} returned: ${tokps}"
         
         # Track best performer
         if awk -v a="$tokps" -v b="$test_best_tokps" 'BEGIN{exit !(a>b)}'; then
@@ -637,6 +616,12 @@ tune_and_bench_one(){ # ep baseTag aliasBase
         else
           test_zero_run=0
         fi
+
+        # Fail if there are too many consecutive zero tok/s runs
+        if [ "${ZERO_TOKPS_BREAK:-0}" -gt 0 ] && [ "$test_zero_run" -ge "${ZERO_TOKPS_BREAK}" ]; then
+            err "Failing after ${test_zero_run} consecutive zero tok/s trials"
+            exit 1
+        fi
         
         # Mark if at least one worked
         if awk -v a="$tokps" 'BEGIN{exit !(a>0)}'; then test_first_ok=1; fi
@@ -647,10 +632,6 @@ tune_and_bench_one(){ # ep baseTag aliasBase
             ok "     First working: ng=${ng} at ${tokps} tok/s"; test_first_ok=1; break; 
           fi
         else
-          if [ "${ZERO_TOKPS_BREAK:-0}" -gt 0 ] && [ "$test_zero_run" -ge "${ZERO_TOKPS_BREAK}" ]; then
-            warn "     Breaking after ${test_zero_run} consecutive zero tok/s trials"
-            break
-          fi
           if [ "${NO_IMPROVE_LIMIT:-0}" -gt 0 ] && [ "$test_no_improve_run" -ge "${NO_IMPROVE_LIMIT}" ] && awk -v b="$test_best_tokps" 'BEGIN{exit !(b>0)}'; then
             warn "     Breaking after ${test_no_improve_run} non-improving trials (best=${test_best_tokps} tok/s)"
             break
@@ -823,7 +804,8 @@ fi
 
 # Service management delegated to service-cleanup.sh - endpoints should be ready
 if [ "$SKIP_TEST_UNITS" -eq 0 ]; then
-  for ep in "${ENDPOINTS[@]}"; do
+  for ep_with_gpu in "${ENDPOINTS[@]}"; do
+    ep="${ep_with_gpu%|*}"
     wait_api "$ep" || warn "API $ep is not up yet (continuing)"
   done
 fi
@@ -848,9 +830,10 @@ for m in "${MODELS[@]}"; do
   bench_base_as_is "$PERSISTENT_EP" "$base" || warn "vanilla bench skipped for $base"
   
   # Parameter tuning on GPU services
-  for ep in "${GPU_ENDPOINTS[@]}"; do
+  for ep_with_gpu in "${GPU_ENDPOINTS[@]}"; do
+    ep="${ep_with_gpu%|*}"
     log "=== Tuning on ${ep} — base: ${base} (alias ${alias_base}) ==="
-    tune_and_bench_one "$ep" "$base" "$alias_base"
+    tune_and_bench_one "$ep_with_gpu" "$base" "$alias_base"
   done
 done
 

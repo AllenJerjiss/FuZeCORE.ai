@@ -356,8 +356,11 @@ User=fuze
 Group=fuze
 Restart=always
 RestartSec=3
-Environment="PATH=$PATH"
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+Environment="OLLAMA_MODELS=/FuZe/ollama"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 Environment="LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu"
+Environment="HOME=/home/fuze"
 
 [Install]
 WantedBy=default.target
