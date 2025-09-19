@@ -1,6 +1,108 @@
 #!/usr/bin/env bash
 # Unified Stack Tool (driver)
-# Thin wrapper to select and run per-stack benchmark scripts.
+# Thin wrapper to select and run per-stack be  gpu-monitor)
+    exec "${STACK_ROOT}/common/gpu-monitor.sh" "$@" ;;
+  preflight|check|doctor)
+    exec "${STACK_ROOT}/common/preflight.sh" "$@" ;;
+  logs|log-migrate|migrate-logs)
+    exec "${STACK_ROOT}/common/migrate-logs.sh" "$@" ;;
+  clean|cleanup|clean-bench)
+    exec "${STACK_ROOT}/common/clean-bench.sh" "$@" ;;
+  analyze|analysis)
+    exec "${STACK_ROOT}/common/analyze.sh" "$@" ;;
+  collect|collect-results)
+    exec "${STACK_ROOT}/common/collect-results.sh" "$@" ;;
+  summarize|summarize-benchmarks|summary|report)
+    exec "${STACK_ROOT}/common/summarize-benchmarks.sh" "$@" ;;
+  install-common|install-stack)
+    exec "${STACK_ROOT}/common/install.sh" "$@" ;;
+esac
+
+# For normal stacks, the next token is the command (default: benchmark)
+cmd="${1:-benchmark}" || true
+shift $(( $#>0 ? 1 : 0 )) || true
+
+# Smart root escalation: only for commands that actually need it
+needs_root() {
+  case "$stack" in
+    ollama)
+      case "$cmd" in
+        service-cleanup|store-cleanup|cleanup-variants|install) return 0 ;;
+        *) return 1 ;;
+      esac ;;
+    vLLM|llama.cpp|Triton)
+      case "$cmd" in
+        install) return 0 ;;
+        *) return 1 ;;
+      esac ;;
+    *) return 1 ;;
+  esac
+}
+
+if needs_root && [ "$(id -u)" -ne 0 ]; then
+  info "Command requires root privileges, escalating..."
+  exec sudo -E "$0" "$stack" "$cmd" "$@"
+fi
+
+case "$stack" in
+  ollama|Ollama)
+    case "$cmd" in
+      bench|benchmark)           
+        # Ensure monitor stops on exit
+        trap '"${STACK_ROOT}/common/gpu_monitor.sh" stop' EXIT
+        "${STACK_ROOT}/common/gpu_monitor.sh" start
+
+        if command -v nvidia-smi >/dev/null 2>&1; then
+          export GPU_LABELS="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | awk 'BEGIN{ORS=""} {
+            if(NR>1) print ","; 
+            s = tolower($0);
+            gsub(/nvidia|geforce|rtx|[[:space:]]|-/, "", s);
+            print s
+          }')"
+        fi
+        if [[ -n "${COMBINED:-}" ]]; then
+          generate_dynamic_env "$MODEL" "$COMBINED"
+        fi
+        "${STACK_ROOT}/ollama/ollama-benchmark.sh" "$@" ;;
+      install)                   exec "${STACK_ROOT}/common/install.sh" --try-cache ollama "$@" ;;
+      service-cleanup|svc-clean) exec "${STACK_ROOT}/ollama/service-cleanup.sh" "$@" ;;
+      store-cleanup|store)       exec "${STACK_ROOT}/ollama/store-cleanup.sh" "$@" ;;
+      export-gguf|export)        exec "${STACK_ROOT}/ollama/export-gguf.sh" "$@" ;;
+      cleanup-variants|variants) exec "${STACK_ROOT}/ollama/cleanup-variants.sh" "$@" ;;
+      *) error_exit "Unknown ollama command: $cmd" ;;
+    esac ;;
+  vllm|vLLM|VLLM)
+    case "$cmd" in
+      bench|benchmark)
+        trap '"${STACK_ROOT}/common/gpu_monitor.sh" stop' EXIT
+        "${STACK_ROOT}/common/gpu_monitor.sh" start
+        "${STACK_ROOT}/vLLM/benchmark.sh" "$@" ;;
+      install)         exec "${STACK_ROOT}/vLLM/install.sh" "$@" ;;
+      *) error_exit "Unknown vLLM command: $cmd" ;;
+    esac ;;
+  llama.cpp|llamacpp|llama-cpp)
+    case "$cmd" in
+      bench|benchmark)
+        trap '"${STACK_ROOT}/common/gpu_monitor.sh" stop' EXIT
+        "${STACK_ROOT}/common/gpu_monitor.sh" start
+        "${STACK_ROOT}/llama.cpp/benchmark.sh" "$@" ;;
+      import-gguf|import-from-ollama|import) exec "${STACK_ROOT}/llama.cpp/import-gguf-from-ollama.sh" "$@" ;;
+      install)         exec "${STACK_ROOT}/llama.cpp/install.sh" "$@" ;;
+      *) error_exit "Unknown llama.cpp command: $cmd" ;;
+    esac ;;
+  triton|Triton)
+    case "$cmd" in
+      bench|benchmark)
+        trap '"${STACK_ROOT}/common/gpu_monitor.sh" stop' EXIT
+        "${STACK_ROOT}/common/gpu_monitor.sh" start
+        "${STACK_ROOT}/Triton/benchmark.sh" "$@" ;;
+      install)         exec "${STACK_ROOT}/Triton/install.sh" "$@" ;;
+      *) error_exit "Unknown Triton command: $cmd" ;;
+    esac ;;
+  *)
+    error_exit "Unknown stack: $stack" ;;
+esac
+
 # Usage: ./orchestrator.sh [@envfile.env] <stack> [command] [args...]
 # Stacks: ollama | vLLM | llama.cpp | Triton
 
